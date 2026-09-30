@@ -27,6 +27,7 @@ Bun + Turborepo のモノレポ。本番は Windows の処理PC 1台で全プロ
 | `packages/editor` | キャンバスエディタ |
 | `packages/scanner` | カメラでのQR読み取り |
 | `packages/badge-spec` | 寸法・解像度・面付けの設定値 |
+| `packages/ui` | デザイントークンと共通UI部品（`design.md` に従う） |
 | `infra/` | Caddy・cloudflared 設定、Windows 起動スクリプト、手順書 |
 
 ## コマンド
@@ -53,6 +54,7 @@ bun run db:reset     # DBを作り直してシードを投入
 - **本番は Windows。** パス区切り文字をハードコードせず `node:path` を使う。シェル固有のコマンドに依存しない
 - **秘密情報をコミットしない。** トークン・パスワードは `.env`（コミット対象外）に置き、`.env.example` にキー名だけを書く
 - **金額は円の整数（number）で扱う。** 小数を使わない
+- **画面（UI）を作る・直すときは Hallmark スキル（`.claude/skills/hallmark`）を使う。** 配色・書体などはプロジェクト直下の `design.md` と `packages/ui` のトークンに従い、画面側で独自に決めない。`design.md` がない場合は、テーマを勝手に選ばず確認を求める（`docs/spec.md` 6.4）
 
 ## 優先度を下げた機能
 

@@ -23,7 +23,7 @@
 
 ### 今の進み具合
 
-フェーズ0（T01〜T09：モノレポ・契約・DB・API の骨組み）が終わるまで、フェーズ1のアサインは始めない。T09 が完了したらフェーズ1の開始を案内する。
+フェーズ0（T01〜T10：モノレポ・契約・DB・API の骨組みとデザインの土台）が終わるまで、フェーズ1のアサインは始めない。T09・T10 が完了したらフェーズ1の開始を案内する。
 
 フェーズ0の間でも着手できるもの：
 
@@ -62,6 +62,7 @@
 | `packages/db` | SQLite + Drizzle、状態遷移関数 | `shared` | T05 |
 | `packages/fixtures` | 共通サンプルデータとシード | `shared` | T06 |
 | `packages/badge-spec` | 寸法・解像度・面付けの設定値 | `shared` | T08、Q01 |
+| `packages/ui` | デザイントークンと共通 UI 部品（`design.md` に従う） | `shared` | T10 |
 | `packages/editor` | キャンバスエディタ | `web` | W01 |
 | `packages/scanner` | カメラでの QR 読み取り | `staff` | S01 |
 | `infra/` | Caddy・cloudflared 設定、Windows 起動スクリプト、手順書 | `infra` | I01〜I04 |
@@ -78,6 +79,7 @@
 - **寸法は `packages/badge-spec` の mm 値を使い、px への換算は用意された関数を通す**
 - **本番は Windows。** パスは `node:path` で組み立て、シェル固有のコマンドに依存しない
 - **金額は円の整数で扱う**
+- **画面の見た目は `design.md` と `packages/ui` のトークンに従う。** デザインのルールは Hallmark（[docs/spec.md 6.4](docs/spec.md)）。色や書体を画面ごとに決めない
 - **秘密情報をコミットしない。** `.env` に置き、`.env.example` にキー名だけを書く
 - `main` に直接 push しない。PR は Squash merge でマージされる
 

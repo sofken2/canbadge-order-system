@@ -257,7 +257,7 @@ cd canbadge-order-system
 claude
 ```
 
-直下の `CLAUDE.md`（プロジェクト全体のルール）が起動時に読み込まれる。`packages/shared` などのサブディレクトリにある `CLAUDE.md` は、Claude がそのディレクトリのファイルを読んだときに追加で読み込まれる。
+直下の `CLAUDE.md`（プロジェクト全体のルール）が起動時に読み込まれる。デザイン用のスキル Hallmark（`.claude/skills/hallmark`）も、直下で起動すれば自動で使える。画面を作るときは「Hallmark で作って」、点検するときは「hallmark audit <ファイル>」のように指示する。`packages/shared` などのサブディレクトリにある `CLAUDE.md` は、Claude がそのディレクトリのファイルを読んだときに追加で読み込まれる。
 
 ### 4-4. 指示の出し方
 
