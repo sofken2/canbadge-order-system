@@ -65,6 +65,7 @@ flowchart LR
 | W05 | アーカイブ閲覧 | 公開作品の一覧と詳細を表示 | T09 | 初級 | |
 | W06 | アーカイブ投稿・取り下げ | 同意項目と表示名の入力で投稿でき、投稿した端末から取り下げられる | T09 | 中級 | |
 | W07 | 作品からの注文 | 公開作品をコピーしたデザインで注文フローに入れる | W02, W05 | 中級 | |
+| W08 | Discord アイコンの取り込み | エディタのボタンから Discord の許可を経て、アイコンがエディタに画像として読み込まれる。Discord の ID・トークンを保存しない。拒否・失敗時はエディタに戻ってエラーを表示する | W02、A02（仮可） | 中級 | |
 
 ## フェーズ1：スタッフ画面（staff・scanner）
 
@@ -348,6 +349,8 @@ type ApiError = { error: { code: ErrorCode; message: string; details?: unknown }
 | 売上集計 | `GET /api/staff/sales?businessDate=` | 時間帯別の件数と金額、返金を引いた合計 | staff（S07） |
 | 呼び出し一覧 | `GET /api/monitor/ready` | `ready` の注文番号一覧 | staff（S05） |
 | 画像の配信 | `GET /api/images/:imageId`（`?size=thumb`） | 画像 | web・staff |
+| Discord アイコンの取り込み開始 | `GET /api/discord/authorize` | Discord の許可画面へリダイレクト（`state` を Cookie に保存） | web（W08） |
+| Discord からの戻り | `GET /api/discord/callback?code=&state=` | アイコンを取得して保存し、`/<エディタのパス>?imageId=` へリダイレクト。失敗時は `?discordError=<code>` | web（W08） |
 | SSE | `GET /api/events/orders/:orderId`、`/api/staff/events`、`/api/monitor/events` | 下記イベント | web・staff |
 
 ### SSE イベントの叩き台
@@ -576,6 +579,19 @@ type SseEvent =
 - **つながり**：
   - 使う：W05 の作品詳細、A04 のコピー注文 API、W02 の注文フロー
   - 作品の `editorData` を W01 のエディタに読み込ませる（編集可否は未決。まずは編集なし）
+
+### W08 Discord アイコンの取り込み
+
+- **目的**：画像を用意していない来場者でも、自分の Discord のアイコンですぐにバッジを作れるようにする
+- **内容**：エディタに「Discord のアイコンを使う」ボタンを置く。Discord の OAuth2（権限は `identify` のみ）で許可を得て、api がアイコン画像を取得して通常のアップロード画像と同じ場所に保存し、エディタに読み込ませる
+- **注意点**：Discord のユーザー ID・アクセストークンは保存しない（画像を取得したら捨てる）。戻り先の検証用に `state` を発行して Cookie と照合する。アイコンは最大 1024px 程度なので、印刷解像度が高いと拡大で粗くなる。既存キャラクターの絵であることが多いため、持ち込み画像と同じ権利確認への同意を求める（spec.md 11.4）
+- **つながり**：
+  - 使う：A02 の画像保存（サーバー側で取得した画像を `POST /api/images` と同じ検証・保存処理に通し、`imageId` を得る）、W01 のエディタ（`imageId` の画像を初期画像として読み込む口が要る）、W02 の注文フロー
+  - 流れ：ボタン → `GET /api/discord/authorize` → Discord の許可画面 → `GET /api/discord/callback` → api が `https://discord.com/api/users/@me` で `id` と `avatar` を取得 → `https://cdn.discordapp.com/avatars/<id>/<avatar>.png?size=1024` を取得して保存 → エディタへリダイレクト
+  - アイコン未設定（`avatar` が null）のときと、来場者が許可を拒否したときは、エディタに戻ってメッセージを出す。動くアイコンは静止画（png）で取り込む。サーバーごとのアイコンは対象外
+  - リダイレクトでページを離れるので、編集中の内容はエディタの途中保存（ブラウザ内）から復元する
+  - 環境変数：`DISCORD_CLIENT_ID`・`DISCORD_CLIENT_SECRET`・`DISCORD_REDIRECT_URI`（`.env` に置き、`.env.example` にキー名だけを書く）。Discord の開発者サイトでアプリを登録し、戻り先 URL に本番（I03 のドメイン）と localhost の両方を登録する
+  - 取り込んだ画像も、15 分以内に注文に使われなければ削除される（A02）
 
 ## スタッフ画面（staff・scanner）
 

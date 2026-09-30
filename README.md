@@ -54,7 +54,7 @@
 
 | パス | 役割 | ラベル | 主なタスク |
 | --- | --- | --- | --- |
-| `apps/web` | 来場者向け（エディタ・注文・注文状況） | `web` | W02〜W07 |
+| `apps/web` | 来場者向け（エディタ・注文・注文状況） | `web` | W02〜W08 |
 | `apps/staff` | スタッフ向け（レジ・印刷確認・組み立て・設定・モニター） | `staff` | S02〜S07 |
 | `apps/api` | REST API と SSE（Hono on Bun） | `api` | T07、A01〜A06 |
 | `apps/print-worker` | 面付け・PDF 生成・印刷 | `print` | P01〜P03 |
