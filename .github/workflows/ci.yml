@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# 同じブランチで続けて push したときは、古い実行を止めて無料枠を節約する
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ジョブ名は、後でブランチ保護を使えるようになったときの必須チェック名になる（CI / check）
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          # 版は package.json の packageManager に合わせる。上げるときは1か所だけ直す
+          bun-version-file: package.json
+
+      # bun.lock と食い違っていたら失敗させ、手元と CI で同じ依存になるようにする
+      - run: bun install --frozen-lockfile
+
+      - run: bun run typecheck
+      - run: bun run lint
+      - run: bun run test
+      # 画面のビルドが通ることも見る（型は通るがビルドで落ちる変更を拾うため）
+      - run: bun run build
