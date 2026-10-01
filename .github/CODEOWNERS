@@ -1,0 +1,4 @@
+# 契約（packages/shared）の変更は、契約オーナーのレビューが必須。
+# 無料プランの private リポジトリでは、自動のレビュー依頼やマージの必須化が効かない可能性がある。
+# その場合は、PR テンプレートと CONTRIBUTING.md の運用ルールで守る。
+/packages/shared/ @Tatsubooom

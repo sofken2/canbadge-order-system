@@ -7,6 +7,7 @@
 | 資料 | 内容 |
 | --- | --- |
 | [docs/setup.md](docs/setup.md) | 環境構築、日々の作業の流れ、Claude Code の使い方 |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | PR を出すまでの流れと、守ること（最小限のルール） |
 | [docs/spec.md](docs/spec.md) | 仕様書（構成・状態遷移・データモデル） |
 | [docs/tasks.md](docs/tasks.md) | タスク一覧と解説。「全体のつながり」の章にデータの形と API の叩き台がある |
 | [Issues](https://github.com/sofken2/canbadge-order-system/issues) | タスク1件 = Issue 1件。タイトル先頭が tasks.md の ID |
