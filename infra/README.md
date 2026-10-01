@@ -7,6 +7,7 @@
 | --- | --- |
 | `caddy/Caddyfile` | 唯一の入口。ホスト名で来場者用・スタッフ用に振り分け、`/api/*` を api に渡す |
 | `caddy/dummy/` | app ができるまでの仮のページ（来場者用・スタッフ用） |
+| `cloudflared/config.example.yml` | 名前付きトンネルの設定の見本（実際の設定と認証ファイルはリポジトリに入れない） |
 
 ## いまの状態
 
@@ -17,6 +18,8 @@ app（T01 以降）がまだないので、Caddy がダミーページを直接�
 | `http://localhost:8080/` | 来場者用のダミーページ |
 | `http://staff.localhost:8080/` | スタッフ用のダミーページ |
 | `/api/*` | 仮の JSON（`{"status":"dummy",...}`） |
+| `https://badge.sofken2-ts.app/` | 来場者用のダミーページ（独自ドメイン、トンネル経由） |
+| `https://badge-staff.sofken2-ts.app/` | スタッフ用のダミーページ（同上。Access による認証はまだ掛けていない） |
 
 T01 で各 app のポートが決まったら、`Caddyfile` の `file_server` と `respond` を `reverse_proxy` に差し替える。
 
@@ -72,9 +75,60 @@ cloudflared tunnel --url http://localhost:8080
 - 本番では使わない。本番は独自ドメインと名前付きトンネルを使う（I03）
 - 学内ネットワークで使う前に、大学のネットワーク利用規程を確認する（spec.md 14.1）
 
+## 4. 独自ドメインと名前付きトンネル（本番の公開方法）
+
+ドメイン: `sofken2-ts.app`（GitHub 学生特典で Name.com で取得。ネームサーバーは Cloudflare）。`.app` は HTTPS でしか開けないが、Cloudflare が証明書を自動で用意する。ホスト名は次の2つ。
+
+| ホスト名 | 用途 |
+| --- | --- |
+| `badge.sofken2-ts.app` | 来場者用 |
+| `badge-staff.sofken2-ts.app` | スタッフ用。`staff.badge.～` のように2段にしないのは、無料プランの証明書が1段目までしか対象にしないため |
+
+### 4-1. 最初に1回だけ（管理者）
+
+1. Cloudflare でアカウントを作り、ドメインを追加して Free プランを選ぶ。表示されたネームサーバー2つを、Name.com の Manage Nameservers に設定する
+2. Cloudflare が取り込んだ仮の DNS レコード（A レコード）は消す。Name.com の仮ページを指しているため
+3. `cloudflared tunnel login` を実行し、ブラウザでドメインを選んで許可する（`%USERPROFILE%\.cloudflared\cert.pem` ができる）
+4. トンネルを作り、2つのホスト名を向ける
+
+```powershell
+cloudflared tunnel create canbadge
+cloudflared tunnel route dns canbadge badge.sofken2-ts.app
+cloudflared tunnel route dns canbadge badge-staff.sofken2-ts.app
+```
+
+5. `cloudflared/config.example.yml` を `%USERPROFILE%\.cloudflared\config.yml` にコピーし、`<トンネルID>` と `<ユーザー名>` を置き換える。`cloudflared tunnel ingress validate` で検証する
+
+`<トンネルID>.json`（認証ファイル）と `cert.pem` は秘密情報。コミットしない。処理PC に移すときは、安全な方法で渡す。
+
+### 4-2. 起動する
+
+Caddy にスタッフ用のホスト名を環境変数で渡して起動し、別のターミナルでトンネルを起動する。
+
+```powershell
+cd infra/caddy
+$env:STAFF_HOST = "badge-staff.sofken2-ts.app"
+caddy run --config Caddyfile --adapter caddyfile
+```
+
+```powershell
+cloudflared tunnel run canbadge
+```
+
+`https://badge.sofken2-ts.app/` と `https://badge-staff.sofken2-ts.app/` を開き、それぞれのダミーページに「API: OK (dummy)」と出れば成功。
+
+### 4-3. つまずいたとき
+
+| 症状 | 対処 |
+| --- | --- |
+| 片方のホスト名だけ `ERR_SSL_UNRECOGNIZED_NAME_ALERT` になる | Cloudflare の DNS 画面でそのホスト名のレコードを削除し、`cloudflared tunnel route dns canbadge <ホスト名>` で作り直す（`--overwrite-dns` では直らなかった） |
+| `502` が出る | Caddy が起動していない。先に Caddy を起動する |
+| `cloudflared tunnel route dns` が赤いエラー表示になる | PowerShell が出力を誤って表示しているだけのことがある。`Added CNAME` と出ていれば成功 |
+
 ## 残っている作業
 
 - [ ] I02: app への `reverse_proxy`、SSE がため込まれずに届くことの確認、LAN 経由時の PIN 認証（優先度低）
-- [ ] I03: 独自ドメイン、名前付きトンネルと Windows サービス化、Access、Turnstile、WAF・レート制限
+- [x] I03（一部）: 独自ドメイン、名前付きトンネル（手動起動）
+- [ ] I03: トンネルの Windows サービス化、Access（スタッフ画面のログイン）、Turnstile、WAF・レート制限、学内ネットワークからの疎通確認
 - [ ] I01: 処理PC の自動ログオン・自動起動・Windows Update 停止・スリープ無効化
 - [ ] I04: バックアップと復旧手順

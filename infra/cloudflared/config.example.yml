@@ -1,0 +1,17 @@
+# 名前付きトンネルの設定の見本。実際に使うファイルは、リポジトリの外
+# （Windows では %USERPROFILE%\.cloudflared\config.yml）に置く。
+# 認証ファイル（<トンネルID>.json）と cert.pem は秘密情報なので、コミットしない。
+#
+# <トンネルID> は `cloudflared tunnel create canbadge` の出力に表示される。
+# <ユーザー名> は処理PC の専用ユーザー名に置き換える。
+tunnel: <トンネルID>
+credentials-file: C:/Users/<ユーザー名>/.cloudflared/<トンネルID>.json
+
+# どのホスト名も Caddy（唯一の入口）に渡す。来場者用・スタッフ用の振り分けは
+# Caddy がホスト名で行う（infra/caddy/Caddyfile）
+ingress:
+  - hostname: badge.sofken2-ts.app
+    service: http://localhost:8080
+  - hostname: badge-staff.sofken2-ts.app
+    service: http://localhost:8080
+  - service: http_status:404
