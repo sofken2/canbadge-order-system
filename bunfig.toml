@@ -1,0 +1,4 @@
+[run]
+# `bun run` のスクリプトの中で呼ばれる tsc や vite などを、Node ではなく Bun で動かす。
+# 参加者に Node を別途入れさせないため
+bun = true
