@@ -1,0 +1,44 @@
+name: タスク
+description: docs/tasks.md のタスクを Issue にする（管理者向け）
+title: "[ID] タスク名"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        タイトルの先頭に `docs/tasks.md` の ID を付けます（例：`[W03] 注文状況ページ`）。
+        ラベル（領域・難易度・`実機`・`優先度低`）は、作成後に付けます。
+  - type: textarea
+    id: background
+    attributes:
+      label: 背景
+      description: なぜ必要か
+    validations:
+      required: true
+  - type: textarea
+    id: todo
+    attributes:
+      label: やること
+    validations:
+      required: true
+  - type: textarea
+    id: done
+    attributes:
+      label: 完了条件
+      description: これを満たしたら PR をマージしてよい
+    validations:
+      required: true
+  - type: textarea
+    id: caution
+    attributes:
+      label: 注意点
+      description: つまずきやすい点
+  - type: textarea
+    id: relations
+    attributes:
+      label: つながり
+      description: 使うもの・提供するもの・受け渡す値（docs/tasks.md の「全体のつながり」を参照）
+  - type: input
+    id: dependencies
+    attributes:
+      label: 依存するタスク
+      description: 先にマージされている必要があるタスクの ID（例：T09、S01（仮可））

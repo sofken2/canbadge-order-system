@@ -1,0 +1,28 @@
+name: 不具合
+description: 動かない・おかしい動きを報告する
+title: "[不具合] "
+labels: [bug]
+body:
+  - type: textarea
+    id: symptom
+    attributes:
+      label: 何が起きたか
+      description: エラーメッセージがあればそのまま貼ってください
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 再現手順
+      description: どの画面で何をしたか
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期待した動き
+  - type: input
+    id: env
+    attributes:
+      label: 環境
+      description: OS、ブラウザ、端末（例：Windows 11 / Chrome、iPhone Safari）
