@@ -85,18 +85,33 @@
 
 ### コマンド
 
-T01（モノレポ初期化）で確定する。確定するまでは予定。
-
 ```sh
 bun install          # 依存関係のインストール
 bun run dev          # 全 app を開発モードで起動
-bun run typecheck    # 型チェック
-bun run lint         # lint
-bun run test         # テスト
-bun run db:reset     # DB を作り直してシードを投入
+bun run typecheck    # 型チェック（全パッケージ）
+bun run lint         # lint（Biome）
+bun run test         # テスト（bun test）
+bun run build        # ビルド
+bun run format       # コードの整形
+bun run db:reset     # DB を作り直してシードを投入（T05・T06 ができるまでは未実装と表示するだけ）
 ```
 
-PR を出す前に `typecheck`・`lint`・`test` を通す。各 app の URL とポートは T01 でここに追記する。
+PR を出す前に `typecheck`・`lint`・`test` を通す。特定のパッケージだけ実行するときは `bunx turbo run <task> --filter=@canbadge/<名前>`（例：`bunx turbo run test --filter=@canbadge/api`）。
+
+`bun run dev` で起動すると、次の URL で開ける。
+
+| app | URL | ポート（`.env` の変数） |
+| --- | --- | --- |
+| web（来場者向け） | http://localhost:3000/ | 3000（`WEB_PORT`） |
+| staff（スタッフ向け） | http://localhost:3001/ | 3001（`STAFF_PORT`） |
+| api | http://localhost:3002/api/health | 3002（`API_PORT`） |
+| print-worker | なし（ターミナルに起動のログだけ出る） | — |
+
+web と staff の画面は、`/api` を api のポートへ転送する。本番（Caddy 経由）と同じく、画面のコードは常に `/api` を呼べばよい。画面に「API: OK (ok)」と出れば、画面から api までつながっている。
+
+- ポートを変えたいときは、`.env.example` を `.env` にコピーして値を書き換える。`.env` がなくても、`.env.example` の値で動く
+- 画面は Vite + React（SPA）で、Bun で動かす（`bunfig.toml` で vite や tsc も Bun で実行する）。Node を別に入れる必要はない
+- 整形と lint は Biome。保存時に整形されない場合は `bun run format` を実行する
 
 ### 困ったとき
 

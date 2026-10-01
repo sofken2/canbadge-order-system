@@ -32,18 +32,23 @@ Bun + Turborepo のモノレポ。本番は Windows の処理PC 1台で全プロ
 
 ## コマンド
 
-コマンド名は T01（モノレポ初期化）で確定する。確定後にこの節を更新すること。
-
 ```sh
 bun install          # 依存関係のインストール
 bun run dev          # 全appを開発モードで起動
 bun run typecheck    # 型チェック（全パッケージ）
-bun run lint         # lint
-bun run test         # テスト
-bun run db:reset     # DBを作り直してシードを投入
+bun run lint         # lint（Biome）
+bun run test         # テスト（bun test）
+bun run build        # ビルド
+bun run format       # 整形（Biome）
+bun run db:reset     # DBを作り直してシードを投入（T05・T06 までは未実装と表示するだけ）
 ```
 
-特定のパッケージだけ実行する場合は `bunx turbo run <task> --filter=<package名>`。
+特定のパッケージだけ実行する場合は `bunx turbo run <task> --filter=@canbadge/<名前>`。
+
+- ポート：web 3000 / staff 3001 / api 3002。`.env.example` が既定値で、`.env` があれば上書きされる
+- web・staff は Vite + React（SPA）。`/api` は api へ転送されるので、画面のコードは常に `/api` を呼ぶ
+- vite や tsc も Bun で動かす（`bunfig.toml`）。Node 前提のコマンドを書かない
+- パッケージ名は `@canbadge/<名前>`。lint と整形は Biome（`biome.json`）
 
 ## 必ず守るルール
 

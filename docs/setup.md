@@ -154,18 +154,18 @@ gh repo clone sofken2/canbadge-order-system
 cd canbadge-order-system
 ```
 
-T01（モノレポ初期化）が main に入る前は、ここで終わり（`docs/` と `CLAUDE.md` があることを確認する）。T01 が入った後は、続けて次を実行する。
+続けて次を実行する。
 
 ```sh
 bun install
-cp .env.example .env      # Windows の PowerShell では: Copy-Item .env.example .env
-bun run db:reset          # DB 作成とサンプルデータ投入
 bun run dev               # 全 app を起動
 ```
 
-コマンド名は T01 で確定する。確定後にこの節を更新すること。
+`.env` は、ポートを変えたいときだけ用意すればよい（`cp .env.example .env`、Windows の PowerShell では `Copy-Item .env.example .env`）。なくても `.env.example` の値で動く。
 
-起動できたら、各 app の URL（T01 で README に記載）をブラウザで開いて表示を確認する。**ここまでできたら環境構築は完了**。手順どおりに動かなかった箇所は、この手順書を直す PR を出すのが最初の貢献になる。
+`bun run db:reset`（DB 作成とサンプルデータ投入）は、DB（T05）とサンプルデータ（T06）ができるまでは「未実装」と表示するだけ。
+
+起動できたら、ブラウザで http://localhost:3000/（来場者向け）と http://localhost:3001/（スタッフ向け）を開く。どちらも「API: OK (ok)」と出れば、画面から api までつながっている。URL とポートの一覧は README の「コマンド」にある。**ここまでできたら環境構築は完了**。手順どおりに動かなかった箇所は、この手順書を直す PR を出すのが最初の貢献になる。
 
 ---
 
