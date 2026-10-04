@@ -1,3 +1,9 @@
-// 契約（zod スキーマ・ステータス・遷移表・API型・SSEイベント型）。T04 で実装する。
-// T01 では雛形だけ。中身は担当タスクで実装する。
-export {};
+// 契約。全 app が参照する唯一の定義。ここの変更は全体に影響する（packages/shared/CLAUDE.md）
+export * from "./api";
+export * from "./entities";
+export * from "./errors";
+export * from "./ids";
+export * from "./primitives";
+export * from "./sse";
+export * from "./status";
+export * from "./transitions";

@@ -1,0 +1,345 @@
+import { z } from "zod";
+import { settingSchema } from "../entities/setting";
+import { monitorSseEventSchema, orderSseEventSchema, staffSseEventSchema } from "../sse";
+import {
+  imageIdParamsSchema,
+  orderIdParamsSchema,
+  pageQuerySchema,
+  sheetIdParamsSchema,
+} from "./common";
+import { monitorReadyResponseSchema } from "./monitor";
+import {
+  createOrderRequestSchema,
+  createOrderResponseSchema,
+  discordCallbackQuerySchema,
+  imageUploadResponseSchema,
+  lookupOrderRequestSchema,
+  lookupOrderResponseSchema,
+  orderViewSchema,
+  statusResponseSchema,
+} from "./public";
+import {
+  checkPrintSheetRequestSchema,
+  currentPrintSheetResponseSchema,
+  pickupRequestSchema,
+  printedItemListResponseSchema,
+  printedItemsQuerySchema,
+  printQueueStateResponseSchema,
+  printSheetListResponseSchema,
+  printSheetViewSchema,
+  reprintRequestSchema,
+  reprintResponseSchema,
+  salesQuerySchema,
+  salesResponseSchema,
+  setAcceptanceRequestSchema,
+  staffOrderListResponseSchema,
+  staffOrderSearchQuerySchema,
+  staffOrderViewSchema,
+  updateSettingRequestSchema,
+} from "./staff";
+
+/**
+ * 全エンドポイントの一覧。パス・認証の種類・入出力の形をここだけで持つ。
+ * - api（T07 以降）は、この一覧のとおりに実装し、応答を response で検証するテストを付ける
+ * - 画面は、パスの文字列を直接書かず、ここから取る
+ * - A05（スタッフ認証）は access を見て、スタッフ用とモニター用を守る
+ */
+export type Endpoint = {
+  readonly method: "GET" | "POST" | "PUT";
+  /** /api から始まる。:name はパスの引数（params の項目名と一致する） */
+  readonly path: string;
+  /**
+   * 誰が呼べるか。visitor は認証なし、staff は Access などで認証済みのスタッフ、
+   * monitor は処理 PC の localhost（呼び出しモニター）だけ
+   */
+  readonly access: "visitor" | "staff" | "monitor";
+  readonly summary: string;
+  readonly params?: z.ZodType;
+  readonly query?: z.ZodType;
+  /** JSON の本体。画像のアップロード（multipart）は、ここでは表さない */
+  readonly body?: z.ZodType;
+  /** JSON の応答。画像・PDF・リダイレクト・SSE は null */
+  readonly response: z.ZodType | null;
+  /** SSE の購読。流れてくるイベントの形 */
+  readonly stream?: z.ZodType;
+};
+
+const imageQuerySchema = z.object({ size: z.enum(["thumb"]).optional() });
+
+export const endpoints = {
+  // ---- 来場者向け ----
+  getStatus: {
+    method: "GET",
+    path: "/api/status",
+    access: "visitor",
+    summary: "受付状態・価格・待ち件数",
+    response: statusResponseSchema,
+  },
+  uploadImage: {
+    method: "POST",
+    path: "/api/images",
+    access: "visitor",
+    summary: "画像のアップロード（multipart）。容量と形式を検証する",
+    response: imageUploadResponseSchema,
+  },
+  getImage: {
+    method: "GET",
+    path: "/api/images/:imageId",
+    access: "visitor",
+    summary: "画像の配信。size=thumb でサムネイル",
+    params: imageIdParamsSchema,
+    query: imageQuerySchema,
+    response: null,
+  },
+  createOrder: {
+    method: "POST",
+    path: "/api/orders",
+    access: "visitor",
+    summary: "注文の作成。受付が open でないときは NOT_ACCEPTING",
+    body: createOrderRequestSchema,
+    response: createOrderResponseSchema,
+  },
+  getOrder: {
+    method: "GET",
+    path: "/api/orders/:orderId",
+    access: "visitor",
+    summary: "注文状況ページ用の注文",
+    params: orderIdParamsSchema,
+    response: orderViewSchema,
+  },
+  lookupOrder: {
+    method: "POST",
+    path: "/api/orders/lookup",
+    access: "visitor",
+    summary: "注文番号と確認コードから注文 ID を返す。試行回数を制限する",
+    body: lookupOrderRequestSchema,
+    response: lookupOrderResponseSchema,
+  },
+  cancelOrder: {
+    method: "POST",
+    path: "/api/orders/:orderId/cancel",
+    access: "visitor",
+    summary: "支払い前の注文の取り消し（来場者本人）",
+    params: orderIdParamsSchema,
+    response: orderViewSchema,
+  },
+  discordAuthorize: {
+    method: "GET",
+    path: "/api/discord/authorize",
+    access: "visitor",
+    summary: "Discord の許可画面へリダイレクトする（W08）",
+    response: null,
+  },
+  discordCallback: {
+    method: "GET",
+    path: "/api/discord/callback",
+    access: "visitor",
+    summary: "Discord からの戻り。アイコンを保存してエディタへリダイレクトする（W08）",
+    query: discordCallbackQuerySchema,
+    response: null,
+  },
+  orderEvents: {
+    method: "GET",
+    path: "/api/events/orders/:orderId",
+    access: "visitor",
+    summary: "自分の注文の変化を受け取る（SSE）",
+    params: orderIdParamsSchema,
+    response: null,
+    stream: orderSseEventSchema,
+  },
+
+  // ---- スタッフ向け ----
+  searchStaffOrders: {
+    method: "GET",
+    path: "/api/staff/orders",
+    access: "staff",
+    summary: "注文の検索。QR の中身（注文 ID）か当日の注文番号、状態で絞る",
+    query: staffOrderSearchQuerySchema,
+    response: staffOrderListResponseSchema,
+  },
+  payOrder: {
+    method: "POST",
+    path: "/api/staff/orders/:orderId/pay",
+    access: "staff",
+    summary: "支払い済みにする（現金のみ）。全明細を queued にする",
+    params: orderIdParamsSchema,
+    response: staffOrderViewSchema,
+  },
+  assembleOrder: {
+    method: "POST",
+    path: "/api/staff/orders/:orderId/assemble",
+    access: "staff",
+    summary: "組み立て開始",
+    params: orderIdParamsSchema,
+    response: staffOrderViewSchema,
+  },
+  completeOrder: {
+    method: "POST",
+    path: "/api/staff/orders/:orderId/complete",
+    access: "staff",
+    summary: "完成。呼び出しモニターに表示される",
+    params: orderIdParamsSchema,
+    response: staffOrderViewSchema,
+  },
+  pickupOrder: {
+    method: "POST",
+    path: "/api/staff/orders/:orderId/pickup",
+    access: "staff",
+    summary: "受け渡し。確認コードを照合する",
+    params: orderIdParamsSchema,
+    body: pickupRequestSchema,
+    response: staffOrderViewSchema,
+  },
+  refundOrder: {
+    method: "POST",
+    path: "/api/staff/orders/:orderId/refund",
+    access: "staff",
+    summary: "全額返金（支払い後のどの状態からでも）",
+    params: orderIdParamsSchema,
+    response: staffOrderViewSchema,
+  },
+  cancelStaffOrder: {
+    method: "POST",
+    path: "/api/staff/orders/:orderId/cancel",
+    access: "staff",
+    summary: "支払い前の注文の取り消し（スタッフ）",
+    params: orderIdParamsSchema,
+    response: staffOrderViewSchema,
+  },
+  getCurrentPrintSheet: {
+    method: "GET",
+    path: "/api/staff/print-sheets/current",
+    access: "staff",
+    summary: "印刷中のシート。なければ sheet が null",
+    response: currentPrintSheetResponseSchema,
+  },
+  listPrintSheets: {
+    method: "GET",
+    path: "/api/staff/print-sheets",
+    access: "staff",
+    summary: "印刷ジョブの履歴（新しい順）",
+    query: pageQuerySchema,
+    response: printSheetListResponseSchema,
+  },
+  getPrintSheetPdf: {
+    method: "GET",
+    path: "/api/staff/print-sheets/:sheetId/pdf",
+    access: "staff",
+    summary: "印刷したシートの PDF（プレビュー）",
+    params: sheetIdParamsSchema,
+    response: null,
+  },
+  checkPrintSheet: {
+    method: "POST",
+    path: "/api/staff/print-sheets/:sheetId/check",
+    access: "staff",
+    summary: "印刷の確認。再印刷に回すバッジ以外は OK",
+    params: sheetIdParamsSchema,
+    body: checkPrintSheetRequestSchema,
+    response: printSheetViewSchema,
+  },
+  listPrintedItems: {
+    method: "GET",
+    path: "/api/staff/printed-items",
+    access: "staff",
+    summary: "印刷済みバッジの一覧（注文番号で検索）",
+    query: printedItemsQuerySchema,
+    response: printedItemListResponseSchema,
+  },
+  reprint: {
+    method: "POST",
+    path: "/api/staff/reprints",
+    access: "staff",
+    summary: "選んだバッジを再印刷に回す。バッジ一覧からもシートからも同じ API",
+    body: reprintRequestSchema,
+    response: reprintResponseSchema,
+  },
+  pausePrintQueue: {
+    method: "POST",
+    path: "/api/staff/print-queue/pause",
+    access: "staff",
+    summary: "印刷の一時停止",
+    response: printQueueStateResponseSchema,
+  },
+  resumePrintQueue: {
+    method: "POST",
+    path: "/api/staff/print-queue/resume",
+    access: "staff",
+    summary: "印刷の再開",
+    response: printQueueStateResponseSchema,
+  },
+  openBusinessDay: {
+    method: "POST",
+    path: "/api/staff/business-day/open",
+    access: "staff",
+    summary: "営業開始。営業日を今日にし、受付を open にし、前の営業日の支払い待ちを失効させる",
+    response: settingSchema,
+  },
+  setAcceptance: {
+    method: "POST",
+    path: "/api/staff/acceptance",
+    access: "staff",
+    summary: "受付状態の切り替え（受付中・ビジー・受付終了）",
+    body: setAcceptanceRequestSchema,
+    response: settingSchema,
+  },
+  getSettings: {
+    method: "GET",
+    path: "/api/staff/settings",
+    access: "staff",
+    summary: "設定の取得",
+    response: settingSchema,
+  },
+  updateSettings: {
+    method: "PUT",
+    path: "/api/staff/settings",
+    access: "staff",
+    summary: "設定（価格・上限など）の置き換え",
+    body: updateSettingRequestSchema,
+    response: settingSchema,
+  },
+  getSales: {
+    method: "GET",
+    path: "/api/staff/sales",
+    access: "staff",
+    summary: "売上の集計（時間帯別・返金を差し引いた合計）",
+    query: salesQuerySchema,
+    response: salesResponseSchema,
+  },
+  staffEvents: {
+    method: "GET",
+    path: "/api/staff/events",
+    access: "staff",
+    summary: "注文・印刷・設定の変化を受け取る（SSE）",
+    response: null,
+    stream: staffSseEventSchema,
+  },
+
+  // ---- 呼び出しモニター ----
+  getMonitorReady: {
+    method: "GET",
+    path: "/api/monitor/ready",
+    access: "monitor",
+    summary: "呼び出し中（ready）の注文番号の一覧",
+    response: monitorReadyResponseSchema,
+  },
+  monitorEvents: {
+    method: "GET",
+    path: "/api/monitor/events",
+    access: "monitor",
+    summary: "呼び出し一覧の変化を受け取る（SSE）",
+    response: null,
+    stream: monitorSseEventSchema,
+  },
+} as const satisfies Record<string, Endpoint>;
+
+export type EndpointName = keyof typeof endpoints;
+
+/** パスの :name を、値に置き換える（値は URL エンコードする）。例: buildPath("/api/orders/:orderId", { orderId }) */
+export function buildPath(path: string, params: Record<string, string> = {}): string {
+  return path.replace(/:([A-Za-z]+)/g, (_, name: string) => {
+    const value = params[name];
+    if (value === undefined) throw new Error(`パスの引数 ${name} がありません: ${path}`);
+    return encodeURIComponent(value);
+  });
+}

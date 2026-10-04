@@ -132,7 +132,7 @@ flowchart LR
 各タスクの「つながり」は、この章の名前を使って書いている。
 
 > [!IMPORTANT]
-> この章の型名・フィールド名・エンドポイントは **契約v0（T04・T07）の叩き台** であり、確定ではない。確定した定義は常に `packages/shared` のコードが正で、食い違ったらコードに合わせてこの章を直す。
+> 型・API・SSE・エラーの形は、**T04 で `packages/shared/src` に実装済み**（契約v0）。確定した定義は常にコードが正で、この章は読み物として、食い違ったらコードに合わせて直す。エンドポイントの一覧と入出力は `packages/shared/src/api/endpoints.ts`。
 
 ### パッケージの依存関係
 
@@ -183,7 +183,7 @@ flowchart LR
 | --- | --- |
 | 1注文の中身 | デザイン1つ・缶バッジ1個が原則。エディタはプリクラ風（写真にスタンプ・フレーム・文字・簡単なお絵描き・フィルター）。個数の上限は `Setting.maxQuantityPerOrder`（既定 1）で、1 のとき画面は個数の選択を出さない |
 | 支払い方法 | 現金のみ。支払い方法の項目は持たない |
-| 返金 | 全額返金のみ。返金額は `totalAmount` と同じ |
+| 返金 | 全額返金のみ。返金額は `totalAmount` と同じ。支払い後のどの状態からでもできる（受け渡し済みを含む） |
 | 来場者の取り消し | 支払い前（`submitted`）のみ |
 | 実行者（actor） | `"staff"`・`"visitor"`・`"system"` の3種類。スタッフは個人を区別しない |
 | 注文QRの中身 | `orderId` の文字列だけ |
@@ -222,7 +222,7 @@ type Order = {
   totalAmount: number;        // 価格 × 個数
   createdAt: string;
   paidAt?: string; readyAt?: string; pickedUpAt?: string; refundedAt?: string;
-  items: OrderItem[];         // 原則 1 件
+  // 明細（OrderItem）は別の行。画面向けの形（明細つき）は api/ の OrderView・StaffOrderView
 };
 
 type OrderItem = {
@@ -330,25 +330,26 @@ type ApiError = { error: { code: ErrorCode; message: string; details?: unknown }
 | --- | --- | --- | --- |
 | 受付状況 | `GET /api/status` | `{ acceptance, busyMessage, price, maxQuantityPerOrder, waitingCount }` | web |
 | 画像アップロード | `POST /api/images` | multipart → `{ imageId }`。15 分以内に注文に使われなければ削除 | web（W02） |
-| 注文作成 | `POST /api/orders` | `{ imageId, editorData, quantity, turnstileToken }` → `{ orderId }`。受付外は `NOT_ACCEPTING` | web（W02） |
+| 注文作成 | `POST /api/orders` | `{ imageId, editorData, quantity, turnstileToken, rightsConsent: true }` → `{ orderId }`。受付外は `NOT_ACCEPTING`。持ち込み画像の権利確認への同意が必須 | web（W02） |
 | 注文取得 | `GET /api/orders/:orderId` | 注文状況ページ用の表示データ | web（W03） |
 | 注文照会 | `POST /api/orders/lookup` | `{ orderNumber, confirmationCode }` → `{ orderId }` | web（W04） |
 | 注文の取り消し | `POST /api/orders/:orderId/cancel` | — | web |
 | 注文の検索 | `GET /api/staff/orders?q=&status=` | QR の中身か注文番号 → 注文 | staff（S02・S04） |
 | 支払い | `POST /api/staff/orders/:orderId/pay` | 本体なし（現金のみ。お釣りは画面で計算） | staff（S02） |
 | 組み立て・完成・受け渡し・返金 | `POST /api/staff/orders/:orderId/{assemble,complete,pickup,refund}` | pickup は `{ confirmationCode }`。refund は全額 | staff（S04・S07） |
-| 印刷中のシート | `GET /api/staff/print-sheets/current` | `PrintSheet` とバッジ（位置・注文番号・サムネイル） | staff（S03） |
-| 印刷の確認 | `POST /api/staff/print-sheets/:id/check` | `{ reprintOrderItemIds }`。空なら全部 OK | staff（S03） |
+| 注文の取り消し（スタッフ） | `POST /api/staff/orders/:orderId/cancel` | 支払い前の注文 | staff |
+| 印刷中のシート | `GET /api/staff/print-sheets/current` | `{ sheet }`（印刷中がなければ null）。バッジは位置・注文番号・サムネイル付き | staff（S03） |
+| 印刷の確認 | `POST /api/staff/print-sheets/:sheetId/check` | `{ reprintOrderItemIds }`。空なら全部 OK | staff（S03） |
 | 印刷ジョブの履歴 | `GET /api/staff/print-sheets?before=&limit=` | 新しい順のシートと、載ったバッジ（サムネイル・注文番号・確認結果） | staff（S03） |
-| シートのプレビュー | `GET /api/staff/print-sheets/:id/pdf` | 印刷した PDF | staff（S03） |
+| シートのプレビュー | `GET /api/staff/print-sheets/:sheetId/pdf` | 印刷した PDF | staff（S03） |
 | 印刷済みバッジの一覧 | `GET /api/staff/printed-items?q=&before=&limit=` | バッジごとのサムネイル・注文番号・注文の状態・印刷回数。`q` は注文番号 | staff（S03） |
-| 再印刷 | `POST /api/staff/reprints` | `{ orderItemIds }`。バッジ一覧からもシートからも同じ API | staff（S03） |
+| 再印刷 | `POST /api/staff/reprints` | `{ orderItemIds }` → `{ reprintedItemIds, skippedItemIds }`。バッジ一覧からもシートからも同じ API。再印刷できないバッジが 1 つでもあれば全体を `INVALID_TRANSITION` で断る | staff（S03） |
 | 印刷の一時停止・再開 | `POST /api/staff/print-queue/{pause,resume}` | `Setting.printPaused` を更新 | staff（S03） |
 | 営業日 | `POST /api/staff/business-day/open` | 営業開始 | staff（S07） |
 | 受付状態 | `POST /api/staff/acceptance` | `{ acceptance: "open" \| "busy" \| "closed", busyMessage? }` | staff（S07） |
 | 設定 | `GET/PUT /api/staff/settings` | `Setting`（営業日・受付状態・一時停止は上の専用 API で変える） | staff（S07） |
 | 売上集計 | `GET /api/staff/sales?businessDate=` | 時間帯別の件数と金額、返金を引いた合計 | staff（S07） |
-| 呼び出し一覧 | `GET /api/monitor/ready` | `ready` の注文番号一覧 | staff（S05） |
+| 呼び出し一覧 | `GET /api/monitor/ready` | `ready` の注文番号一覧。注文 ID（QR の中身）は含めない | staff（S05） |
 | 画像の配信 | `GET /api/images/:imageId`（`?size=thumb`） | 画像 | web・staff |
 | Discord アイコンの取り込み開始 | `GET /api/discord/authorize` | Discord の許可画面へリダイレクト（`state` を Cookie に保存） | web（W08） |
 | Discord からの戻り | `GET /api/discord/callback?code=&state=` | アイコンを取得して保存し、`/<エディタのパス>?imageId=` へリダイレクト。失敗時は `?discordError=<code>` | web（W08） |
@@ -462,6 +463,8 @@ type SseEvent =
   - ステータスの表示名（「支払い待ち」など）は shared に置く（決定済み）。例：`orderStatusLabels: Record<OrderStatus, string>`
   - エラーの形（`ApiError` と `ErrorCode`）、確認コードの形式（紛らわしい文字を除いた 4 文字）、`Setting`・`Acceptance`・`Actor` もここで定義する
   - 型の正本は zod（決定済み）。型は `z.infer` で導出し、手書きの `type` を別に持たない。Drizzle 側の定義は T05 が合わせる
+  - **実装済み**：`packages/shared/src`。エンティティ（`entities/`）、画面向けの入出力（`api/`）、全エンドポイントの一覧（`api/endpoints.ts`）、状態（`status.ts`）、遷移表（`transitions.ts`）、エラー（`errors.ts`）、SSE（`sse.ts`）、識別子（`ids.ts`）。構成と使い方は `packages/shared/CLAUDE.md`
+  - T07 は `endpoints` の全エントリを実装し、各 `response` で応答を検証するテストを付ける。A05 は `access` を見てスタッフ用・モニター用を守る
 
 ### T05 DB（packages/db）
 
@@ -641,8 +644,8 @@ type SseEvent =
 - **内容**：印刷中のシートとそこに載っている注文番号を表示し、バッジごとに OK・再印刷を選んで確定。印刷の一時停止と再開。印刷済みバッジの一覧と印刷ジョブ（シート）の履歴をサムネイル付きで表示し、選んだバッジやシートを再印刷
 - **注意点**：用紙に印字された注文番号と画面の表示を照合しやすいよう、同じ並び順で表示する。再印刷すると注文の状態が戻る（組み立て中・完成でも印刷待ちに戻る）ので、実行前に確認ダイアログで対象の注文番号と影響を表示する
 - **つながり**：
-  - 使う：`GET /api/staff/print-sheets/current`、`POST /api/staff/print-sheets/:id/check`、`pause`・`resume`、SSE の `sheet.updated`・`queue.updated`
-  - 履歴：`GET /api/staff/printed-items`（バッジ一覧）、`GET /api/staff/print-sheets`（印刷ジョブ一覧）、`GET /api/staff/print-sheets/:id/pdf`（プレビュー）、`POST /api/staff/reprints`（再印刷）
+  - 使う：`GET /api/staff/print-sheets/current`、`POST /api/staff/print-sheets/:sheetId/check`、`pause`・`resume`、SSE の `sheet.updated`・`queue.updated`
+  - 履歴：`GET /api/staff/printed-items`（バッジ一覧）、`GET /api/staff/print-sheets`（印刷ジョブ一覧）、`GET /api/staff/print-sheets/:sheetId/pdf`（プレビュー）、`POST /api/staff/reprints`（再印刷）
   - 画面の構成例：「確認」「バッジ」「印刷ジョブ」の3タブ。バッジ・印刷ジョブのタブは複数選択して「再印刷」
   - `PrintSlot` の `position` 順が PDF 上の並び順。この順で注文番号を表示すると用紙と照合しやすい
   - 各バッジに OK・再印刷を選ばせ、まとめて `check` に `{ reprintOrderItemIds }` を送る。OK の明細は `printed` に、再印刷の明細は `queued` に戻る（P02 が次のシートに載せる）。シートは `confirmed`、全部再印刷なら `failed`
@@ -772,6 +775,7 @@ type SseEvent =
   - 使う：db（`queued` の明細の取得、遷移関数）、P01、印刷ドライバー（`print(pdfPath)`）、Setting（一時停止、待ち時間）
   - 流れ：明細を選ぶ → PrintSheet と PrintSlot を作り明細を `printing` にして DB に記録 → PDF 生成 → ドライバーで印刷 → S03 の確認を待つ
   - 明細の選び方：`printCount` が 1 以上（再印刷）のものを先に、次に `queued` になった順
+  - 印刷するのは、注文が `paid` の明細だけ。返金済み（`refunded`）などの注文に残った `queued` の明細は載せない
   - api 側の印刷シート関連 API（`current`・`check`・履歴・`reprints`・`pause`・`resume`）もこのタスクで作る。状態の変更は db の関数を使う
   - 1注文は原則バッジ1個で、個数の上限は面付け数を超えないので、1つの明細を複数のシートに分ける処理は作らない。残り枠に入らない明細は次のシートに回す
 
