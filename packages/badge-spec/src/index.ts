@@ -1,3 +1,5 @@
-// 寸法・解像度・面付けの設定値。T08 で実装する。
-// T01 では雛形だけ。中身は担当タスクで実装する。
-export {};
+// バッジの寸法・解像度・面付けの設定値と、mm からピクセル・ポイントへの換算
+export * from "./geometry";
+export * from "./spec";
+export * from "./units";
+export * from "./validate";
