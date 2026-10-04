@@ -1,0 +1,193 @@
+import { z } from "zod";
+import { settingSchema } from "../entities/setting";
+import { confirmationCodeInputSchema, idSchema, orderIdSchema, orderNumberSchema } from "../ids";
+import { isoDateSchema, isoDateTimeSchema, quantitySchema, yenSchema } from "../primitives";
+import {
+  acceptanceSchema,
+  orderItemStatusSchema,
+  orderStatusSchema,
+  printSheetStatusSchema,
+  printSlotResultSchema,
+} from "../status";
+import { beforeSchema, limitSchema, pagedSchema } from "./common";
+
+// スタッフ向け（/api/staff/*）。Cloudflare Access などで認証済みのリクエストだけが通る。
+
+/**
+ * スタッフ画面に返す注文。確認コードは含めない。
+ * 受け渡しでは、来場者に聞いたコードを pickup に送り、api が照合する（画面に正解を持たせない）
+ */
+export const staffOrderViewSchema = z.object({
+  id: orderIdSchema,
+  businessDate: isoDateSchema,
+  orderNumber: orderNumberSchema,
+  orderNumberText: z.string(),
+  status: orderStatusSchema,
+  totalAmount: yenSchema,
+  createdAt: isoDateTimeSchema,
+  paidAt: isoDateTimeSchema.optional(),
+  readyAt: isoDateTimeSchema.optional(),
+  pickedUpAt: isoDateTimeSchema.optional(),
+  refundedAt: isoDateTimeSchema.optional(),
+  items: z.array(
+    z.object({
+      id: idSchema,
+      quantity: quantitySchema,
+      status: orderItemStatusSchema,
+      printCount: z.int().nonnegative(),
+      thumbnailUrl: z.string(),
+    }),
+  ),
+});
+export type StaffOrderView = z.infer<typeof staffOrderViewSchema>;
+
+const orderStatusListSchema = z
+  .string()
+  .transform((value) => value.split(",").filter((part) => part.length > 0))
+  .pipe(z.array(orderStatusSchema));
+
+/** GET /api/staff/orders。q は、QR の中身（注文 ID）か、当日の注文番号 */
+export const staffOrderSearchQuerySchema = z.object({
+  q: z.string().trim().min(1).max(40).optional(),
+  /** カンマ区切り（例: printed,assembling,ready） */
+  status: orderStatusListSchema.optional(),
+  before: beforeSchema,
+  limit: limitSchema,
+});
+export type StaffOrderSearchQuery = z.infer<typeof staffOrderSearchQuerySchema>;
+
+export const staffOrderListResponseSchema = pagedSchema(staffOrderViewSchema);
+export type StaffOrderListResponse = z.infer<typeof staffOrderListResponseSchema>;
+
+/** POST /api/staff/orders/:orderId/pickup。照合は api が行い、違えば CONFIRMATION_MISMATCH */
+export const pickupRequestSchema = z.object({ confirmationCode: confirmationCodeInputSchema });
+export type PickupRequest = z.infer<typeof pickupRequestSchema>;
+
+/** 印刷シートに載っているバッジ 1 個。position 順が PDF 上の並び順 */
+export const printSlotViewSchema = z.object({
+  position: z.int().nonnegative(),
+  orderItemId: idSchema,
+  orderId: orderIdSchema,
+  orderNumber: orderNumberSchema,
+  orderNumberText: z.string(),
+  orderStatus: orderStatusSchema,
+  thumbnailUrl: z.string(),
+  result: printSlotResultSchema,
+});
+export type PrintSlotView = z.infer<typeof printSlotViewSchema>;
+
+export const printSheetViewSchema = z.object({
+  id: idSchema,
+  status: printSheetStatusSchema,
+  printedAt: isoDateTimeSchema,
+  checkedAt: isoDateTimeSchema.optional(),
+  slots: z.array(printSlotViewSchema),
+});
+export type PrintSheetView = z.infer<typeof printSheetViewSchema>;
+
+/** GET /api/staff/print-sheets/current。印刷中のシートがなければ sheet が null */
+export const currentPrintSheetResponseSchema = z.object({ sheet: printSheetViewSchema.nullable() });
+export type CurrentPrintSheetResponse = z.infer<typeof currentPrintSheetResponseSchema>;
+
+/** POST /api/staff/print-sheets/:sheetId/check。再印刷に回すバッジ以外は、すべて OK になる */
+export const checkPrintSheetRequestSchema = z.object({
+  reprintOrderItemIds: z.array(idSchema).default([]),
+});
+export type CheckPrintSheetRequest = z.infer<typeof checkPrintSheetRequestSchema>;
+
+/** GET /api/staff/print-sheets。印刷ジョブの履歴（新しい順） */
+export const printSheetListResponseSchema = pagedSchema(printSheetViewSchema);
+export type PrintSheetListResponse = z.infer<typeof printSheetListResponseSchema>;
+
+/** 印刷済みのバッジ 1 個。履歴の一覧から選んで再印刷する */
+export const printedItemViewSchema = z.object({
+  orderItemId: idSchema,
+  orderId: orderIdSchema,
+  orderNumber: orderNumberSchema,
+  orderNumberText: z.string(),
+  orderStatus: orderStatusSchema,
+  status: orderItemStatusSchema,
+  printCount: z.int().nonnegative(),
+  lastPrintedAt: isoDateTimeSchema,
+  thumbnailUrl: z.string(),
+  /** 再印刷できるか。受け渡し済み・取り消し・失効・返金済みの注文や、印刷待ち・印刷中のバッジは false */
+  reprintable: z.boolean(),
+});
+export type PrintedItemView = z.infer<typeof printedItemViewSchema>;
+
+/** GET /api/staff/printed-items。q は注文番号 */
+export const printedItemsQuerySchema = z.object({
+  q: z.string().trim().min(1).max(40).optional(),
+  before: beforeSchema,
+  limit: limitSchema,
+});
+export type PrintedItemsQuery = z.infer<typeof printedItemsQuerySchema>;
+
+export const printedItemListResponseSchema = pagedSchema(printedItemViewSchema);
+export type PrintedItemListResponse = z.infer<typeof printedItemListResponseSchema>;
+
+/** POST /api/staff/reprints。バッジ一覧からも、シートからも、同じ形で呼ぶ */
+export const reprintRequestSchema = z.object({
+  orderItemIds: z.array(idSchema).min(1).max(100),
+});
+export type ReprintRequest = z.infer<typeof reprintRequestSchema>;
+
+/**
+ * 再印刷の結果。すでに queued のバッジは何もせず skipped に入れる。
+ * 再印刷できない注文のバッジが 1 つでもあれば、全体を INVALID_TRANSITION で断る（一部だけ実行しない）
+ */
+export const reprintResponseSchema = z.object({
+  reprintedItemIds: z.array(idSchema),
+  skippedItemIds: z.array(idSchema),
+});
+export type ReprintResponse = z.infer<typeof reprintResponseSchema>;
+
+/** POST /api/staff/print-queue/{pause,resume} の応答 */
+export const printQueueStateResponseSchema = z.object({ printPaused: z.boolean() });
+export type PrintQueueStateResponse = z.infer<typeof printQueueStateResponseSchema>;
+
+/** POST /api/staff/acceptance。busyMessage は busy のときの案内文（省略すると既定の文言） */
+export const setAcceptanceRequestSchema = z.object({
+  acceptance: acceptanceSchema,
+  busyMessage: z.string().trim().max(100).nullable().optional(),
+});
+export type SetAcceptanceRequest = z.infer<typeof setAcceptanceRequestSchema>;
+
+/**
+ * PUT /api/staff/settings。画面で編集する項目を、すべて送って置き換える。
+ * 営業日・受付状態・印刷の一時停止は、専用の API（business-day・acceptance・print-queue）で変える
+ */
+export const updateSettingRequestSchema = settingSchema.pick({
+  price: true,
+  maxQuantityPerOrder: true,
+  maxPendingPerDevice: true,
+  printMaxWaitSeconds: true,
+  orderNumberDigits: true,
+  imageMaxBytes: true,
+});
+export type UpdateSettingRequest = z.infer<typeof updateSettingRequestSchema>;
+
+/** GET /api/staff/sales。businessDate を省略すると現在の営業日 */
+export const salesQuerySchema = z.object({ businessDate: isoDateSchema.optional() });
+export type SalesQuery = z.infer<typeof salesQuerySchema>;
+
+export const salesResponseSchema = z.object({
+  businessDate: isoDateSchema,
+  /** 支払った時刻（paidAt、日本時間）の時間帯ごと。注文のなかった時間帯は含めない */
+  hourly: z.array(
+    z.object({
+      hour: z.int().min(0).max(23),
+      paidCount: z.int().nonnegative(),
+      paidAmount: yenSchema,
+    }),
+  ),
+  /** レジの現金と照合する。返金（全額のみ）を差し引いた額が netAmount */
+  total: z.object({
+    paidCount: z.int().nonnegative(),
+    paidAmount: yenSchema,
+    refundedCount: z.int().nonnegative(),
+    refundedAmount: yenSchema,
+    netAmount: yenSchema,
+  }),
+});
+export type SalesResponse = z.infer<typeof salesResponseSchema>;
