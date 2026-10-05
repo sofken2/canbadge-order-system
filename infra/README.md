@@ -9,6 +9,11 @@
 | `caddy/dummy/` | app ができるまでの仮のページ（来場者用・スタッフ用） |
 | `cloudflared/config.example.yml` | 名前付きトンネルの設定の見本（実際の設定と認証ファイルはリポジトリに入れない） |
 | `windows/install-cloudflared-service.ps1` | cloudflared を Windows サービスにする（管理者の PowerShell） |
+| `windows/start-all.ps1`・`stop-all.ps1` | Caddy・api・print-worker を起動し、落ちたら再起動し続ける／全部止める |
+| `windows/register-startup-task.ps1` | ログオン時に `start-all.ps1` を実行するタスクを登録する |
+| `windows/configure-processing-pc.ps1` | 電源・ロック画面・自動再起動の設定（本番の処理PC でだけ） |
+| `windows/install-tools.ps1` | Git・Bun・Caddy・cloudflared・SumatraPDF を入れる |
+| `processing-pc.md` | 処理PC の構築手順（専用ユーザー・自動ログオン・自動起動・Windows Update）（I01） |
 | `cloudflare.md` | サービス化・Access・Turnstile・WAF／レート制限・学内疎通の確認の手順（I03） |
 
 ## いまの状態
@@ -132,5 +137,5 @@ cloudflared tunnel run canbadge
 - [ ] I02: app への `reverse_proxy`、SSE がため込まれずに届くことの確認、LAN 経由時の PIN 認証（優先度低）
 - [x] I03（一部）: 独自ドメイン、名前付きトンネル（手動起動）
 - [ ] I03: トンネルの Windows サービス化、Access（スタッフ画面のログイン）、Turnstile、WAF・レート制限、学内ネットワークからの疎通確認（手順は [cloudflare.md](cloudflare.md)。ダッシュボードの操作と実機での確認は管理者が行う）
-- [ ] I01: 処理PC の自動ログオン・自動起動・Windows Update 停止・スリープ無効化
+- [ ] I01: 処理PC の自動ログオン・自動起動・Windows Update 停止・スリープ無効化（スクリプトと手順書は [processing-pc.md](processing-pc.md)。本番の処理PC での実施と確認が残っている）
 - [ ] I04: バックアップと復旧手順
