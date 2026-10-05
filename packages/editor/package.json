@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./styles.css": "./src/editor.css"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -12,6 +13,16 @@
     "test": "bun test --pass-with-no-tests"
   },
   "devDependencies": {
-    "@canbadge/config": "workspace:*"
+    "@canbadge/config": "workspace:*",
+    "@canbadge/shared": "workspace:*",
+    "@types/react": "^19.3.0"
+  },
+  "dependencies": {
+    "@canbadge/badge-spec": "workspace:*",
+    "@canbadge/ui": "workspace:*",
+    "konva": "^10.7.1",
+    "react": "^19.3.0",
+    "react-konva": "^19.3.0",
+    "zod": "^4.6.5"
   }
 }

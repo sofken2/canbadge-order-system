@@ -1,4 +1,4 @@
 {
-  "extends": "@canbadge/config/tsconfig.base.json",
+  "extends": "@canbadge/config/tsconfig.react.json",
   "include": ["src"]
 }
