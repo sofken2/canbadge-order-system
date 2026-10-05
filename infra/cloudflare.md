@@ -27,19 +27,20 @@ cd infra/windows
 
 スタッフ用（`badge-staff.sofken2-ts.app`）は、Access を通った人だけが開けるようにする。Free プランで 50 人まで使える。
 
-1. Cloudflare ダッシュボードの **Zero Trust**（初回はチーム名を決める。例：`sofken2-ts`。メモしておく）
+1. Cloudflare ダッシュボードの **Zero Trust**（初回はチーム名を決める。このプロジェクトは `sofken2`。チーム名とドメインは **Settings** で確認できる）
 2. **Access → Applications → Add an application → Self-hosted**
+   - 入口は「Private IP」ではなく、**Add public hostname** を使う（URL が `destination=private-ip` の画面に入ったら、そこで「Add public hostname」を押す）
    - Application domain：`badge-staff.sofken2-ts.app`（パスは空。**サイト全体**を守る。`/api` も含む）
    - Session duration：当日の運営時間を覆う長さ（例：24 時間）
 3. **Policy**：Action は **Allow**。Include は **Emails** で、スタッフのメールアドレスを登録する（学祭の担当者全員。人数が多いときは、ドメイン単位の指定ではなく個別に）
-4. **Login methods**：**One-time PIN** を有効にする（メールに届くコードで入る。アカウント作成が不要）
+4. **One-time PIN**：メールに届くコードで入る方式（アカウント作成が不要）。**Zero Trust → Integrations → Identity providers** で有効にし、アプリの「Accepted identity providers」でも選ぶ。選ばないと、ログイン方法が「Cloudflare」（Cloudflare アカウント）だけになり、スタッフは入れない
 5. 保存後、Application の **Audience (AUD) tag**（Overview）を控える
 
 控えた値を、処理PC の `.env` に書く（A05 が JWT の署名を検証するのに使う）。
 
 | `.env` のキー | 値 |
 | --- | --- |
-| `CF_ACCESS_TEAM_DOMAIN` | `<チーム名>.cloudflareaccess.com` |
+| `CF_ACCESS_TEAM_DOMAIN` | `sofken2.cloudflareaccess.com`（Settings の Team domain の値。ログイン画面に出る別のドメインではない） |
 | `CF_ACCESS_AUD` | 上で控えた Audience tag |
 
 確認：シークレットウィンドウで `https://badge-staff.sofken2-ts.app/` を開くと、メールの入力画面が出る。**登録していないメールアドレスではコードが届かない**こと、登録したメールで入れることを確かめる。
@@ -64,8 +65,9 @@ cd infra/windows
 
 Free プランで使えるものだけを、有効にする。
 
-1. **Security → WAF → Managed rules**：Free のマネージドルールセットを有効にする
-2. **Security → WAF → Rate limiting rules**（Free は 1 ルールまで）：
+- Managed rules は、Free プランでは使えない（画面にそう出る）。この手順では使わない
+- **Security → WAF → Rate limiting rules**（Free は 1 ルールまで）。「Edit expression」に次の式を入れると確実：
+  `(http.host eq "badge.sofken2-ts.app" and starts_with(http.request.uri.path, "/api/"))`
 
 | 項目 | 値 |
 | --- | --- |
@@ -95,12 +97,18 @@ Free プランで使えるものだけを、有効にする。
 
 トンネルの通信に使うポート（7844、TCP と UDP）が学内で塞がれていると、2 が失敗する。その場合は、`cloudflared` の設定で `protocol: http2`（TCP 443 を使う）に変えると通ることがある。
 
+## つまずきやすい点
+
+- **ポリシーを2つ作ってしまう**：新しい画面では、ポリシーが別の一覧（Access → Policies）にある。「Used by applications」が 0 のものは、どこにも効いていない。メールを足すのは、使われているほう
+- **コードが届かない**：登録外のメールでも「コードを送った」と表示される（仕様）。ポリシーに載っているか、迷惑メールを確認する。Access のログには、コードを入力するまで何も出ない
+- **スタッフ用が 502**：Caddy が止まっている。`STAFF_HOST` を渡して起動する（README 4-2）
+
 ## 完了の目安
 
 - [ ] トンネルが Windows サービスで、再起動後も自動で起動する
 - [ ] スタッフ用に Access が掛かっていて、登録外のメールでは入れない
 - [ ] `.env` に `CF_ACCESS_TEAM_DOMAIN`・`CF_ACCESS_AUD`・`TURNSTILE_SITE_KEY`・`TURNSTILE_SECRET_KEY` を入れた
-- [ ] WAF のマネージドルールとレート制限が有効
+- [ ] レート制限のルールが有効
 - [ ] 学内のネットワークから、来場者用が開く（5 章の表）
 
 ## 引き継ぎ
