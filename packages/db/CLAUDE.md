@@ -2,6 +2,24 @@
 
 SQLite（bun:sqlite）+ Drizzle。状態変更の唯一の入口。
 
+## 構成
+
+| パス | 内容 |
+| --- | --- |
+| `src/schema.ts` | テーブル定義（Drizzle）。状態の列の候補は shared の列挙から取る |
+| `drizzle/` | マイグレーション（`bun run db:generate` で生成）。生成済みのファイルは編集しない |
+| `src/connection.ts` | `openDatabase`。WAL・ビジータイムアウト・外部キー・マイグレーション |
+| `src/transaction.ts` | `write`：書き込みロックを先に取る（immediate）トランザクション |
+| `src/orders.ts` | `createOrder`（採番）、`transitionOrder` |
+| `src/items.ts`・`src/sheets.ts`・`src/reprint.ts` | 明細の遷移、印刷シート・印刷の確認、履歴からの再印刷 |
+| `src/settings.ts` | 営業開始・受付状態・印刷の一時停止・設定の更新、失効 |
+| `src/audit.ts` | 操作ログ。`listAuditLogsSince` で、前回以降の行を読む |
+| `src/queries.ts` | 読み取りだけの関数 |
+| `src/rows.ts` | DB の行を、契約のエンティティにする（null は省略に、zod で検証） |
+| `src/clock.ts` | 手で進められる時計（テスト・サンプルデータで時刻を固定する） |
+
+使うときは `import { ... } from "@canbadge/db"` だけにする。
+
 ## ルール
 
 - ステータスの変更は遷移関数（例: `transitionOrder(id, to, actor)`）だけで行う。遷移表は `packages/shared` のものを使い、表にない遷移は例外を投げる
@@ -11,3 +29,7 @@ SQLite（bun:sqlite）+ Drizzle。状態変更の唯一の入口。
 - `apps/api` と `apps/print-worker` の2プロセスが同じ DB を使う。接続時に WAL モードとビジータイムアウトを設定する
 - スキーマ変更はマイグレーションファイルを生成して行う。既存のマイグレーションファイルは編集しない
 - 遷移関数・採番・失効処理にはテストを書く。テストはメモリ上の SQLite で実行する
+- エラーは `DbError`（`code` は shared の `ErrorCode` の一部）で投げ、`message` は画面に出せる日本語にする。api は `code` を HTTP ステータスに対応させる
+- 書き込みは `write(db, ctx => ...)` の中で行い、複数の状態変更をまたぐ操作は、トランザクションの中で呼ぶ版（`applyOrderTransition` など）を使う。途中で例外が出れば、状態も操作ログもすべて取り消される
+- 型の正本は shared の zod スキーマ。テーブルを変えたら `rows.test.ts` の型のテストで、契約とのずれを確かめる
+- `bun:sqlite` の `close()` は、使い終わっていないステートメントがあるとファイルの解放を遅らせる（Windows ではファイルを消せなくなる）。`Database.close()` を使う

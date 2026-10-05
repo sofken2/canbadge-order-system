@@ -479,6 +479,14 @@ type SseEvent =
   - 自動遷移（全明細が `printed` になったら注文を `printed` に）は遷移関数の中で行うと、呼ぶ側が意識せずに済む
   - 型の正本は shared の zod スキーマ。Drizzle のテーブル定義はそれに合わせて書き、`InferSelectModel` と `z.infer` が一致することを型レベルのテスト（例: `expectTypeOf`）で確認する。ステータス列の値の候補は shared の列挙から取る
   - DB から読んだ値を api が返す前に zod で検証すると、ずれが実行時にも見つかる
+  - **実装済み**：`packages/db/src`。使い方と規則は `packages/db/CLAUDE.md`
+    - 接続：`openDatabase({ path })`（WAL・ビジータイムアウト 5 秒・外部キー・マイグレーション・設定の初期行）
+    - 遷移：`transitionOrder`・`transitionOrderItem`・`transitionPrintSheet`。どれも「現在の状態」を条件に更新し、操作ログと同じトランザクションで書く
+    - 注文：`createOrder`（受付状態の確認・採番・金額の計算・明細の作成まで 1 つのトランザクション）
+    - 印刷：`createPrintSheet`（シートとバッジの状態を印刷の**前に**記録）、`checkPrintSheet`（バッジごとの OK・再印刷）、`reprintItems`（履歴からの再印刷）
+    - 設定：`openBusinessDay`・`setAcceptance`・`setPrintPaused`・`updateSetting`。失効（支払い待ちの注文）もここで行う
+    - 操作ログ：`listAuditLogsSince(db, afterSeq)`。api はこれを数秒ごとに読み、print-worker の変更も含めて SSE を流す。操作ログの `action` と `detail` が、SSE の種類を決める手がかりになる
+    - 読み取り：`queries.ts`（`getOrder`・`getOrderByNumber`・`listOrderItems` など。検索や一覧は T07 以降で足す）
 
 ### T06 共通サンプルデータ（packages/fixtures）
 
@@ -486,7 +494,7 @@ type SseEvent =
 - **内容**：全ステータスの注文、公開・審査中などのアーカイブ作品、サンプル画像、シードとリセットのスクリプト
 - **注意点**：サンプル画像は自作か、利用条件が明確な素材だけを使う
 - **つながり**：
-  - 使う：shared のスキーマ（サンプルを検証する）、db（シードの投入）
+  - 使う：shared のスキーマ（サンプルを検証する）、db（シードの投入。状態は遷移関数を通して作る）
   - 提供：全ステータスの注文・明細・シート、アーカイブ作品、サンプル画像、`bun run db:reset`
   - シード時にサンプル画像を `data/images/` にコピーし、DB のパスと実ファイルが一致するようにする
 
