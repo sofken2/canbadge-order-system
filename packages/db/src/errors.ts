@@ -3,7 +3,12 @@ import type { ErrorCode } from "@canbadge/shared";
 /** db が投げるエラーの種類。shared の ErrorCode の一部で、api はそのまま HTTP ステータスに対応させる */
 export type DbErrorCode = Extract<
   ErrorCode,
-  "NOT_FOUND" | "INVALID_TRANSITION" | "CONFLICT" | "NOT_ACCEPTING" | "VALIDATION_FAILED"
+  | "NOT_FOUND"
+  | "INVALID_TRANSITION"
+  | "CONFLICT"
+  | "CONFIRMATION_MISMATCH"
+  | "NOT_ACCEPTING"
+  | "VALIDATION_FAILED"
 >;
 
 export class DbError extends Error {

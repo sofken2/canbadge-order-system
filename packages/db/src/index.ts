@@ -6,6 +6,7 @@ export * from "./connection";
 export * from "./errors";
 export * from "./generate";
 export * from "./items";
+export * from "./listings";
 export * from "./orders";
 export * from "./paths";
 export * from "./queries";

@@ -1,7 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import { inflateSync } from "node:zlib";
+import { idSchema } from "@canbadge/shared";
 import { crc32, encodePng } from "./png";
-import { renderSampleImage, sampleImageNames, sampleImageSize } from "./sample-images";
+import {
+  renderSampleImage,
+  sampleImageFile,
+  sampleImageIds,
+  sampleImageNames,
+  sampleImageSize,
+} from "./sample-images";
 import { renderSamplePdf } from "./sample-pdf";
 
 describe("PNG の作成", () => {
@@ -56,6 +63,14 @@ describe("サンプル画像と PDF", () => {
       sampleImageNames.map((name) => Buffer.from(renderSampleImage(name)).toString("base64")),
     );
     expect(sizes.size).toBe(sampleImageNames.length);
+  });
+
+  test("すべての画像に、契約の ID（ULID）の形のファイル名がある", () => {
+    for (const name of sampleImageNames) {
+      expect(idSchema.safeParse(sampleImageIds[name]).success).toBe(true);
+      expect(sampleImageFile(name)).toBe(`${sampleImageIds[name]}.png`);
+    }
+    expect(new Set(Object.values(sampleImageIds)).size).toBe(sampleImageNames.length);
   });
 
   test("存在しない画像名は断る", () => {

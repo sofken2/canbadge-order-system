@@ -88,5 +88,22 @@ export function renderSampleImage(name: string): Uint8Array {
   return encodePng(size, size, rgb);
 }
 
-/** データ置き場の images/ 以下に置く、サンプル画像のファイル名 */
-export const sampleImageFile = (name: string): string => `sample-${name}.png`;
+/**
+ * サンプル画像の ID。画像の URL（/api/images/:imageId）は、契約の ID（ULID）で引くので、
+ * ファイル名も ULID の形にする。サンプルと分かるよう、固定の値にしている
+ */
+export const sampleImageIds: Record<string, string> = {
+  rings: "01J00000000000000000000001",
+  stripes: "01J00000000000000000000002",
+  checker: "01J00000000000000000000003",
+  dots: "01J00000000000000000000004",
+  sunrise: "01J00000000000000000000005",
+  smiley: "01J00000000000000000000006",
+};
+
+/** データ置き場の images/ 以下に置く、サンプル画像のファイル名（<画像 ID>.png） */
+export function sampleImageFile(name: string): string {
+  const id = sampleImageIds[name];
+  if (!id) throw new Error(`サンプル画像がありません: ${name}`);
+  return `${id}.png`;
+}

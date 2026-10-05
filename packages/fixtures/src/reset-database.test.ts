@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createOrder, databasePath, openDatabase } from "@canbadge/db";
 import { resetAndSeed } from "./reset-database";
+import { sampleImageFile } from "./sample-images";
 
 const NOW = new Date("2026-11-03T12:00:00+09:00");
 
@@ -26,7 +27,7 @@ function orderCount(): number {
 function addRealOrder(): void {
   const db = openDatabase({ path: databasePath(dir), migrate: false });
   createOrder(db, {
-    imagePath: "images/sample-rings.png",
+    imagePath: `images/${sampleImageFile("rings")}`,
     editorData: { version: 1 },
     quantity: 1,
     anonToken: "real-visitor-token-0000000000",
@@ -49,7 +50,7 @@ describe("db:reset", () => {
     Bun.write(stray, "x");
     resetAndSeed({ dataDir: dir, now: NOW });
     expect(existsSync(stray)).toBe(false);
-    expect(existsSync(join(dir, "images", "sample-rings.png"))).toBe(true);
+    expect(existsSync(join(dir, "images", sampleImageFile("rings")))).toBe(true);
   });
 
   test("サンプルのあとに本物の注文が入った DB は、--force なしでは消さない", () => {

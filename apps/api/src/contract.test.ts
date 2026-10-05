@@ -1,0 +1,244 @@
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { encodePng, sampleImageIds } from "@canbadge/fixtures";
+import { buildPath, type EndpointName, endpoints } from "@canbadge/shared";
+import { call, createTestApp, openSse, type TestApp } from "./test-helpers";
+
+// 契約（packages/shared の endpoints）の全エンドポイントを、サンプルデータに対して 1 本ずつ呼び、
+// 応答が契約のスキーマに合うことを確かめる。契約と実装のずれは、ここで見つかる。
+// エンドポイントが 1 本でも抜けていると、最後のテストが失敗する。
+
+let t: TestApp;
+beforeAll(() => {
+  t = createTestApp();
+});
+afterAll(async () => await t.close());
+
+/** ステップ間で受け渡す値（アップロードした画像、作った注文、Cookie など） */
+const state: Record<string, string> = {};
+const covered = new Set<EndpointName>();
+
+/** 1 本のエンドポイントを呼び、JSON なら契約のスキーマで検証して、本体を返す */
+async function run(
+  name: EndpointName,
+  request: {
+    params?: Record<string, string>;
+    query?: string;
+    json?: unknown;
+    form?: FormData;
+    headers?: Record<string, string>;
+  },
+  expectedStatus = 200,
+): Promise<{ response: Response; body: unknown }> {
+  const endpoint = endpoints[name];
+  const path = buildPath(endpoint.path, request.params) + (request.query ?? "");
+  const response = await call(t.app, endpoint.method, path, {
+    json: request.json,
+    form: request.form,
+    headers: request.headers,
+  });
+  covered.add(name);
+  expect({ name, status: response.status }).toEqual({ name, status: expectedStatus });
+
+  if (endpoint.response === null || expectedStatus !== 200) return { response, body: undefined };
+  const body: unknown = await response.json();
+  const checked = endpoint.response.safeParse(body);
+  expect({ name, valid: checked.success }).toEqual({ name, valid: true });
+  return { response, body };
+}
+
+const tinyPng = () => {
+  const form = new FormData();
+  form.set(
+    "file",
+    new File([encodePng(2, 2, new Uint8Array(12).fill(120))], "tiny.png", { type: "image/png" }),
+  );
+  return form;
+};
+
+describe("来場者向けのエンドポイント", () => {
+  test("getStatus", async () => {
+    const { body } = await run("getStatus", {});
+    expect(body).toMatchObject({ acceptance: "open", price: 300, maxQuantityPerOrder: 1 });
+  });
+
+  test("uploadImage → getImage", async () => {
+    const { body } = await run("uploadImage", { form: tinyPng() });
+    state.uploadedImageId = (body as { imageId: string }).imageId;
+
+    const image = await run("getImage", { params: { imageId: state.uploadedImageId } });
+    expect(image.response.headers.get("content-type")).toBe("image/png");
+    await run("getImage", {
+      params: { imageId: sampleImageIds.rings ?? "" },
+      query: "?size=thumb",
+    });
+  });
+
+  test("createOrder → getOrder", async () => {
+    const { response, body } = await run("createOrder", {
+      json: {
+        imageId: state.uploadedImageId,
+        editorData: { version: 1 },
+        quantity: 1,
+        turnstileToken: "dummy",
+        rightsConsent: true,
+      },
+    });
+    state.newOrderId = (body as { orderId: string }).orderId;
+    // 匿名トークンは、api が Cookie に入れる（画面側では作らない）
+    state.cookie = (response.headers.get("set-cookie") ?? "").split(";")[0] ?? "";
+    expect(state.cookie).toMatch(/^anon_token=.{16,}/);
+
+    await run("getOrder", { params: { orderId: state.newOrderId ?? "" } });
+  });
+
+  test("lookupOrder", async () => {
+    const waiting = t.summary.orders.waiting;
+    await run("lookupOrder", {
+      json: { orderNumber: waiting?.orderNumber, confirmationCode: t.confirmationCode("waiting") },
+    });
+  });
+
+  test("cancelOrder（本人の Cookie を持つ来場者）", async () => {
+    const { body } = await run("cancelOrder", {
+      params: { orderId: state.newOrderId ?? "" },
+      headers: { cookie: state.cookie ?? "" },
+    });
+    expect(body).toMatchObject({ status: "cancelled" });
+  });
+
+  test("Discord の取り込み（W08）は、まだ実装されていない（501）", async () => {
+    await run("discordAuthorize", {}, 501);
+    await run("discordCallback", { query: "?code=x&state=y" }, 501);
+  });
+
+  test("orderEvents（SSE）", async () => {
+    const sse = await openSse(
+      t.app,
+      buildPath(endpoints.orderEvents.path, { orderId: t.orderId("waiting") }),
+    );
+    expect(sse.response.headers.get("content-type")).toContain("text/event-stream");
+    covered.add("orderEvents");
+    await sse.close();
+  });
+});
+
+describe("スタッフ向けのエンドポイント", () => {
+  test("searchStaffOrders", async () => {
+    const { body } = await run("searchStaffOrders", { query: "?status=ready,assembling&limit=5" });
+    const items = (body as { items: { status: string }[] }).items;
+    expect(items.length).toBeGreaterThan(0);
+    for (const item of items) expect(["ready", "assembling"]).toContain(item.status);
+  });
+
+  test("支払い → 組み立て開始 → 完成 → 受け渡し → 返金 → 取り消し", async () => {
+    const pay = await run("payOrder", { params: { orderId: t.orderId("waiting") } });
+    expect(pay.body).toMatchObject({ status: "paid" });
+    const assemble = await run("assembleOrder", { params: { orderId: t.orderId("printedA") } });
+    expect(assemble.body).toMatchObject({ status: "assembling" });
+    const complete = await run("completeOrder", { params: { orderId: t.orderId("assembling") } });
+    expect(complete.body).toMatchObject({ status: "ready" });
+    const pickup = await run("pickupOrder", {
+      params: { orderId: t.orderId("readyNew") },
+      json: { confirmationCode: t.confirmationCode("readyNew") },
+    });
+    expect(pickup.body).toMatchObject({ status: "picked_up" });
+    const refund = await run("refundOrder", { params: { orderId: t.orderId("queued") } });
+    expect(refund.body).toMatchObject({ status: "refunded" });
+    const cancel = await run("cancelStaffOrder", {
+      params: { orderId: t.orderId("waitingFromArchive") },
+    });
+    expect(cancel.body).toMatchObject({ status: "cancelled" });
+  });
+
+  test("印刷：現在のシート → 履歴 → PDF → 確認", async () => {
+    const current = await run("getCurrentPrintSheet", {});
+    const sheet = (
+      current.body as { sheet: { id: string; status: string; slots: unknown[] } | null }
+    ).sheet;
+    expect(sheet?.status).toBe("printing");
+    expect(sheet?.slots).toHaveLength(2);
+    state.sheetId = sheet?.id ?? "";
+
+    const history = await run("listPrintSheets", { query: "?limit=2" });
+    expect((history.body as { items: unknown[] }).items).toHaveLength(2);
+
+    const pdf = await run("getPrintSheetPdf", { params: { sheetId: state.sheetId ?? "" } });
+    expect(pdf.response.headers.get("content-type")).toBe("application/pdf");
+    expect(new TextDecoder().decode((await pdf.response.arrayBuffer()).slice(0, 5))).toBe("%PDF-");
+
+    const check = await run("checkPrintSheet", {
+      params: { sheetId: state.sheetId ?? "" },
+      json: { reprintOrderItemIds: [] },
+    });
+    expect(check.body).toMatchObject({ status: "confirmed" });
+  });
+
+  test("印刷済みバッジの一覧 → 再印刷", async () => {
+    const list = await run("listPrintedItems", { query: "?limit=30" });
+    const items = (list.body as { items: { reprintable: boolean }[] }).items;
+    expect(items.some((item) => item.reprintable)).toBe(true);
+
+    const reprint = await run("reprint", { json: { orderItemIds: [t.itemId("printedB")] } });
+    expect(reprint.body).toEqual({ reprintedItemIds: [t.itemId("printedB")], skippedItemIds: [] });
+  });
+
+  test("印刷の一時停止と再開", async () => {
+    expect((await run("pausePrintQueue", {})).body).toEqual({ printPaused: true });
+    expect((await run("resumePrintQueue", {})).body).toEqual({ printPaused: false });
+  });
+
+  test("営業開始・受付状態・設定・売上", async () => {
+    await run("openBusinessDay", {});
+    const settings = await run("getSettings", {});
+    const current = settings.body as Record<string, unknown>;
+    const updated = await run("updateSettings", {
+      json: {
+        price: 350,
+        maxQuantityPerOrder: current.maxQuantityPerOrder,
+        maxPendingPerDevice: current.maxPendingPerDevice,
+        printMaxWaitSeconds: current.printMaxWaitSeconds,
+        orderNumberDigits: current.orderNumberDigits,
+        imageMaxBytes: current.imageMaxBytes,
+      },
+    });
+    expect(updated.body).toMatchObject({ price: 350 });
+
+    const busy = await run("setAcceptance", {
+      json: { acceptance: "busy", busyMessage: "しばらくお待ちください" },
+    });
+    expect(busy.body).toMatchObject({ acceptance: "busy", busyMessage: "しばらくお待ちください" });
+
+    // 営業開始で、営業日はいまの日付になった。サンプルの営業日（2026-11-03）を指定して集計する
+    const sales = await run("getSales", { query: "?businessDate=2026-11-03" });
+    expect((sales.body as { total: { paidCount: number } }).total.paidCount).toBeGreaterThan(0);
+  });
+
+  test("staffEvents（SSE）", async () => {
+    const sse = await openSse(t.app, endpoints.staffEvents.path);
+    covered.add("staffEvents");
+    expect(sse.response.headers.get("content-type")).toContain("text/event-stream");
+    await sse.close();
+  });
+});
+
+describe("呼び出しモニター向けのエンドポイント", () => {
+  test("getMonitorReady", async () => {
+    const { body } = await run("getMonitorReady", {});
+    const items = (body as { items: { orderNumberText: string }[] }).items;
+    expect(items.length).toBeGreaterThan(0);
+    expect(items[0]?.orderNumberText).toMatch(/^\d{3}$/);
+  });
+
+  test("monitorEvents（SSE）", async () => {
+    const sse = await openSse(t.app, endpoints.monitorEvents.path);
+    covered.add("monitorEvents");
+    expect(sse.response.headers.get("content-type")).toContain("text/event-stream");
+    await sse.close();
+  });
+});
+
+describe("契約との対応", () => {
+  test("契約のすべてのエンドポイントを、1 本ずつ呼んで確かめた", () => {
+    expect([...covered].map(String).sort()).toEqual(Object.keys(endpoints).sort());
+  });
+});
