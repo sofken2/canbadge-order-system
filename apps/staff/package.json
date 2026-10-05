@@ -18,6 +18,9 @@
     "vite": "^8.3.1"
   },
   "dependencies": {
+    "@canbadge/api-client": "workspace:*",
+    "@canbadge/shared": "workspace:*",
+    "@canbadge/ui": "workspace:*",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   }

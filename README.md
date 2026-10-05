@@ -63,7 +63,9 @@
 | `packages/db` | SQLite + Drizzle、状態遷移関数 | `shared` | T05 |
 | `packages/fixtures` | 共通サンプルデータとシード | `shared` | T06 |
 | `packages/badge-spec` | 寸法・解像度・面付けの設定値 | `shared` | T08、Q01 |
-| `packages/ui` | デザイントークンと共通 UI 部品（`design.md` に従う） | `shared` | T10 |
+| `packages/ui` | デザイントークンと共通 UI 部品（`design.md` に従う）。いまは、読み込み・操作・画面遷移の React の小さな部品だけ | `shared` | T10 |
+| `packages/api-client` | 型付きの API クライアント。契約の `endpoints` から作り、web・staff が `/api` を呼ぶのに使う | `shared` | T09 |
+| `packages/e2e` | 通し確認。api と print-worker を実際に起動し、注文から受け渡しまでを通す（`bun run test` に含まれる） | `shared` | T09 |
 | `packages/editor` | キャンバスエディタ | `web` | W01 |
 | `packages/scanner` | カメラでの QR 読み取り | `staff` | S01 |
 | `infra/` | Caddy・cloudflared 設定、Windows 起動スクリプト、手順書 | `infra` | I01〜I04 |
@@ -96,6 +98,35 @@ bun run build        # ビルド
 bun run format       # コードの整形
 bun run db:reset     # DB を作り直して、サンプルデータを入れる（data/ に作られる）
 ```
+
+### 動かして試す
+
+```sh
+bun run db:reset     # サンプルデータを入れる（初回と、データを作り直したいとき）
+bun run dev          # web・staff・api・print-worker を起動する
+```
+
+| 画面 | URL |
+| --- | --- |
+| 来場者：注文する | http://localhost:3000/ （注文すると、注文状況に移る） |
+| スタッフ：レジ | http://localhost:3001/register |
+| スタッフ：印刷確認 | http://localhost:3001/print |
+| スタッフ：組み立て・受け渡し | http://localhost:3001/assemble |
+| 呼び出しモニター | http://localhost:3001/monitor |
+| スタッフ：設定（営業開始・受付状態・印刷の一時停止） | http://localhost:3001/settings |
+
+画面は、すべて**仮のもの**（見た目は作っていない）。注文から呼び出しまでの流れは、次のとおり。
+
+1. 来場者の画面で画像を選んで注文する → 注文番号と確認コードが出る
+2. レジで注文番号を入れて、支払い済みにする
+3. print-worker が、印刷待ちを拾って PDF を作り、開発用ドライバーが `data/print-out/` に出力する（サンプルは、待ち時間 10 秒）
+4. 印刷確認の画面で、バッジごとに OK か再印刷を選んで確認する
+5. 組み立て・受け渡しの画面で、組み立て開始 → 完成。呼び出しモニターに番号が出る
+6. 受け渡しで、来場者の確認コードを入れて、受け渡し済みにする
+
+- サンプルデータには、**確認待ちの印刷シートが 1 枚**入っている。印刷中のシートは同時に 1 枚までなので、新しい注文を印刷したいときは、先にそのシートを印刷確認で確認する
+- `packages/` の変更は、`bun run dev` を再起動すると反映される（`bun --watch` は、各 app の外のファイルを監視しない）
+- 通し確認：`bun run test` に、api と print-worker を実際に起動して、注文から受け渡しまでを通す確認（`packages/e2e`）が含まれる
 
 PR を出す前に `typecheck`・`lint`・`test` を通す。特定のパッケージだけ実行するときは `bunx turbo run <task> --filter=@canbadge/<名前>`（例：`bunx turbo run test --filter=@canbadge/api`）。
 

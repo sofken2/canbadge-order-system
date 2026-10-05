@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, utimesSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -98,4 +98,43 @@ describe("別プロセスからの同時採番", () => {
     check.close();
     expect(rows.map((r) => r.n)).toEqual(Array.from({ length: 80 }, (_, i) => i + 1));
   }, 60_000);
+});
+
+describe("空の DB への同時起動", () => {
+  const worker = fileURLToPath(new URL("./migrate-worker.ts", import.meta.url));
+
+  test("api と print-worker のように、複数のプロセスが同時に初めて開いても、全員が成功する", async () => {
+    // タイミング次第で起きる問題なので、繰り返して確かめる（ロックがなかったころは、この条件でほぼ毎回失敗した）
+    for (let round = 0; round < 3; round++) {
+      const path = join(dir, `round-${round}`, "app.db");
+      const processes = Array.from({ length: 6 }, () =>
+        Bun.spawn([process.execPath, "run", worker, path], { stdout: "pipe", stderr: "pipe" }),
+      );
+      const codes = await Promise.all(processes.map((p) => p.exited));
+      const errors = await Promise.all(processes.map((p) => new Response(p.stderr).text()));
+      expect({ round, codes, errors }).toEqual({
+        round,
+        codes: Array(6).fill(0),
+        errors: Array(6).fill(""),
+      });
+
+      const check = openDatabase({ path, migrate: false });
+      expect(check.sqlite.query("SELECT count(*) AS n FROM settings").get()).toEqual({ n: 1 });
+      check.close();
+      // 使い終わったロックは、残らない
+      expect(existsSync(`${path}.migrate-lock`)).toBe(false);
+    }
+  }, 60_000);
+
+  test("プロセスが落ちて残った古いロックは、取り上げて続行する", () => {
+    const path = join(dir, "stale", "app.db");
+    mkdirSync(`${path}.migrate-lock`, { recursive: true });
+    const old = new Date(Date.now() - 120_000);
+    utimesSync(`${path}.migrate-lock`, old, old);
+
+    const db = openDatabase({ path });
+    expect(db.sqlite.query("SELECT count(*) AS n FROM settings").get()).toEqual({ n: 1 });
+    db.close();
+    expect(existsSync(`${path}.migrate-lock`)).toBe(false);
+  });
 });

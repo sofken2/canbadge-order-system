@@ -1,0 +1,20 @@
+{
+  "name": "@canbadge/e2e",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "@canbadge/config": "workspace:*"
+  },
+  "dependencies": {
+    "@canbadge/api-client": "workspace:*",
+    "@canbadge/db": "workspace:*",
+    "@canbadge/fixtures": "workspace:*",
+    "@canbadge/shared": "workspace:*"
+  }
+}

@@ -3,6 +3,7 @@ import { DbError } from "./errors";
 import {
   countWaitingOrders,
   getCurrentPrintSheet,
+  listPrintableItems,
   listPrintedItems,
   listPrintSheets,
   listReadyOrders,
@@ -224,6 +225,33 @@ describe("売上の集計", () => {
       businessDate: "2020-01-01",
       hourly: [],
       total: { paidCount: 0, paidAmount: 0, refundedCount: 0, refundedAmount: 0, netAmount: 0 },
+    });
+  });
+});
+
+describe("印刷できるバッジ", () => {
+  test("支払い済みの注文の印刷待ちだけを、再印刷、古い順の並びで返す", () => {
+    const { db, clock } = setup();
+    placeOrder(db); // 支払い前は含めない
+    const first = paidOrder(db);
+    clock.advance(60_000);
+    const second = paidOrder(db);
+    clock.advance(60_000);
+    const refunded = paidOrder(db);
+    transitionOrder(db, { orderId: refunded.order.id, to: "refunded", actor: "staff" });
+
+    const ids = (items: { orderItemId: string }[]) => items.map((i) => i.orderItemId);
+    const firstItem = first.items[0]?.id ?? "";
+    const secondItem = second.items[0]?.id ?? "";
+    expect(ids(listPrintableItems(db))).toEqual([firstItem, secondItem]);
+
+    // 2 番目のバッジを印刷して再印刷に回すと、printCount が 1 になり、先頭に来る
+    const { sheet } = createPrintSheet(db, { pdfPath: "sheets/1.pdf", orderItemIds: [secondItem] });
+    checkPrintSheet(db, { sheetId: sheet.id, reprintOrderItemIds: [secondItem], actor: "staff" });
+    expect(ids(listPrintableItems(db))).toEqual([secondItem, firstItem]);
+    expect(listPrintableItems(db)[0]).toMatchObject({
+      printCount: 1,
+      orderNumber: second.order.orderNumber,
     });
   });
 });
