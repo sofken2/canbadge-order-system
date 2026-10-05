@@ -93,6 +93,11 @@
     "packages/fixtures": {
       "name": "@canbadge/fixtures",
       "version": "0.0.0",
+      "dependencies": {
+        "@canbadge/badge-spec": "workspace:*",
+        "@canbadge/db": "workspace:*",
+        "@canbadge/shared": "workspace:*",
+      },
       "devDependencies": {
         "@canbadge/config": "workspace:*",
       },

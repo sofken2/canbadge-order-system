@@ -13,7 +13,8 @@
     "lint": "turbo run lint",
     "test": "turbo run test",
     "format": "biome format --write .",
-    "db:reset": "bun --env-file=.env.example --env-file=.env run turbo run db:reset"
+    "db:reset": "bun --env-file=.env.example --env-file=.env run turbo run db:reset",
+    "db:reset:force": "bun --env-file=.env.example --env-file=.env run turbo run db:reset:force"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.0.0",

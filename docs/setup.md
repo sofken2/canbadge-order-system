@@ -163,7 +163,10 @@ bun run dev               # 全 app を起動
 
 `.env` は、ポートを変えたいときだけ用意すればよい（`cp .env.example .env`、Windows の PowerShell では `Copy-Item .env.example .env`）。なくても `.env.example` の値で動く。
 
-`bun run db:reset`（DB 作成とサンプルデータ投入）は、DB（T05）とサンプルデータ（T06）ができるまでは「未実装」と表示するだけ。
+`bun run db:reset` で、DB を作り直してサンプルデータを入れる。`data/`（リポジトリ直下、git の対象外）に、DB・サンプル画像・PDF ができる。サンプルには、すべての状態の注文（支払い待ち・印刷待ち・印刷中・印刷済み・組み立て中・完成・受け渡し済み・失効・取り消し・返金済み）と、印刷シート、アーカイブ作品が入っている。画面は、このデータを `apps/api` から読んで作る。
+
+- 動かすたびに、DB と `data/images/`・`data/sheets/` を消して作り直す。api や print-worker が DB を開いたままだと消せないので、先に止める
+- サンプルのあとに本物の注文が入った DB は、消さずに止まる。本当に消すときだけ `bun run db:reset:force`
 
 起動できたら、ブラウザで http://localhost:3000/（来場者向け）と http://localhost:3001/（スタッフ向け）を開く。どちらも「API: OK (ok)」と出れば、画面から api までつながっている。URL とポートの一覧は README の「コマンド」にある。**ここまでできたら環境構築は完了**。手順どおりに動かなかった箇所は、この手順書を直す PR を出すのが最初の貢献になる。
 

@@ -94,7 +94,7 @@ bun run lint         # lint（Biome）
 bun run test         # テスト（bun test）
 bun run build        # ビルド
 bun run format       # コードの整形
-bun run db:reset     # DB を作り直してシードを投入（T05・T06 ができるまでは未実装と表示するだけ）
+bun run db:reset     # DB を作り直して、サンプルデータを入れる（data/ に作られる）
 ```
 
 PR を出す前に `typecheck`・`lint`・`test` を通す。特定のパッケージだけ実行するときは `bunx turbo run <task> --filter=@canbadge/<名前>`（例：`bunx turbo run test --filter=@canbadge/api`）。
