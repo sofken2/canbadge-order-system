@@ -108,6 +108,8 @@ PR を出す前に `typecheck`・`lint`・`test` を通す。特定のパッケ�
 | api | http://localhost:3002/api/health | 3002（`API_PORT`） |
 | print-worker | なし（ターミナルに起動のログだけ出る） | — |
 
+api は契約（`packages/shared`）の全エンドポイントを実装している。`bun run db:reset` でサンプルデータを入れてから `bun run dev` すると、サンプルの注文を返す（構成は `apps/api/CLAUDE.md`）。スタッフ用・モニター用の API は、認証（A05）ができるまで、Cloudflare を通ったリクエストを 401 で断る。
+
 web と staff の画面は、`/api` を api のポートへ転送する。本番（Caddy 経由）と同じく、画面のコードは常に `/api` を呼べばよい。画面に「API: OK (ok)」と出れば、画面から api までつながっている。
 
 - ポートを変えたいときは、`.env.example` を `.env` にコピーして値を書き換える。`.env` がなくても、`.env.example` の値で動く

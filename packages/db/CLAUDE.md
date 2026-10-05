@@ -10,11 +10,12 @@ SQLite（bun:sqlite）+ Drizzle。状態変更の唯一の入口。
 | `drizzle/` | マイグレーション（`bun run db:generate` で生成）。生成済みのファイルは編集しない |
 | `src/connection.ts` | `openDatabase`。WAL・ビジータイムアウト・外部キー・マイグレーション |
 | `src/transaction.ts` | `write`：書き込みロックを先に取る（immediate）トランザクション |
-| `src/orders.ts` | `createOrder`（採番）、`transitionOrder` |
+| `src/orders.ts` | `createOrder`（採番）、`transitionOrder`、`pickupOrder`（確認コードを照合して受け渡し） |
 | `src/items.ts`・`src/sheets.ts`・`src/reprint.ts` | 明細の遷移、印刷シート・印刷の確認、履歴からの再印刷 |
 | `src/settings.ts` | 営業開始・受付状態・印刷の一時停止・設定の更新、失効 |
 | `src/audit.ts` | 操作ログ。`listAuditLogsSince` で、前回以降の行を読む |
-| `src/queries.ts` | 読み取りだけの関数 |
+| `src/queries.ts` | 読み取りだけの関数（1 件の取得） |
+| `src/listings.ts` | 画面向けの一覧と集計（注文の検索・印刷履歴・印刷済みバッジ・売上）。新しい順で、続きは `before` で取る |
 | `src/rows.ts` | DB の行を、契約のエンティティにする（null は省略に、zod で検証） |
 | `src/clock.ts` | 手で進められる時計（テスト・サンプルデータで時刻を固定する） |
 

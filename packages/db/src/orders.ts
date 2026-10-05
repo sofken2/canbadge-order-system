@@ -183,7 +183,24 @@ export function applyOrderTransition(ctx: Ctx, input: OrderTransitionInput): Ord
   return requireOrder(ctx.tx, order.id);
 }
 
-/** 注文の状態を変える。支払い・組み立て・完成・受け渡し・返金・取り消しは、すべてこれを通す */
+/**
+ * 受け渡し。確認コードを照合してから、完成 → 受け渡し済みに変える（同じトランザクションの中で）。
+ * 画面に正解の確認コードを持たせないため、照合は db で行う。違えば CONFIRMATION_MISMATCH
+ */
+export function pickupOrder(
+  db: Database,
+  input: { orderId: string; confirmationCode: string; actor: Actor },
+): Order {
+  return write(db, (ctx) => {
+    const order = requireOrder(ctx.tx, input.orderId);
+    if (order.confirmationCode !== input.confirmationCode) {
+      throw new DbError("CONFIRMATION_MISMATCH", "確認コードが違います");
+    }
+    return applyOrderTransition(ctx, { orderId: order.id, to: "picked_up", actor: input.actor });
+  });
+}
+
+/** 注文の状態を変える。支払い・組み立て・完成・返金・取り消しは、これを通す（受け渡しは pickupOrder） */
 export function transitionOrder(db: Database, input: OrderTransitionInput): Order {
   return write(db, (ctx) => applyOrderTransition(ctx, input));
 }
