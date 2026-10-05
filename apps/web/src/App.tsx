@@ -1,20 +1,10 @@
-import { useEffect, useState } from "react";
+import { usePath } from "@canbadge/ui";
+import { OrderPage } from "./OrderPage";
+import { OrderStatusPage } from "./OrderStatusPage";
 
-// 見た目は T10（デザインの土台）で決める。ここは api までつながることの確認だけ
+/** パスで画面を切り替える最小限のルーティング（仮）。注文確定のあとは /orders/<注文 ID> に移る */
 export function App() {
-  const [api, setApi] = useState("確認中…");
-
-  useEffect(() => {
-    fetch("/api/health")
-      .then((res) => res.json())
-      .then((body: { status: string }) => setApi(`OK (${body.status})`))
-      .catch(() => setApi("届きません"));
-  }, []);
-
-  return (
-    <main>
-      <h1>缶バッジ注文（準備中）</h1>
-      <p>API: {api}</p>
-    </main>
-  );
+  const path = usePath();
+  const match = /^\/orders\/([0-9A-Za-z]+)$/.exec(path);
+  return match?.[1] ? <OrderStatusPage orderId={match[1]} /> : <OrderPage />;
 }

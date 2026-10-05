@@ -33,4 +33,5 @@ SQLite（bun:sqlite）+ Drizzle。状態変更の唯一の入口。
 - エラーは `DbError`（`code` は shared の `ErrorCode` の一部）で投げ、`message` は画面に出せる日本語にする。api は `code` を HTTP ステータスに対応させる
 - 書き込みは `write(db, ctx => ...)` の中で行い、複数の状態変更をまたぐ操作は、トランザクションの中で呼ぶ版（`applyOrderTransition` など）を使う。途中で例外が出れば、状態も操作ログもすべて取り消される
 - 型の正本は shared の zod スキーマ。テーブルを変えたら `rows.test.ts` の型のテストで、契約とのずれを確かめる
+- 空の DB に複数のプロセス（api と print-worker）が同時に起動しても、マイグレーションが衝突しないよう、`openDatabase` はプロセス間のロック（`<DB>.migrate-lock` フォルダ）を取ってから実行する。ロックを待つ設定（`busy_timeout`）は、WAL への切り替えより先に入れる（順序を逆にすると `database is locked` になる）
 - `bun:sqlite` の `close()` は、使い終わっていないステートメントがあるとファイルの解放を遅らせる（Windows ではファイルを消せなくなる）。`Database.close()` を使う

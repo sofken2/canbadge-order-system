@@ -7,6 +7,7 @@ import {
   createPrintSheet,
   databasePath,
   getOrder,
+  getSetting,
   imagesDir,
   newId,
   openBusinessDay,
@@ -15,6 +16,7 @@ import {
   setAcceptance,
   sheetsDir,
   transitionOrder,
+  updateSetting,
   write,
   writeAudit,
 } from "@canbadge/db";
@@ -112,6 +114,10 @@ export function seedSampleData(options: SeedOptions): SeedSummary {
     };
 
     openBusinessDay(db, { actor: "staff" });
+    // 開発で手で試すときに、印刷を 2 分も待たされないよう、印刷待ちの最大時間を短くしておく
+    // （本番の DB は db:reset を使わないので、設定画面の値のまま）
+    const { updatedAt: _unchanged, ...current } = getSetting(db.orm);
+    updateSetting(db, { values: { ...current, printMaxWaitSeconds: 10 }, actor: "staff" });
     step(1);
 
     // 失効：受付終了で、支払い待ちの注文が失効する（そのあと受付を再開する）

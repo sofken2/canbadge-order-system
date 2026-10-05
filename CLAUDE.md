@@ -28,6 +28,8 @@ Bun + Turborepo のモノレポ。本番は Windows の処理PC 1台で全プロ
 | `packages/scanner` | カメラでのQR読み取り |
 | `packages/badge-spec` | 寸法・解像度・面付けの設定値 |
 | `packages/ui` | デザイントークンと共通UI部品（`design.md` に従う） |
+| `packages/api-client` | 型付きのAPIクライアント（契約の `endpoints` から作る）。画面はこれで `/api` を呼ぶ |
+| `packages/e2e` | 通し確認。api と print-worker を実際に起動して、注文から受け渡しまでを通す |
 | `infra/` | Caddy・cloudflared 設定、Windows 起動スクリプト、手順書 |
 
 ## コマンド
@@ -46,7 +48,8 @@ bun run db:reset     # DBを作り直してシードを投入（data/ に DB・�
 特定のパッケージだけ実行する場合は `bunx turbo run <task> --filter=@canbadge/<名前>`。
 
 - ポート：web 3000 / staff 3001 / api 3002。`.env.example` が既定値で、`.env` があれば上書きされる
-- web・staff は Vite + React（SPA）。`/api` は api へ転送されるので、画面のコードは常に `/api` を呼ぶ
+- web・staff は Vite + React（SPA）。`/api` は api へ転送されるので、画面のコードは常に `/api` を呼ぶ。呼ぶときは `@canbadge/api-client`（エンドポイントの名前で呼び、応答を契約で検証する）を使い、パスの文字列や `fetch` を画面に直接書かない
+- 通し確認（`packages/e2e`）は `bun run test` に含まれる。api・print-worker・契約・DB のどれかを変えて、注文から受け渡しまでの流れが壊れたら、ここで失敗する
 - vite や tsc も Bun で動かす（`bunfig.toml`）。Node 前提のコマンドを書かない
 - パッケージ名は `@canbadge/<名前>`。lint と整形は Biome（`biome.json`）
 

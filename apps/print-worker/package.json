@@ -12,5 +12,11 @@
   },
   "devDependencies": {
     "@canbadge/config": "workspace:*"
+  },
+  "dependencies": {
+    "@canbadge/badge-spec": "workspace:*",
+    "@canbadge/db": "workspace:*",
+    "@canbadge/shared": "workspace:*",
+    "pdf-lib": "^1.17.1"
   }
 }

@@ -279,3 +279,35 @@ export function salesSummary(db: Database, businessDate: string): SalesSummary {
     },
   };
 }
+
+/** 印刷できるバッジ 1 個（支払い済みの注文の、印刷待ちの明細） */
+export type PrintableItem = {
+  orderItemId: string;
+  orderId: string;
+  orderNumber: number;
+  /** 印刷された回数。1 以上は再印刷で、優先して印刷する */
+  printCount: number;
+  /** 印刷待ちになった時刻の目安（支払った時刻）。「最も古いバッジが一定時間待ったら印刷する」の判断に使う */
+  waitingSince: string;
+};
+
+/**
+ * 印刷できるバッジを、印刷する順に返す（print-worker が使う）。再印刷のバッジを先に、
+ * 次に古い順。注文が支払い済みでないもの（返金済み・取り消しなど）は含めない
+ */
+export function listPrintableItems(db: Database): PrintableItem[] {
+  return db.orm
+    .select({
+      orderItemId: orderItems.id,
+      orderId: orders.id,
+      orderNumber: orders.orderNumber,
+      printCount: orderItems.printCount,
+      waitingSince: orders.paidAt,
+    })
+    .from(orderItems)
+    .innerJoin(orders, eq(orders.id, orderItems.orderId))
+    .where(and(eq(orderItems.status, "queued"), eq(orders.status, "paid")))
+    .orderBy(desc(orderItems.printCount), orders.paidAt, orderItems.id)
+    .all()
+    .flatMap((row) => (row.waitingSince ? [{ ...row, waitingSince: row.waitingSince }] : []));
+}
