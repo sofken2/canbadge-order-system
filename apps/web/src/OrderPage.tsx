@@ -1,9 +1,17 @@
 import { acceptanceLabels } from "@canbadge/shared";
-import { navigate, useAction, useResource } from "@canbadge/ui";
+import {
+  Button,
+  Checkbox,
+  Notice,
+  navigate,
+  TextField,
+  useAction,
+  useResource,
+} from "@canbadge/ui";
 import { useState } from "react";
 import { api } from "./api";
 
-// 仮画面（T09）。見た目は作らない。注文フロー（W02）と、エディタ（W01）で置き換える。
+// 仮画面（T09）。見た目は @canbadge/ui の部品（T10）。注文フロー（W02）と、エディタ（W01）で置き換える。
 
 /** 注文する。画像を選び、権利確認に同意して、注文を確定する */
 export function OrderPage() {
@@ -33,17 +41,17 @@ export function OrderPage() {
   const accepting = setting?.acceptance === "open";
 
   return (
-    <main>
-      <h1>缶バッジを注文する（仮画面）</h1>
-      {status.error && <p role="alert">{status.error}</p>}
+    <main className="cb-page">
+      <h1>オリジナル缶バッジを、つくろう</h1>
+      {status.error && <Notice tone="error">{status.error}</Notice>}
       {setting && (
-        <p>
-          受付：{acceptanceLabels[setting.acceptance]} ／ 価格：{setting.price}円 ／ 待ち：
-          {setting.waitingCount}件
+        <p className="cb-muted">
+          受付：{acceptanceLabels[setting.acceptance]} ／ {setting.price}円 / 1個 ／ いま
+          {setting.waitingCount}件待ち
         </p>
       )}
       {setting && !accepting && (
-        <p role="alert">{setting.busyMessage ?? "現在、注文を受け付けていません。"}</p>
+        <Notice tone="error">{setting.busyMessage ?? "現在、注文を受け付けていません。"}</Notice>
       )}
 
       <form
@@ -52,44 +60,38 @@ export function OrderPage() {
           void submit.run();
         }}
       >
-        <p>
-          <label>
-            画像（PNG・JPEG）：
-            <input
-              type="file"
-              accept="image/png,image/jpeg"
-              onChange={(event) => setFile(event.target.files?.[0])}
-            />
-          </label>
-        </p>
+        <TextField
+          label="画像"
+          hint="PNG・JPEG。丸く切り抜かれます"
+          type="file"
+          accept="image/png,image/jpeg"
+          onChange={(event) => setFile(event.target.files?.[0])}
+        />
         {setting && setting.maxQuantityPerOrder > 1 && (
-          <p>
-            <label>
-              個数：
-              <input
-                type="number"
-                min={1}
-                max={setting.maxQuantityPerOrder}
-                value={quantity}
-                onChange={(event) => setQuantity(Number(event.target.value))}
-              />
-            </label>
-          </p>
+          <TextField
+            label="個数"
+            type="number"
+            min={1}
+            max={setting.maxQuantityPerOrder}
+            value={quantity}
+            onChange={(event) => setQuantity(Number(event.target.value))}
+          />
         )}
-        <p>
-          <label>
-            <input
-              type="checkbox"
-              checked={consent}
-              onChange={(event) => setConsent(event.target.checked)}
-            />
-            自作の画像、または使用してよい画像です
-          </label>
-        </p>
-        <button type="submit" disabled={!accepting || !file || !consent || submit.running}>
+        <Checkbox
+          label="自作の画像、または使ってよい画像です"
+          checked={consent}
+          onChange={(event) => setConsent(event.target.checked)}
+        />
+        <Button
+          type="submit"
+          size="large"
+          block
+          disabled={!accepting || !file || !consent || submit.running}
+        >
           {submit.running ? "送信中…" : "注文する"}
-        </button>
-        {submit.error && <p role="alert">{submit.error}</p>}
+        </Button>
+        <p className="cb-muted cb-center cb-gap-top">お金は、ブースのレジで現金で払います</p>
+        {submit.error && <Notice tone="error">{submit.error}</Notice>}
       </form>
     </main>
   );

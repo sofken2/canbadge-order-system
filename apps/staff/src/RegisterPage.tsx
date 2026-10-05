@@ -1,9 +1,9 @@
 import type { StaffOrderView } from "@canbadge/shared";
-import { useAction } from "@canbadge/ui";
+import { Button, Notice, TextField, useAction } from "@canbadge/ui";
 import { useState } from "react";
 import { api } from "./api";
 
-// 仮画面（T09）。QR の読み取り（S01）・お釣りの計算・取り消し（S02）は、レジ画面で作る。
+// 仮画面（T09）。見た目は @canbadge/ui の部品（T10）。QR の読み取り（S01）・お釣りの計算・取り消し（S02）は、レジ画面で作る。
 
 /** レジ。注文番号（または QR の中身の注文 ID）を入れて、支払い待ちの注文を探し、支払い済みにする */
 export function RegisterPage() {
@@ -30,34 +30,34 @@ export function RegisterPage() {
   });
 
   return (
-    <main>
-      <h1>レジ（仮画面）</h1>
+    <main className="cb-page">
+      <h1>レジ</h1>
       <form
         onSubmit={(event) => {
           event.preventDefault();
           void search.run();
         }}
       >
-        <label>
-          注文番号：
-          <input
-            value={text}
-            inputMode="numeric"
-            onChange={(event) => setText(event.target.value)}
-          />
-        </label>{" "}
-        <button type="submit" disabled={text.trim() === "" || search.running}>
+        <TextField
+          numeric
+          label="注文番号"
+          hint="QR を読むか、番号を入れます"
+          value={text}
+          inputMode="numeric"
+          onChange={(event) => setText(event.target.value)}
+        />
+        <Button variant="ink" type="submit" disabled={text.trim() === "" || search.running}>
           探す
-        </button>
+        </Button>
       </form>
 
-      {search.error && <p role="alert">{search.error}</p>}
-      {message && <p>{message}</p>}
+      {search.error && <Notice tone="error">{search.error}</Notice>}
+      {message && <Notice>{message}</Notice>}
 
       {found && (
-        <section>
+        <section className="cb-panel cb-gap-top">
           <h2>
-            注文 <strong style={{ fontSize: "2rem" }}>{found.orderNumberText}</strong>
+            注文 <span className="cb-number cb-number--medium">{found.orderNumberText}</span>
           </h2>
           {found.items.map((item) => (
             <img
@@ -66,16 +66,17 @@ export function RegisterPage() {
               alt="バッジの画像"
               width={120}
               height={120}
+              className="cb-thumb"
             />
           ))}
           <p>
             個数 {found.items.reduce((sum, item) => sum + item.quantity, 0)} ／ 金額{" "}
             <strong>{found.totalAmount}円</strong>
           </p>
-          <button type="button" onClick={() => void pay.run(found)} disabled={pay.running}>
+          <Button size="large" block onClick={() => void pay.run(found)} disabled={pay.running}>
             支払い済みにする（現金）
-          </button>
-          {pay.error && <p role="alert">{pay.error}</p>}
+          </Button>
+          {pay.error && <Notice tone="error">{pay.error}</Notice>}
         </section>
       )}
     </main>

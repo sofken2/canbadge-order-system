@@ -5,7 +5,7 @@ import { PrintPage } from "./PrintPage";
 import { RegisterPage } from "./RegisterPage";
 import { SettingsPage } from "./SettingsPage";
 
-// 仮画面（T09）の入口。パスで画面を切り替える最小限のルーティング。見た目は T10 以降で作る。
+// 仮画面（T09）の入口。パスで画面を切り替える最小限のルーティング。ナビは @canbadge/ui の .cb-tabs（T10）。
 
 const pages = [
   { path: "/register", label: "レジ", element: <RegisterPage /> },
@@ -24,12 +24,13 @@ export function App() {
   return (
     <>
       {showMenu && (
-        <nav>
+        <nav className="cb-tabs" aria-label="スタッフ画面">
           {pages.map((p) => (
             <a
               key={p.path}
               href={p.path}
-              style={{ marginRight: "1rem", fontWeight: p.path === path ? "bold" : "normal" }}
+              className="cb-tab"
+              aria-current={p.path === path ? "page" : undefined}
               onClick={(event) => {
                 event.preventDefault();
                 navigate(p.path);

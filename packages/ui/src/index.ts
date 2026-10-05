@@ -1,3 +1,7 @@
-// デザイントークンと共通 UI 部品（design.md に従う）は T10 で作る。
-// それまでは、画面で共通に使う React の小さな部品（読み込み・操作・画面遷移）だけを置く
+// デザイントークンと共通部品（design.md に従う）。見た目は @canbadge/ui/styles.css を各 app の入口で読み込む。
+// 部品は増やしすぎない。必要になった画面のタスクが足す
+export * from "./Button";
+export * from "./Field";
 export * from "./hooks";
+export * from "./Notice";
+export * from "./StatusLabel";
