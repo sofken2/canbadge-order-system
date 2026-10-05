@@ -8,6 +8,8 @@
 | `caddy/Caddyfile` | 唯一の入口。ホスト名で来場者用・スタッフ用に振り分け、`/api/*` を api に渡す |
 | `caddy/dummy/` | app ができるまでの仮のページ（来場者用・スタッフ用） |
 | `cloudflared/config.example.yml` | 名前付きトンネルの設定の見本（実際の設定と認証ファイルはリポジトリに入れない） |
+| `windows/install-cloudflared-service.ps1` | cloudflared を Windows サービスにする（管理者の PowerShell） |
+| `cloudflare.md` | サービス化・Access・Turnstile・WAF／レート制限・学内疎通の確認の手順（I03） |
 
 ## いまの状態
 
@@ -129,6 +131,6 @@ cloudflared tunnel run canbadge
 
 - [ ] I02: app への `reverse_proxy`、SSE がため込まれずに届くことの確認、LAN 経由時の PIN 認証（優先度低）
 - [x] I03（一部）: 独自ドメイン、名前付きトンネル（手動起動）
-- [ ] I03: トンネルの Windows サービス化、Access（スタッフ画面のログイン）、Turnstile、WAF・レート制限、学内ネットワークからの疎通確認
+- [ ] I03: トンネルの Windows サービス化、Access（スタッフ画面のログイン）、Turnstile、WAF・レート制限、学内ネットワークからの疎通確認（手順は [cloudflare.md](cloudflare.md)。ダッシュボードの操作と実機での確認は管理者が行う）
 - [ ] I01: 処理PC の自動ログオン・自動起動・Windows Update 停止・スリープ無効化
 - [ ] I04: バックアップと復旧手順
