@@ -11,6 +11,7 @@
     "typecheck": { "dependsOn": ["^typecheck"] },
     "lint": {},
     "test": {},
-    "db:reset": { "cache": false }
+    "db:reset": { "cache": false },
+    "db:reset:force": { "cache": false }
   }
 }

@@ -40,7 +40,7 @@ bun run lint         # lint（Biome）
 bun run test         # テスト（bun test）
 bun run build        # ビルド
 bun run format       # 整形（Biome）
-bun run db:reset     # DBを作り直してシードを投入（T05・T06 までは未実装と表示するだけ）
+bun run db:reset     # DBを作り直してシードを投入（data/ に DB・サンプル画像・PDF ができる）
 ```
 
 特定のパッケージだけ実行する場合は `bunx turbo run <task> --filter=@canbadge/<名前>`。
