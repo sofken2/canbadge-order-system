@@ -5,25 +5,26 @@
 
 | パス | 内容 |
 | --- | --- |
-| `caddy/Caddyfile` | 唯一の入口。ホスト名で来場者用・スタッフ用に振り分け、`/api/*` を api に渡す |
-| `caddy/dummy/` | app ができるまでの仮のページ（来場者用・スタッフ用） |
+| `caddy/Caddyfile` | 唯一の入口。ホスト名で来場者用・スタッフ用の画面（静的ファイル）に振り分け、`/api/*` を api に渡す |
 | `cloudflared/config.example.yml` | 名前付きトンネルの設定の見本（実際の設定と認証ファイルはリポジトリに入れない） |
 | `windows/install-cloudflared-service.ps1` | cloudflared を Windows サービスにする（管理者の PowerShell） |
 | `cloudflare.md` | サービス化・Access・Turnstile・WAF／レート制限・学内疎通の確認の手順（I03） |
 
 ## いまの状態
 
-app（T01 以降）がまだないので、Caddy がダミーページを直接返している。
+Caddy が、ホスト名で画面（ビルドした静的ファイル）を振り分け、`/api/*` を api に渡す。画面は、起動前に `bun run build` で作っておく（`apps/web/dist`・`apps/staff/dist`）。
 
 | 経路 | 返すもの |
 | --- | --- |
-| `http://localhost:8080/` | 来場者用のダミーページ |
-| `http://staff.localhost:8080/` | スタッフ用のダミーページ |
-| `/api/*` | 仮の JSON（`{"status":"dummy",...}`） |
-| `https://badge.sofken2-ts.app/` | 来場者用のダミーページ（独自ドメイン、トンネル経由） |
-| `https://badge-staff.sofken2-ts.app/` | スタッフ用のダミーページ（同上。Access による認証はまだ掛けていない） |
+| `http://localhost:8080/` | 来場者用の画面（`/orders/<ID>` のようなパスも、画面側で振り分ける） |
+| `http://staff.localhost:8080/` | スタッフ用の画面（常にスタッフ用。その PC の中からしか開けない） |
+| `/api/*`（どちらのホスト名でも） | api（既定のポート 3002）に転送。SSE はため込まずにすぐ流す |
+| `https://badge.sofken2-ts.app/` | 来場者用の画面（独自ドメイン、トンネル経由） |
+| `https://badge-staff.sofken2-ts.app/` | スタッフ用の画面（Access のログインが先に出る） |
 
-T01 で各 app のポートが決まったら、`Caddyfile` の `file_server` と `respond` を `reverse_proxy` に差し替える。
+確認したこと：SSE（`/api/staff/events`）は、Caddy 経由で、接続が 70ms 以内、状態変更のイベントが、api の巡回間隔（2 秒）どおりに届く。Caddy による遅れはない。
+
+LAN 経由の PIN 認証は、優先度を下げた機能なので実装していない（CLAUDE.md）。
 
 ## 1. インストール（Windows）
 
@@ -43,7 +44,12 @@ cloudflared --version
 
 ## 2. Caddy を起動する
 
-`Caddyfile` はダミーページの場所を相対パスで指しているので、**必ず `infra/caddy` に移動してから** 起動する。
+`Caddyfile` は画面の場所を相対パスで指しているので、**必ず `infra/caddy` に移動してから** 起動する。先に、画面と api を用意する。
+
+```powershell
+bun run build                                   # リポジトリの直下で。apps/web/dist と apps/staff/dist ができる
+bun --env-file=.env.example --env-file=.env apps/api/src/index.ts   # api（別のターミナルで）
+```
 
 ```powershell
 cd infra/caddy
@@ -51,7 +57,7 @@ caddy validate --config Caddyfile --adapter caddyfile   # 設定の検証
 caddy run --config Caddyfile --adapter caddyfile        # 起動（Ctrl+C で停止）
 ```
 
-ブラウザで `http://localhost:8080/` と `http://staff.localhost:8080/` を開き、それぞれのダミーページに「API: OK (dummy)」と出れば成功。
+ブラウザで `http://localhost:8080/`（来場者用）と `http://staff.localhost:8080/`（スタッフ用）を開き、画面が出れば成功。`/api/status` が JSON を返すことも確認する。
 
 環境変数で変えられる値:
 
@@ -59,6 +65,8 @@ caddy run --config Caddyfile --adapter caddyfile        # 起動（Ctrl+C で停
 | --- | --- | --- |
 | `CADDY_PORT` | `8080` | 待ち受けポート |
 | `STAFF_HOST` | `staff.localhost` | スタッフ用のホスト名。本番では `badge-staff.<ドメイン>`。`staff.localhost` は、これに関係なく常にスタッフ用 |
+| `API_PORT` | `3002` | api のポート（`.env.example` と同じ） |
+| `WEB_DIST`・`STAFF_DIST` | `../../apps/web/dist`・`../../apps/staff/dist` | 画面の場所（`Caddyfile` からの相対） |
 
 ## 3. 仮 URL で外部に公開する（動作確認用）
 
@@ -68,7 +76,7 @@ Cloudflare のアカウントもドメインもなしで、一時的な URL を�
 cloudflared tunnel --url http://localhost:8080
 ```
 
-出力に `https://<ランダムな文字列>.trycloudflare.com` が表示される。スマホなどからその URL を開き、来場者用のダミーページが出れば成功。Ctrl+C で止めると URL は無効になる。
+出力に `https://<ランダムな文字列>.trycloudflare.com` が表示される。スマホなどからその URL を開き、来場者用の画面が出れば成功。Ctrl+C で止めると URL は無効になる。
 
 注意:
 
@@ -117,19 +125,20 @@ caddy run --config Caddyfile --adapter caddyfile
 cloudflared tunnel run canbadge
 ```
 
-`https://badge.sofken2-ts.app/` と `https://badge-staff.sofken2-ts.app/` を開き、それぞれのダミーページに「API: OK (dummy)」と出れば成功。
+`https://badge.sofken2-ts.app/` と `https://badge-staff.sofken2-ts.app/` を開き、それぞれの画面が出れば成功（スタッフ用は、Access のログインが先に出る）。
 
 ### 4-3. つまずいたとき
 
 | 症状 | 対処 |
 | --- | --- |
 | 片方のホスト名だけ `ERR_SSL_UNRECOGNIZED_NAME_ALERT` になる | Cloudflare の DNS 画面でそのホスト名のレコードを削除し、`cloudflared tunnel route dns canbadge <ホスト名>` で作り直す（`--overwrite-dns` では直らなかった） |
-| `502` が出る | Caddy が起動していない。先に Caddy を起動する |
+| `502` が出る | Caddy が起動していない、または api が起動していない（`/api/*` だけが 502 なら api）。先に起動する |
+| 画面が 404 になる | `bun run build` をしていない（`apps/web/dist`・`apps/staff/dist` がない） |
 | `cloudflared tunnel route dns` が赤いエラー表示になる | PowerShell が出力を誤って表示しているだけのことがある。`Added CNAME` と出ていれば成功 |
 
 ## 残っている作業
 
-- [ ] I02: app への `reverse_proxy`、SSE がため込まれずに届くことの確認、LAN 経由時の PIN 認証（優先度低）
+- [x] I02: ホスト名での振り分け、`/api` の転送、SSE がため込まれずに届くことの確認（LAN 経由時の PIN 認証は優先度低なので未実装）
 - [x] I03（一部）: 独自ドメイン、名前付きトンネル（手動起動）
 - [ ] I03: トンネルの Windows サービス化、Access（スタッフ画面のログイン）、Turnstile、WAF・レート制限、学内ネットワークからの疎通確認（手順は [cloudflare.md](cloudflare.md)。ダッシュボードの操作と実機での確認は管理者が行う）
 - [ ] I01: 処理PC の自動ログオン・自動起動・Windows Update 停止・スリープ無効化

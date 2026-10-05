@@ -1,11 +1,14 @@
 # 処理PC の唯一の入口（spec.md 3.2）。
-# いまは app がまだないので、ダミーページを直接返す。
-# T01 で各 app のポートが決まったら、file_server と respond を reverse_proxy に差し替える。
+# ホスト名で来場者用・スタッフ用の画面（ビルドした静的ファイル）を振り分け、/api/* は api に転送する。
+# 画面は、起動前に `bun run build` で作っておく（apps/web/dist・apps/staff/dist）。
 #
 # 環境変数（未設定なら右の既定値）:
 #   CADDY_PORT  待ち受けポート              8080
+#   API_PORT    api のポート                3002（.env.example と同じ）
 #   STAFF_HOST  スタッフ用のホスト名        staff.localhost
 #               （本番はドメイン。staff.localhost は、STAFF_HOST に関係なく、常にスタッフ用になる）
+#   WEB_DIST    来場者用の画面の場所        ../../apps/web/dist（この Caddyfile からの相対）
+#   STAFF_DIST  スタッフ用の画面の場所      ../../apps/staff/dist
 
 {
 	# TLS は Cloudflare 側で終端する。Caddy は HTTP だけを受ける
@@ -13,14 +16,32 @@
 	admin off
 }
 
-# /api/* の仮の応答。T07 以降は apps/api へ転送する:
-#   reverse_proxy localhost:<apiのポート> {
-#       flush_interval -1   # SSE をため込まずに流す（I02 の確認事項）
-#   }
-(api_dummy) {
+# /api/* は、どちらのホスト名からも api に渡す。スタッフ用 API を来場者用のホスト名から
+# 呼べないようにするのは api 側の仕事（A05）。ここでは振り分けだけをする。
+# flush_interval -1：SSE（/api/events/*・/api/staff/events・/api/monitor/events）を、
+# ため込まずにすぐ流す。圧縮（encode）も /api には掛けない（圧縮はイベントをため込むため）
+(api) {
 	handle /api/* {
-		header Content-Type "application/json; charset=utf-8"
-		respond `{"status":"dummy","message":"api はまだありません"}` 200
+		reverse_proxy localhost:{$API_PORT:3002} {
+			flush_interval -1
+		}
+	}
+}
+
+# 画面（SPA）。ファイル名にハッシュが付く /assets/* は長く、index.html は毎回確かめさせる
+# （画面を更新したのに、古い index.html が残って動かなくなるのを防ぐ）
+(spa) {
+	handle /assets/* {
+		header Cache-Control "public, max-age=31536000, immutable"
+		encode zstd gzip
+		file_server
+	}
+	handle {
+		header Cache-Control "no-cache"
+		encode zstd gzip
+		# /orders/<id> のような、ファイルのないパスも index.html に渡す（画面側で振り分ける）
+		try_files {path} /index.html
+		file_server
 	}
 }
 
@@ -28,19 +49,15 @@
 # staff.localhost も常に含める。処理PC の 2 画面目の呼び出しモニターを、Cloudflare を通さず
 # （= Access のログインなしで）開くため。localhost は、その PC の中からしか開けない
 http://{$STAFF_HOST:staff.localhost}:{$CADDY_PORT:8080}, http://staff.localhost:{$CADDY_PORT:8080} {
-	import api_dummy
-	handle {
-		root * dummy/staff
-		file_server
-	}
+	root * {$STAFF_DIST:../../apps/staff/dist}
+	import api
+	import spa
 }
 
 # 来場者用（本番: badge.<ドメイン>）。上に一致しないホスト名はすべてここに来る。
 # 仮 URL（trycloudflare.com）はホスト名が毎回変わるため、ホスト名を固定しない
 :{$CADDY_PORT:8080} {
-	import api_dummy
-	handle {
-		root * dummy/web
-		file_server
-	}
+	root * {$WEB_DIST:../../apps/web/dist}
+	import api
+	import spa
 }
