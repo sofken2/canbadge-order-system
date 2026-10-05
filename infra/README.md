@@ -58,7 +58,7 @@ caddy run --config Caddyfile --adapter caddyfile        # 起動（Ctrl+C で停
 | 変数 | 既定値 | 内容 |
 | --- | --- | --- |
 | `CADDY_PORT` | `8080` | 待ち受けポート |
-| `STAFF_HOST` | `staff.localhost` | スタッフ用のホスト名。本番では `staff.<ドメイン>` |
+| `STAFF_HOST` | `staff.localhost` | スタッフ用のホスト名。本番では `badge-staff.<ドメイン>`。`staff.localhost` は、これに関係なく常にスタッフ用 |
 
 ## 3. 仮 URL で外部に公開する（動作確認用）
 

@@ -5,6 +5,7 @@
 # 環境変数（未設定なら右の既定値）:
 #   CADDY_PORT  待ち受けポート              8080
 #   STAFF_HOST  スタッフ用のホスト名        staff.localhost
+#               （本番はドメイン。staff.localhost は、STAFF_HOST に関係なく、常にスタッフ用になる）
 
 {
 	# TLS は Cloudflare 側で終端する。Caddy は HTTP だけを受ける
@@ -23,8 +24,10 @@
 	}
 }
 
-# スタッフ用（本番: staff.<ドメイン>）
-http://{$STAFF_HOST:staff.localhost}:{$CADDY_PORT:8080} {
+# スタッフ用（本番: badge-staff.<ドメイン>）。
+# staff.localhost も常に含める。処理PC の 2 画面目の呼び出しモニターを、Cloudflare を通さず
+# （= Access のログインなしで）開くため。localhost は、その PC の中からしか開けない
+http://{$STAFF_HOST:staff.localhost}:{$CADDY_PORT:8080}, http://staff.localhost:{$CADDY_PORT:8080} {
 	import api_dummy
 	handle {
 		root * dummy/staff
