@@ -1,0 +1,95 @@
+/* Hallmark · component: qr-scanner · genre: modern-minimal · theme: Coral (design.md)
+ * states: default (scanning) · starting · detected (flash) · paused · unavailable (reasons) · torch on/off
+ * tokens only — no inline colours · the frame is the one place the accent appears
+ */
+
+.cb-scanner {
+  position: relative;
+  width: 100%;
+  max-width: 28rem;
+  margin-inline: auto;
+  aspect-ratio: 1;
+  overflow: clip;
+  border-radius: var(--radius-card);
+  background: var(--color-ink);
+}
+
+.cb-scanner__video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* 読み取る範囲の目印。四隅だけの括弧にして、映像のじゃまをしない */
+.cb-scanner__frame {
+  position: absolute;
+  inset: 14%;
+  pointer-events: none;
+  --corner: 1.75rem;
+  --stroke: 4px;
+  background:
+    linear-gradient(var(--color-accent), var(--color-accent)) top left / var(--corner) var(--stroke)
+    no-repeat,
+    linear-gradient(var(--color-accent), var(--color-accent)) top left / var(--stroke) var(--corner)
+    no-repeat,
+    linear-gradient(var(--color-accent), var(--color-accent)) top right / var(--corner)
+    var(--stroke) no-repeat,
+    linear-gradient(var(--color-accent), var(--color-accent)) top right / var(--stroke)
+    var(--corner) no-repeat,
+    linear-gradient(var(--color-accent), var(--color-accent)) bottom left / var(--corner)
+    var(--stroke) no-repeat,
+    linear-gradient(var(--color-accent), var(--color-accent)) bottom left / var(--stroke)
+    var(--corner) no-repeat,
+    linear-gradient(var(--color-accent), var(--color-accent)) bottom right / var(--corner)
+    var(--stroke) no-repeat,
+    linear-gradient(var(--color-accent), var(--color-accent)) bottom right / var(--stroke)
+    var(--corner) no-repeat;
+  transition: inset var(--dur-short) var(--ease-out);
+}
+
+/* 読み取れた瞬間に、括弧が、少し縮んで、知らせる */
+.cb-scanner[data-flash] .cb-scanner__frame {
+  inset: 18%;
+}
+
+.cb-scanner__hint {
+  position: absolute;
+  inset: auto 0 0;
+  margin: 0;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-ink);
+  color: var(--color-paper);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+
+.cb-scanner[data-flash] .cb-scanner__hint {
+  background: var(--color-ok);
+}
+
+.cb-scanner__torch {
+  position: absolute;
+  top: var(--space-sm);
+  right: var(--space-sm);
+  min-height: 2.5rem;
+  padding: 0.4rem 1rem;
+  background: var(--color-paper);
+  font-size: var(--text-sm);
+}
+
+.cb-scanner__torch[aria-pressed="true"] {
+  background: var(--color-accent);
+}
+
+.cb-scanner-unavailable {
+  display: grid;
+  gap: var(--space-sm);
+  justify-items: start;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cb-scanner__frame {
+    transition: none;
+  }
+}
