@@ -10,6 +10,20 @@ import { z } from "zod";
 
 export const EDITOR_DATA_VERSION = 1;
 
+/** 来場者が選ぶ色。#rrggbb の形で持つ（印刷物の色であり、画面のトークンではない） */
+export const colorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/);
+
+/** 写真のフィルター。強さ（0〜1）は、あかるく・くっきり・ふんわり に使う（白黒・セピアは使わない） */
+export const FILTER_TYPES = ["none", "grayscale", "sepia", "bright", "vivid", "soft"] as const;
+export const filterSchema = z.object({
+  type: z.enum(FILTER_TYPES),
+  strength: z.number().min(0).max(1),
+});
+export type Filter = z.infer<typeof filterSchema>;
+
+/** 文字の長さの上限。バッジは小さいので、長い文字は読めない */
+export const MAX_TEXT_LENGTH = 20;
+
 /** 写真の層。写真そのもの（画素）は editorData に入れない（大きいので。ブラウザ内の保存は別に持つ） */
 export const imageLayerSchema = z.object({
   type: z.literal("image"),
@@ -21,10 +35,44 @@ export const imageLayerSchema = z.object({
   /** 元の写真の 幅 ÷ 高さ。EXIF の向きを直したあとの値 */
   aspect: z.number().positive(),
   rotationDeg: z.number(),
+  filter: filterSchema.optional(),
 });
 export type ImageLayer = z.infer<typeof imageLayerSchema>;
 
-export const layerSchema = z.discriminatedUnion("type", [imageLayerSchema]);
+/** 文字の層。一行だけ。中心の位置と、文字の大きさ（高さ、mm）を持つ */
+export const textLayerSchema = z.object({
+  type: z.literal("text"),
+  id: z.string().min(1),
+  text: z.string().min(1).max(MAX_TEXT_LENGTH),
+  /** editor/fonts.ts の書体の ID。知らない ID は、読み戻すとき、既定の書体になる */
+  fontId: z.string().min(1),
+  color: colorSchema,
+  fontSizeMm: z.number().positive(),
+  xMm: z.number(),
+  yMm: z.number(),
+  rotationDeg: z.number(),
+});
+export type TextLayer = z.infer<typeof textLayerSchema>;
+
+/** スタンプの層。形は editor/stickers.ts の ID で決まり、色を選べる */
+export const stickerLayerSchema = z.object({
+  type: z.literal("sticker"),
+  id: z.string().min(1),
+  stickerId: z.string().min(1),
+  color: colorSchema,
+  /** スタンプを収める正方形の一辺（mm） */
+  sizeMm: z.number().positive(),
+  xMm: z.number(),
+  yMm: z.number(),
+  rotationDeg: z.number(),
+});
+export type StickerLayer = z.infer<typeof stickerLayerSchema>;
+
+export const layerSchema = z.discriminatedUnion("type", [
+  imageLayerSchema,
+  textLayerSchema,
+  stickerLayerSchema,
+]);
 export type Layer = z.infer<typeof layerSchema>;
 
 export const editorStateSchema = z.object({
@@ -38,7 +86,7 @@ export const editorStateSchema = z.object({
     /** CSS の色。トークンの値ではなく、来場者が選んだ色そのもの */
     color: z.string().min(1),
   }),
-  /** 下にある層から順に並ぶ */
+  /** 下にある層から順に並ぶ。写真は、あれば先頭（いちばん下） */
   layers: z.array(layerSchema),
 });
 export type EditorState = z.infer<typeof editorStateSchema>;
