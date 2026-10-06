@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { win32 } from "node:path";
 import type { PrintDriver } from "./driver";
 
 // 本番用の印刷ドライバー（P03）。Windows で、SumatraPDF のコマンドラインを使い、PDF を、拡大縮小なしで、
@@ -92,10 +92,12 @@ export function resolveSumatraPath(
     }
     return explicit;
   }
+  // Windows の場所なので、実行している OS に関係なく、Windows の区切り（\）で組み立てる
   const candidates = [
-    env.LOCALAPPDATA && join(env.LOCALAPPDATA, "SumatraPDF", "SumatraPDF.exe"),
-    env.ProgramFiles && join(env.ProgramFiles, "SumatraPDF", "SumatraPDF.exe"),
-    env["ProgramFiles(x86)"] && join(env["ProgramFiles(x86)"], "SumatraPDF", "SumatraPDF.exe"),
+    env.LOCALAPPDATA && win32.join(env.LOCALAPPDATA, "SumatraPDF", "SumatraPDF.exe"),
+    env.ProgramFiles && win32.join(env.ProgramFiles, "SumatraPDF", "SumatraPDF.exe"),
+    env["ProgramFiles(x86)"] &&
+      win32.join(env["ProgramFiles(x86)"], "SumatraPDF", "SumatraPDF.exe"),
   ].filter((path): path is string => Boolean(path));
   const found = candidates.find((path) => exists(path));
   if (!found) {
