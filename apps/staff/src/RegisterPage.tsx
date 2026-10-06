@@ -11,23 +11,13 @@ import {
   secondsLeft,
 } from "./register-logic";
 import "./register.css";
+import { useNow } from "./useNow";
 import { UNDO_WINDOW_MS, usePendingPayment } from "./usePendingPayment";
 
 /** 画面の上に出す、結果のお知らせ */
 type Message = { tone: "info" | "error"; text: string };
 
 const yen = (amount: number): string => `${amount.toLocaleString("ja-JP")}円`;
-
-/** 現在時刻。取り消せる残り時間の表示を、0.25 秒おきに更新するため */
-function useNow(active: boolean): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!active) return;
-    const timer = setInterval(() => setNow(Date.now()), 250);
-    return () => clearInterval(timer);
-  }, [active]);
-  return now;
-}
 
 /**
  * レジ。QR の読み取りと注文番号の入力を、同じ入力として受け付け、確認（金額・お釣り）を経て、支払い済みにする。
@@ -79,7 +69,7 @@ export function RegisterPage() {
     },
   });
   const pending = payment.pending;
-  const now = useNow(Boolean(pending));
+  const now = useNow(250, Boolean(pending));
 
   // ハンディスキャナー（キーボードのように入力する）を使う端末では、入力欄にすぐ入力できるようにする。
   // 指で操作する端末では、勝手にキーボードを出さない

@@ -1,84 +1,362 @@
-import { orderStatusLabels, type StaffOrderView } from "@canbadge/shared";
-import { useAction, useResource } from "@canbadge/ui";
-import { useState } from "react";
+import { QrScanner } from "@canbadge/scanner";
+import type { StaffOrderView } from "@canbadge/shared";
+import { Button, Notice, TextField, useAction, useResource } from "@canbadge/ui";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api";
+import "./assemble.css";
+import {
+  formatWait,
+  groupOrders,
+  isCompleteCode,
+  minutesSince,
+  normalizeConfirmationCode,
+  notPickableMessage,
+  urgencyOf,
+} from "./assemble-logic";
+import { parseRegisterInput } from "./register-logic";
+import { useNow } from "./useNow";
 
-// 仮画面（T09）。大きなボタン・長時間未受け取りの強調表示（S04）は、組み立て・受け渡し画面で作る。
+type Tab = "assemble" | "pickup";
+type Message = { tone: "info" | "error"; text: string };
 
-/** 注文 1 件の行。状態に応じて、次の操作のボタンを出す（組み立て開始 → 完成 → 受け渡し） */
-function OrderRow({ order, onDone }: { order: StaffOrderView; onDone: () => void }) {
-  const [code, setCode] = useState("");
-  const step = useAction(async (to: "assemble" | "complete" | "pickup") => {
-    if (to === "assemble") await api.call("assembleOrder", { params: { orderId: order.id } });
-    if (to === "complete") await api.call("completeOrder", { params: { orderId: order.id } });
-    if (to === "pickup") {
-      // 確認コードの照合は api が行う（画面に正解を持たせない）
-      await api.call("pickupOrder", {
-        params: { orderId: order.id },
-        body: { confirmationCode: code },
-      });
-    }
-    setCode("");
-    onDone();
+const TAB_KEY = "canbadge-staff-assemble-tab";
+
+/** 最後に開いたタブを覚える。組立係と受け渡し係が、別の端末で、毎回同じタブを開けるように（なくても動く） */
+function loadTab(): Tab {
+  try {
+    return window.localStorage.getItem(TAB_KEY) === "pickup" ? "pickup" : "assemble";
+  } catch {
+    return "assemble";
+  }
+}
+
+function saveTab(tab: Tab): void {
+  try {
+    window.localStorage.setItem(TAB_KEY, tab);
+  } catch {
+    // 保存できなくても、画面は動く
+  }
+}
+
+/** 組み立て 1 件。状態に合う、次の操作のボタンを 1 つだけ出す。ボタンは、誤って押しにくいよう、カードの下端に、幅いっぱいで置く */
+function AssembleCard({ order, onChanged }: { order: StaffOrderView; onChanged: () => void }) {
+  const assembling = order.status === "assembling";
+  const act = useAction(async () => {
+    if (assembling) await api.call("completeOrder", { params: { orderId: order.id } });
+    else await api.call("assembleOrder", { params: { orderId: order.id } });
+    onChanged();
   });
+  const quantity = order.items.reduce((sum, item) => sum + item.quantity, 0);
+  const thumbnail = order.items[0]?.thumbnailUrl;
 
   return (
-    <li>
-      <strong style={{ fontSize: "1.5rem" }}>{order.orderNumberText}</strong>{" "}
-      {orderStatusLabels[order.status]}{" "}
-      {order.status === "printed" && (
-        <button type="button" onClick={() => void step.run("assemble")} disabled={step.running}>
-          組み立て開始
-        </button>
-      )}
-      {order.status === "assembling" && (
-        <button type="button" onClick={() => void step.run("complete")} disabled={step.running}>
-          完成
-        </button>
-      )}
-      {order.status === "ready" && (
-        <>
-          <input
-            value={code}
-            placeholder="確認コード"
-            size={6}
-            onChange={(event) => setCode(event.target.value)}
-          />{" "}
-          <button
-            type="button"
-            onClick={() => void step.run("pickup")}
-            disabled={step.running || code.trim() === ""}
-          >
-            受け渡し
-          </button>
-        </>
-      )}
-      {step.error && <span role="alert"> {step.error}</span>}
+    <li className="cb-asm__card" data-status={order.status}>
+      <div className="cb-asm__card-head">
+        <p className="cb-number cb-number--medium">{order.orderNumberText}</p>
+        <p className="cb-muted">{quantity} 個</p>
+        {thumbnail && <img src={thumbnail} alt="" className="cb-asm__thumb" />}
+      </div>
+      <Button
+        size="large"
+        block
+        variant={assembling ? "primary" : "ink"}
+        disabled={act.running}
+        onClick={() => void act.run()}
+      >
+        {assembling ? "完成" : "組み立て開始"}
+      </Button>
+      {act.error && <Notice tone="error">{act.error}</Notice>}
     </li>
   );
 }
 
-/** 組み立て・受け渡し。印刷済み・組み立て中・完成の注文の一覧 */
-export function AssemblePage() {
-  const orders = useResource(
-    () =>
-      api.call("searchStaffOrders", { query: { status: "printed,assembling,ready", limit: 50 } }),
-    { subscribe: (reload) => api.subscribe("staffEvents", { onEvent: reload, onOpen: reload }) },
-  );
-
-  if (orders.error) return <p role="alert">{orders.error}</p>;
-  // 古い注文（番号の小さい注文）から順に並べる
-  const items = [...(orders.data?.items ?? [])].sort((a, b) => a.orderNumber - b.orderNumber);
+/** 受け渡し。確認コードを入れてもらい、照合は api に任せる（画面に、正解を持たせない） */
+function PickupPanel({
+  order,
+  onClose,
+  onDone,
+}: {
+  order: StaffOrderView;
+  onClose: () => void;
+  onDone: (order: StaffOrderView) => void;
+}) {
+  const [code, setCode] = useState("");
+  const pickup = useAction(async () => {
+    await api.call("pickupOrder", {
+      params: { orderId: order.id },
+      body: { confirmationCode: code },
+    });
+    onDone(order);
+  });
+  const thumbnail = order.items[0]?.thumbnailUrl;
 
   return (
-    <main>
-      <h1>組み立て・受け渡し（仮画面）</h1>
-      {items.length === 0 && <p>対象の注文はありません。</p>}
-      <ul>
-        {items.map((order) => (
-          <OrderRow key={order.id} order={order} onDone={orders.reload} />
-        ))}
-      </ul>
+    <section className="cb-asm__pickup" aria-label="受け渡し">
+      <div className="cb-asm__card-head">
+        <div>
+          <p className="cb-muted">注文番号</p>
+          <p className="cb-number cb-number--medium">{order.orderNumberText}</p>
+        </div>
+        {thumbnail && (
+          <img src={thumbnail} alt="注文したバッジのデザイン" className="cb-asm__thumb" />
+        )}
+      </div>
+
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (isCompleteCode(code)) void pickup.run();
+        }}
+      >
+        <TextField
+          numeric
+          label="確認コード（4 文字）"
+          hint="お客さんの、注文状況の画面に出ている 4 文字です。0・O・1・I・L は、使いません"
+          value={code}
+          autoComplete="off"
+          autoCapitalize="characters"
+          spellCheck={false}
+          onChange={(event) => setCode(normalizeConfirmationCode(event.target.value))}
+        />
+        {pickup.error && (
+          <Notice tone="error">
+            {pickup.error} お客さんに、確認コードを、もう一度、見せてもらってください。
+          </Notice>
+        )}
+        <Button type="submit" size="large" block disabled={!isCompleteCode(code) || pickup.running}>
+          受け渡し済みにする
+        </Button>
+      </form>
+      <Button variant="line" block onClick={onClose} disabled={pickup.running}>
+        やめる
+      </Button>
+    </section>
+  );
+}
+
+/**
+ * 組み立て・受け渡し。
+ * 組み立て：印刷済みの注文を、順に「組み立て開始」→「完成」にする。
+ * 受け渡し：QR か番号で注文を探し（できあがりの一覧からも選べる）、確認コードを照合して渡す。長く待っている注文は、目立たせる
+ */
+export function AssemblePage() {
+  const [tab, setTabState] = useState<Tab>(loadTab);
+  const [message, setMessage] = useState<Message | undefined>(undefined);
+  const [target, setTarget] = useState<StaffOrderView | undefined>(undefined);
+  const [text, setText] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  const now = useNow(30000);
+
+  const orders = useResource(
+    () =>
+      api.call("searchStaffOrders", { query: { status: "printed,assembling,ready", limit: 100 } }),
+    { subscribe: (reload) => api.subscribe("staffEvents", { onEvent: reload, onOpen: reload }) },
+  );
+  const grouped = useMemo(() => groupOrders(orders.data?.items ?? []), [orders.data]);
+  const longWaiting = grouped.ready.filter(
+    (order) => urgencyOf(minutesSince(order.readyAt, now)) !== "normal",
+  ).length;
+
+  const setTab = (next: Tab) => {
+    setTabState(next);
+    saveTab(next);
+    setMessage(undefined);
+  };
+
+  // ハンディスキャナーを使う端末では、入力欄にすぐ入力できるようにする（指で操作する端末では、キーボードを出さない）
+  useEffect(() => {
+    if (tab === "pickup" && !target && window.matchMedia("(pointer: fine)").matches) {
+      inputRef.current?.focus();
+    }
+  }, [tab, target]);
+
+  const lookup = useAction(async (raw: string) => {
+    const input = parseRegisterInput(raw);
+    if (input.kind === "empty") return;
+    setMessage(undefined);
+    if (input.kind === "invalid") {
+      setMessage({
+        tone: "error",
+        text: `「${input.text}」は、注文番号でも、注文の QR でもありません。数字の注文番号を入れるか、お客さんの注文の QR を読み取ってください。`,
+      });
+      return;
+    }
+    // 状態を問わず探して、受け渡せないときは、その理由を伝える
+    const page = await api.call("searchStaffOrders", { query: { q: input.value, limit: 5 } });
+    const found = page.items[0];
+    if (!found) {
+      setMessage({
+        tone: "error",
+        text:
+          input.kind === "number"
+            ? `注文番号 ${input.value} の注文が見つかりません。番号を確かめてください。`
+            : "この QR の注文が見つかりません。お客さんの、注文状況の画面の QR か、確かめてください。",
+      });
+      return;
+    }
+    openPickup(found);
+  });
+
+  const openPickup = (order: StaffOrderView) => {
+    if (order.status !== "ready") {
+      setMessage({ tone: "error", text: notPickableMessage(order.status, order.orderNumberText) });
+      return;
+    }
+    setTarget(order);
+    setText("");
+    setMessage(undefined);
+  };
+
+  const handleInput = (raw: string) => {
+    if (!lookup.running) void lookup.run(raw);
+  };
+
+  if (orders.error && !orders.data) {
+    return (
+      <main className="cb-page">
+        <Notice tone="error">{orders.error}</Notice>
+      </main>
+    );
+  }
+
+  const assembleCount = grouped.toAssemble.length + grouped.assembling.length;
+
+  return (
+    <main className="cb-page cb-asm">
+      <h1>組み立て・受け渡し</h1>
+
+      <div className="cb-asm__tabs" role="tablist" aria-label="作業">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "assemble"}
+          onClick={() => setTab("assemble")}
+        >
+          組み立て <span className="cb-asm__count">{assembleCount}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "pickup"}
+          onClick={() => setTab("pickup")}
+        >
+          受け渡し <span className="cb-asm__count">{grouped.ready.length}</span>
+          {longWaiting > 0 && <span className="cb-asm__flag">待ち長い {longWaiting}</span>}
+        </button>
+      </div>
+
+      {message && <Notice tone={message.tone}>{message.text}</Notice>}
+      {lookup.error && <Notice tone="error">{lookup.error}</Notice>}
+
+      {tab === "assemble" && (
+        <div role="tabpanel">
+          {assembleCount === 0 && (
+            <p className="cb-muted">組み立てる注文は、ありません。印刷が済むと、ここに出ます。</p>
+          )}
+          {grouped.assembling.length > 0 && (
+            <>
+              <h2>組み立て中（{grouped.assembling.length}）</h2>
+              <ul className="cb-asm__list">
+                {grouped.assembling.map((order) => (
+                  <AssembleCard key={order.id} order={order} onChanged={orders.reload} />
+                ))}
+              </ul>
+            </>
+          )}
+          {grouped.toAssemble.length > 0 && (
+            <>
+              <h2>組み立て待ち（{grouped.toAssemble.length}）</h2>
+              <ul className="cb-asm__list">
+                {grouped.toAssemble.map((order) => (
+                  <AssembleCard key={order.id} order={order} onChanged={orders.reload} />
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      )}
+
+      {tab === "pickup" && (
+        <div role="tabpanel">
+          {/* 受け渡しの間も、カメラはつないだまま隠す（読み取りだけを止める） */}
+          <section hidden={Boolean(target)} aria-label="受け渡す注文を探す">
+            <QrScanner
+              hideWhenUnavailable
+              paused={Boolean(target) || lookup.running}
+              onDetect={handleInput}
+            />
+            <form
+              className="cb-asm__form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                handleInput(text);
+              }}
+            >
+              <TextField
+                ref={inputRef}
+                numeric
+                label="注文番号"
+                hint="QR を読むか、番号を入れます（ハンディスキャナーも、ここに入力されます）"
+                value={text}
+                inputMode="numeric"
+                autoComplete="off"
+                onChange={(event) => setText(event.target.value)}
+              />
+              <Button
+                type="submit"
+                variant="ink"
+                size="large"
+                block
+                disabled={text.trim() === "" || lookup.running}
+              >
+                探す
+              </Button>
+            </form>
+
+            <h2 className="cb-gap-top">受け取り待ち（{grouped.ready.length}）</h2>
+            {grouped.ready.length === 0 && (
+              <p className="cb-muted">受け取り待ちの注文は、ありません。</p>
+            )}
+            <ul className="cb-asm__ready">
+              {grouped.ready.map((order) => {
+                const minutes = minutesSince(order.readyAt, now);
+                const urgency = urgencyOf(minutes);
+                return (
+                  <li key={order.id}>
+                    <button
+                      type="button"
+                      className="cb-asm__ready-item"
+                      data-urgency={urgency}
+                      onClick={() => openPickup(order)}
+                    >
+                      <span className="cb-asm__ready-number">{order.orderNumberText}</span>
+                      <span className="cb-asm__ready-wait">
+                        {minutes === undefined ? "" : `できあがりから ${formatWait(minutes)}`}
+                        {urgency !== "normal" && <strong> ／ 長くお待ちです</strong>}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+
+          {target && (
+            <PickupPanel
+              order={target}
+              onClose={() => setTarget(undefined)}
+              onDone={(done) => {
+                setTarget(undefined);
+                setMessage({
+                  tone: "info",
+                  text: `注文 ${done.orderNumberText} を、お渡ししました。`,
+                });
+                orders.reload();
+              }}
+            />
+          )}
+        </div>
+      )}
     </main>
   );
 }
