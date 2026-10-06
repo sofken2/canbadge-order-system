@@ -68,10 +68,29 @@ export const stickerLayerSchema = z.object({
 });
 export type StickerLayer = z.infer<typeof stickerLayerSchema>;
 
+/** ペンの線の数と、1 本の長さの上限。多すぎると、描画が重く、保存も大きくなる */
+export const MAX_STROKES = 300;
+export const MAX_STROKE_COORDS = 4000;
+
+/** お絵描きの線の層。点は x, y, x, y, ... の並びで、mm（キャンバスの中心が原点）。線の太さも mm */
+export const strokeLayerSchema = z.object({
+  type: z.literal("stroke"),
+  id: z.string().min(1),
+  color: colorSchema,
+  widthMm: z.number().positive(),
+  points: z
+    .array(z.number())
+    .min(2)
+    .max(MAX_STROKE_COORDS)
+    .refine((points) => points.length % 2 === 0, "点は x と y の組で並べる"),
+});
+export type StrokeLayer = z.infer<typeof strokeLayerSchema>;
+
 export const layerSchema = z.discriminatedUnion("type", [
   imageLayerSchema,
   textLayerSchema,
   stickerLayerSchema,
+  strokeLayerSchema,
 ]);
 export type Layer = z.infer<typeof layerSchema>;
 

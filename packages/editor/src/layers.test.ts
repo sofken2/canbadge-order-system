@@ -3,26 +3,34 @@ import { filterParams } from "./filter-params";
 import { DEFAULT_FONT, findFont } from "./fonts";
 import {
   addDecorLayer,
+  addStroke,
+  appendStrokePoint,
   bringToFront,
+  clearStrokes,
   constrainPlacement,
   extentOfLayer,
   hitTest,
   IMAGE_ID,
   isDecor,
+  isMovable,
+  isStroke,
   layerId,
   MAX_DECOR_LAYERS,
+  type MovableLayer,
   newStickerLayer,
+  newStrokeLayer,
   newTextLayer,
   nextLayerId,
   placementOf,
   pruneEmptyText,
   removeLayer,
   setImageLayer,
+  undoStroke,
   updateLayer,
   withPlacement,
 } from "./layers";
 import type { ImageLayer, Layer } from "./model";
-import { colorSchema, layerSchema } from "./model";
+import { colorSchema, layerSchema, MAX_STROKE_COORDS, MAX_STROKES } from "./model";
 import { PALETTE } from "./palette";
 import { findSticker, STICKERS } from "./stickers";
 
@@ -38,7 +46,7 @@ const image: ImageLayer = {
 /** 文字の幅の測り方の代わり。1 文字が、高さと同じ幅 */
 const measure = (text: string) => text.length;
 
-const extentOf = (layer: Layer) => extentOfLayer(layer, measure);
+const extentOf = (layer: MovableLayer) => extentOfLayer(layer, measure);
 
 describe("層の位置・大きさ", () => {
   test("種類が違っても、位置・大きさ・回転を、同じ形で読み書きできる", () => {
@@ -247,5 +255,92 @@ describe("保存データの形", () => {
     expect(layerSchema.safeParse({ ...image, filter: { type: "soft", strength: 2 } }).success).toBe(
       false,
     );
+  });
+});
+
+describe("ペンの線", () => {
+  const start = { x: 1, y: 2 };
+
+  test("触っただけ（動かさない）でも、点として描ける。保存できる形", () => {
+    const stroke = newStrokeLayer("#ff4d6d", 2, start);
+    expect(stroke.points).toEqual([1, 2, 1, 2]);
+    expect(layerSchema.safeParse(stroke).success).toBe(true);
+  });
+
+  test("線に、点を足していく。前の点に近すぎる点は、足さない", () => {
+    const stroke = newStrokeLayer("#2b2328", 1, start);
+    let layers: Layer[] = addStroke([image], stroke);
+    layers = appendStrokePoint(layers, stroke.id, { x: 1.1, y: 2 }); // 0.1mm：近すぎる
+    layers = appendStrokePoint(layers, stroke.id, { x: 5, y: 6 });
+    const drawn = layers.find(isStroke);
+    expect(drawn?.points).toEqual([1, 2, 1, 2, 5, 6]);
+    // 別の線や、写真には、影響しない
+    expect(layers[0]).toBe(image);
+    expect(appendStrokePoint(layers, "unknown", { x: 9, y: 9 })).toEqual(layers);
+  });
+
+  test("1 本の長さと、本数には上限がある", () => {
+    const stroke = newStrokeLayer("#2b2328", 1, start);
+    let layers: Layer[] = [stroke];
+    for (let index = 0; index < MAX_STROKE_COORDS; index++) {
+      layers = appendStrokePoint(layers, stroke.id, { x: index, y: index }, 0);
+    }
+    const length = layers.find(isStroke)?.points.length ?? 0;
+    expect(length).toBeLessThanOrEqual(MAX_STROKE_COORDS);
+
+    let many: Layer[] = [];
+    for (let index = 0; index < MAX_STROKES + 10; index++) {
+      many = addStroke(many, newStrokeLayer("#2b2328", 1, start));
+    }
+    expect(many.filter(isStroke).length).toBe(MAX_STROKES);
+  });
+
+  test("取り消しは、いちばん新しい線から。取り除いた線は返る（やり直しのため）。線がなければ何もしない", () => {
+    const first = newStrokeLayer("#ff4d6d", 1, start);
+    const second = newStrokeLayer("#3fa7ff", 1, start);
+    const sticker = newStickerLayer("heart");
+    const layers: Layer[] = [image, first, sticker, second];
+
+    const undone = undoStroke(layers);
+    expect(undone.removed).toBe(second);
+    expect(undone.layers.map(layerId)).toEqual([IMAGE_ID, first.id, sticker.id]);
+
+    const again = undoStroke(undone.layers);
+    expect(again.removed).toBe(first);
+    expect(again.layers.map(layerId)).toEqual([IMAGE_ID, sticker.id]);
+
+    const none = undoStroke(again.layers);
+    expect(none.removed).toBeUndefined();
+    expect(none.layers.map(layerId)).toEqual([IMAGE_ID, sticker.id]);
+  });
+
+  test("全部消しても、写真・文字・スタンプは残る", () => {
+    const layers: Layer[] = [image, newStickerLayer("star"), newStrokeLayer("#2b2328", 1, start)];
+    expect(clearStrokes(layers).map((layer) => layer.type)).toEqual(["image", "sticker"]);
+  });
+
+  test("線は、選べず・動かせず、「次を選ぶ」にも入らない。飾り（文字・スタンプ）には数えない", () => {
+    const stroke = newStrokeLayer("#2b2328", 4, { x: 0, y: 0 });
+    const sticker = newStickerLayer("heart");
+    expect(isMovable(stroke)).toBe(false);
+    expect(isDecor(stroke)).toBe(false);
+    // 線の上をタップしても、線は選ばれない（下の層が選ばれる）
+    expect(hitTest([image, stroke], { x: 0, y: 0 }, extentOf)).toBe(image);
+    expect(nextLayerId([image, stroke, sticker], IMAGE_ID)).toBe(sticker.id);
+    expect(nextLayerId([stroke], undefined)).toBeUndefined();
+    // 飾りの数の上限に、線は入らない
+    let layers: Layer[] = [image, stroke];
+    for (let index = 0; index < MAX_DECOR_LAYERS; index++) {
+      layers = addDecorLayer(layers, newStickerLayer("star"));
+    }
+    expect(layers.filter(isDecor).length).toBe(MAX_DECOR_LAYERS);
+  });
+
+  test("保存データ：点の数が奇数・空・太さ 0 は、読み戻さない", () => {
+    const stroke = newStrokeLayer("#2b2328", 2, start);
+    expect(layerSchema.safeParse({ ...stroke, points: [1, 2, 3] }).success).toBe(false);
+    expect(layerSchema.safeParse({ ...stroke, points: [] }).success).toBe(false);
+    expect(layerSchema.safeParse({ ...stroke, widthMm: 0 }).success).toBe(false);
+    expect(layerSchema.safeParse({ ...stroke, color: "black" }).success).toBe(false);
   });
 });

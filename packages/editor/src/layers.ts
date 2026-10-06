@@ -1,10 +1,19 @@
 import { findFont } from "./fonts";
 import { clampCenter, clampWidth, type Placement, type Point } from "./gesture";
-import type { ImageLayer, Layer, StickerLayer, TextLayer } from "./model";
+import {
+  type ImageLayer,
+  type Layer,
+  MAX_STROKE_COORDS,
+  MAX_STROKES,
+  type StickerLayer,
+  type StrokeLayer,
+  type TextLayer,
+} from "./model";
 import { DEFAULT_DECOR_COLOR } from "./palette";
 
-// 層（写真・文字・スタンプ）の操作。画面から切り離した、純粋な関数。
-// どの層も、中心の位置・大きさ・回転を持つので、gesture.ts の計算（Placement）にそろえて扱う。
+// 層（写真・文字・スタンプ・ペンの線）の操作。画面から切り離した、純粋な関数。
+// 写真・文字・スタンプは、中心の位置・大きさ・回転を持つので、gesture.ts の計算（Placement）にそろえて動かす。
+// ペンの線は、描くだけで、あとから動かさない（選べない）。
 
 /** 写真の層は 1 つだけなので、固定の ID で選ぶ */
 export const IMAGE_ID = "image";
@@ -14,8 +23,16 @@ export const MAX_DECOR_LAYERS = 30;
 
 export const layerId = (layer: Layer): string => (layer.type === "image" ? IMAGE_ID : layer.id);
 
+/** 動かせる層（選んで、移動・拡大・回転できる）。ペンの線は含まない */
+export type MovableLayer = ImageLayer | TextLayer | StickerLayer;
+export const isMovable = (layer: Layer): layer is MovableLayer => layer.type !== "stroke";
+
+/** 文字とスタンプ（写真の上に重ねる、動かせる飾り） */
 export type DecorLayer = TextLayer | StickerLayer;
-export const isDecor = (layer: Layer): layer is DecorLayer => layer.type !== "image";
+export const isDecor = (layer: Layer): layer is DecorLayer =>
+  layer.type === "text" || layer.type === "sticker";
+
+export const isStroke = (layer: Layer): layer is StrokeLayer => layer.type === "stroke";
 
 let counter = 0;
 /** 層の ID。同じ画面の中で重ならなければよい（保存したものを読み戻したときも、重ならないよう、乱数を混ぜる） */
@@ -25,7 +42,7 @@ export function newLayerId(): string {
 }
 
 /** 層の、位置・大きさ・回転。大きさ（widthMm）は、写真は幅、文字は文字の高さ、スタンプは一辺 */
-export function placementOf(layer: Layer): Placement {
+export function placementOf(layer: MovableLayer): Placement {
   switch (layer.type) {
     case "image":
       return { x: layer.xMm, y: layer.yMm, widthMm: layer.widthMm, rotationDeg: layer.rotationDeg };
@@ -41,7 +58,7 @@ export function placementOf(layer: Layer): Placement {
   }
 }
 
-export function withPlacement(layer: Layer, placement: Placement): Layer {
+export function withPlacement(layer: MovableLayer, placement: Placement): MovableLayer {
   const position = { xMm: placement.x, yMm: placement.y, rotationDeg: placement.rotationDeg };
   switch (layer.type) {
     case "image":
@@ -54,7 +71,10 @@ export function withPlacement(layer: Layer, placement: Placement): Layer {
 }
 
 /** 大きさの範囲（mm）。小さすぎると見失い・触れず、大きすぎると描画が重くなる */
-export function sizeLimits(layer: Layer, printDiameterMm: number): { min: number; max: number } {
+export function sizeLimits(
+  layer: MovableLayer,
+  printDiameterMm: number,
+): { min: number; max: number } {
   switch (layer.type) {
     case "image":
       return { min: printDiameterMm * 0.2, max: printDiameterMm * 8 };
@@ -67,7 +87,7 @@ export function sizeLimits(layer: Layer, printDiameterMm: number): { min: number
 
 /** 位置と大きさを、範囲に収める。中心は、印刷する円の外に出しすぎない */
 export function constrainPlacement(
-  layer: Layer,
+  layer: MovableLayer,
   placement: Placement,
   printDiameterMm: number,
 ): Placement {
@@ -85,12 +105,13 @@ export type Extent = { halfWidthMm: number; halfHeightMm: number };
 export function hitTest(
   layers: readonly Layer[],
   point: Point,
-  extentOf: (layer: Layer) => Extent,
+  extentOf: (layer: MovableLayer) => Extent,
   paddingMm = 3,
-): Layer | undefined {
+): MovableLayer | undefined {
   for (let index = layers.length - 1; index >= 0; index--) {
     const layer = layers[index];
-    if (!layer) continue;
+    // ペンの線は、選べない
+    if (!layer || !isMovable(layer)) continue;
     const placement = placementOf(layer);
     const theta = (placement.rotationDeg * Math.PI) / 180;
     const dx = point.x - placement.x;
@@ -115,7 +136,7 @@ export const TEXT_BOX_HEIGHT_RATIO = 1;
 /** 文字の幅を測る関数（書体を読み込んだあとの、実際の幅）。fontSizeMm 1 あたりの幅を返す */
 export type TextMeasurer = (text: string, fontId: string) => number;
 
-export function extentOfLayer(layer: Layer, measureText: TextMeasurer): Extent {
+export function extentOfLayer(layer: MovableLayer, measureText: TextMeasurer): Extent {
   switch (layer.type) {
     case "image":
       return { halfWidthMm: layer.widthMm / 2, halfHeightMm: layer.widthMm / layer.aspect / 2 };
@@ -201,8 +222,8 @@ export function nextLayerId(
   layers: readonly Layer[],
   currentId: string | undefined,
 ): string | undefined {
-  if (layers.length === 0) return undefined;
-  const ids = layers.map(layerId);
+  const ids = layers.filter(isMovable).map(layerId);
+  if (ids.length === 0) return undefined;
   const index = currentId === undefined ? -1 : ids.indexOf(currentId);
   return ids[(index + 1) % ids.length];
 }
@@ -216,3 +237,64 @@ export function pruneEmptyText(layers: readonly Layer[], keepId?: string): Layer
     (layer) => layer.type !== "text" || layer.text.trim() !== "" || layer.id === keepId,
   );
 }
+
+// ---- ペンの線 ----
+
+export function newStrokeLayer(
+  color: string,
+  widthMm: number,
+  start: { x: number; y: number },
+): StrokeLayer {
+  // 1 点だけ（ちょん、と触っただけ）でも、丸い点として描けるよう、同じ点を 2 つ持たせる
+  return {
+    type: "stroke",
+    id: newLayerId(),
+    color,
+    widthMm,
+    points: [start.x, start.y, start.x, start.y],
+  };
+}
+
+/** 描いている線に、点を足す。前の点に近すぎる点は、足さない。長さの上限を超えたら、足さない */
+export function appendStrokePoint(
+  layers: readonly Layer[],
+  id: string,
+  point: { x: number; y: number },
+  minDistanceMm = 0.25,
+): Layer[] {
+  return layers.map((layer) => {
+    if (layer.type !== "stroke" || layer.id !== id) return layer;
+    const count = layer.points.length;
+    if (count + 2 > MAX_STROKE_COORDS) return layer;
+    const lastX = layer.points[count - 2] ?? point.x;
+    const lastY = layer.points[count - 1] ?? point.y;
+    if (Math.hypot(point.x - lastX, point.y - lastY) < minDistanceMm) return layer;
+    return { ...layer, points: [...layer.points, point.x, point.y] };
+  });
+}
+
+/** 線を足す。上限（本数）を超えたら、足さない */
+export function addStroke(layers: readonly Layer[], stroke: StrokeLayer): Layer[] {
+  if (layers.filter(isStroke).length >= MAX_STROKES) return [...layers];
+  return [...layers, stroke];
+}
+
+/** いちばん新しい線を取り除く（取り消し）。取り除いた線も返す（やり直しのため） */
+export function undoStroke(layers: readonly Layer[]): { layers: Layer[]; removed?: StrokeLayer } {
+  for (let index = layers.length - 1; index >= 0; index--) {
+    const layer = layers[index];
+    if (layer && isStroke(layer)) {
+      return { layers: [...layers.slice(0, index), ...layers.slice(index + 1)], removed: layer };
+    }
+  }
+  return { layers: [...layers] };
+}
+
+export function clearStrokes(layers: readonly Layer[]): Layer[] {
+  return layers.filter((layer) => !isStroke(layer));
+}
+
+/** ペンの太さの範囲（mm）。バッジは小さいので、細い線から、スタンプのように太い線まで */
+export const PEN_MIN_MM = 0.5;
+export const PEN_MAX_MM = 8;
+export const DEFAULT_PEN_MM = 2;
