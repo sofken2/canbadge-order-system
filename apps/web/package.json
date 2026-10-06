@@ -19,6 +19,8 @@
   },
   "dependencies": {
     "@canbadge/api-client": "workspace:*",
+    "@canbadge/badge-spec": "workspace:*",
+    "@canbadge/editor": "workspace:*",
     "@canbadge/shared": "workspace:*",
     "@canbadge/ui": "workspace:*",
     "react": "^19.3.0",
