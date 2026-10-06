@@ -381,3 +381,13 @@ p {
   font-size: var(--text-lg);
   font-variant-numeric: tabular-nums;
 }
+
+/* 見えないが、読み上げには届く文字 */
+.cb-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

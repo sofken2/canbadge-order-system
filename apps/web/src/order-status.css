@@ -1,0 +1,166 @@
+/* Hallmark · macrostructure: Ticket (app screen · single column) · genre: modern-minimal · theme: Coral (design.md)
+ * tone: friendly, simple (the waiting-screen character slot is reserved for the late pop pass)
+ * tokens only — no inline colours or font stacks · pre-emit critique: P4 H4 E4 S4 R4 V3
+ */
+
+/* ---- 見出し：いまの状態と、してほしいこと ---- */
+
+.cb-ticket__head {
+  margin-bottom: var(--space-lg);
+  padding: var(--space-md) var(--space-lg);
+  border-left: 3px solid var(--color-rule-strong);
+}
+
+.cb-ticket__head h1 {
+  margin: var(--space-xs) 0;
+}
+
+.cb-ticket__head p:last-child {
+  margin-bottom: 0;
+}
+
+/* お客さんにしてほしいことがある（お支払い）、できあがり：珊瑚の細い縦線と、薄い地で、目に入るように */
+.cb-ticket__head[data-tone="action"],
+.cb-ticket__head[data-tone="ready"] {
+  border-left-color: var(--color-accent);
+  background: var(--color-accent-tint);
+}
+
+.cb-ticket__head[data-tone="done"] {
+  border-left-color: var(--color-ok);
+}
+
+/* ---- QR：画面の幅いっぱいに、余白つきで ---- */
+
+.cb-ticket__qr {
+  display: grid;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-lg);
+  justify-items: center;
+}
+
+.cb-qr {
+  display: block;
+  width: 100%;
+  max-width: 22rem;
+  height: auto;
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-card);
+}
+
+.cb-qr__bg {
+  fill: var(--color-card);
+}
+
+.cb-qr__ink {
+  fill: var(--color-ink);
+}
+
+/* ---- 注文番号と確認コード ---- */
+
+.cb-ticket__ids {
+  display: grid;
+  gap: var(--space-md);
+  margin: 0 0 var(--space-lg);
+  padding-block: var(--space-md);
+  border-block: 1px solid var(--color-rule);
+}
+
+.cb-ticket__ids > div {
+  display: grid;
+  gap: var(--space-2xs);
+}
+
+.cb-ticket__ids dt {
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+
+.cb-ticket__ids dd {
+  margin: 0;
+}
+
+.cb-ticket__number {
+  font: 600 var(--text-number) / 0.95 var(--font-display);
+  letter-spacing: -0.05em;
+  font-variant-numeric: tabular-nums;
+}
+
+.cb-ticket__code {
+  font: 600 var(--text-xl) / 1 var(--font-mono);
+  letter-spacing: 0.2em;
+}
+
+/* ---- 進み具合 ---- */
+
+.cb-progress {
+  list-style: none;
+  margin: 0 0 var(--space-lg);
+  padding: 0 0 0 var(--space-lg);
+  border-left: 1px solid var(--color-rule-strong);
+  display: grid;
+  gap: var(--space-md);
+}
+
+.cb-progress li {
+  position: relative;
+  color: var(--color-muted);
+}
+
+.cb-progress li::before {
+  content: "";
+  position: absolute;
+  left: calc(var(--space-lg) * -1 - 0.4rem);
+  top: 0.55em;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: var(--radius-pill);
+  background: var(--color-paper);
+  border: 1px solid var(--color-rule-strong);
+}
+
+.cb-progress li[data-state="done"] {
+  color: var(--color-ink);
+}
+
+.cb-progress li[data-state="done"]::before {
+  background: var(--color-ink);
+  border-color: var(--color-ink);
+}
+
+.cb-progress li[data-state="now"] {
+  color: var(--color-ink);
+  font-weight: 700;
+}
+
+.cb-progress li[data-state="now"]::before {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 4px var(--color-accent-tint);
+}
+
+/* ---- 注文したバッジ ---- */
+
+.cb-ticket__items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  align-items: center;
+  margin-bottom: var(--space-lg);
+}
+
+.cb-ticket__item {
+  width: 6rem;
+}
+
+.cb-ticket__amount {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+
+.cb-ticket__amount strong {
+  color: var(--color-ink);
+  font-size: var(--text-md);
+  font-variant-numeric: tabular-nums;
+}
