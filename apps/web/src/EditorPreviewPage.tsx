@@ -39,6 +39,8 @@ export function EditorPreviewPage() {
       <BadgeEditor
         spec={badgeSpec}
         initialImage={sample ? `/api/images/${sample}` : undefined}
+        // 途中保存：リロードしても、続きから再開する（?sample= を付けたときは、そちらの写真を使う）
+        draftKey="editor-preview"
         onExport={(output) => void describe(output).then(setResult)}
       />
 

@@ -1,4 +1,4 @@
-import { Group, Image as KonvaImage, Path, Text } from "react-konva";
+import { Group, Image as KonvaImage, Line, Path, Text } from "react-konva";
 import { findFont } from "./fonts";
 import type { Layer, StickerLayer, TextLayer } from "./model";
 import { findSticker, STICKER_VIEWBOX } from "./stickers";
@@ -83,6 +83,18 @@ export function LayerNodes({ layers, imageSource, fontsVersion }: LayerNodesProp
             return <TextNode key={`${layer.id}-${fontsVersion}`} layer={layer} />;
           case "sticker":
             return <StickerNode key={layer.id} layer={layer} />;
+          case "stroke":
+            return (
+              <Line
+                key={layer.id}
+                points={layer.points}
+                stroke={layer.color}
+                strokeWidth={layer.widthMm}
+                tension={0.3}
+                lineCap="round"
+                lineJoin="round"
+              />
+            );
           default:
             return null;
         }

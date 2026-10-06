@@ -4,6 +4,7 @@ import type Konva from "konva";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Circle, Group, Layer as KonvaLayer, Rect, Shape, Stage } from "react-konva";
 import { resolveColor } from "./css-color";
+import { clearDraft, loadDraft, saveDraft } from "./draft-store";
 import { DEFAULT_STRENGTH, hasFilter } from "./filter-params";
 import { applyFilter } from "./filters";
 import { ensureFontStylesheet, findFont, loadFontFor } from "./fonts";
@@ -20,20 +21,29 @@ import { coverWidthMm, effectiveDpi } from "./image-size";
 import { LayerNodes } from "./LayerNodes";
 import {
   addDecorLayer,
+  addStroke,
+  appendStrokePoint,
   bringToFront,
+  clearStrokes,
   constrainPlacement,
+  DEFAULT_PEN_MM,
   extentOfLayer,
   hitTest,
   IMAGE_ID,
   isDecor,
+  isMovable,
+  isStroke,
   layerId,
+  type MovableLayer,
   newStickerLayer,
+  newStrokeLayer,
   newTextLayer,
   nextLayerId,
   placementOf,
   pruneEmptyText,
   removeLayer,
   setImageLayer,
+  undoStroke,
   updateLayer,
   withPlacement,
 } from "./layers";
@@ -46,8 +56,16 @@ import {
   type ImageLayer,
   type Layer,
   parseEditorState,
+  type StrokeLayer,
 } from "./model";
-import { BackgroundPanel, FilterPanel, StickerPanel, type TextDraft, TextPanel } from "./Panels";
+import {
+  BackgroundPanel,
+  FilterPanel,
+  PenPanel,
+  StickerPanel,
+  type TextDraft,
+  TextPanel,
+} from "./Panels";
 import { DEFAULT_DECOR_COLOR, INK } from "./palette";
 import { measureTextEm } from "./text-measure";
 
@@ -67,6 +85,12 @@ export type BadgeEditorProps = {
    * ブラウザ内の途中保存からの読み戻しで使う
    */
   initialImage?: Blob | string;
+  /**
+   * 途中保存の名前。指定すると、作りかけのデザインと写真を、この端末のブラウザ（IndexedDB）に自動で残し、
+   * 次に開いたとき、続きから再開する（24 時間まで）。initialData / initialImage があるときは、そちらを使う。
+   * 注文が済んだら、呼ぶ側が clearDraft(draftKey) で消す
+   */
+  draftKey?: string;
   confirmLabel?: string;
   onExport: (result: BadgeEditorExport) => void;
 };
@@ -77,27 +101,35 @@ const ROTATE_STEP_DEG = 15;
 const MIN_RECOMMENDED_DPI = 150;
 /** 編集画面の一辺の上限（CSS px）。大きな画面でも、スマホの操作と同じ大きさで確かめられる */
 const MAX_DISPLAY_PX = 480;
+/** 途中保存を、変更のあと、まとめて書くまでの待ち（ms） */
+const DRAFT_SAVE_DELAY_MS = 800;
 /** フィルターの強さを動かしている間、写真を作り直すのを待つ時間（ms） */
 const FILTER_DELAY_MS = 120;
 
 type Loaded = { image: LoadedImage; aspect: number };
-type Tab = "photo" | "text" | "sticker" | "background" | "filter";
+type Tab = "photo" | "text" | "sticker" | "pen" | "background" | "filter";
 
 const TABS: readonly { id: Tab; label: string }[] = [
   { id: "photo", label: "写真" },
   { id: "text", label: "文字" },
   { id: "sticker", label: "スタンプ" },
+  { id: "pen", label: "ペン" },
   { id: "background", label: "背景" },
   { id: "filter", label: "フィルター" },
 ];
 
 const CENTER: Point = { x: 0, y: 0 };
-const extentOf = (layer: Layer) => extentOfLayer(layer, measureTextEm);
+const extentOf = (layer: MovableLayer) => extentOfLayer(layer, measureTextEm);
+/** 描き直しの「やり直す」で戻せる線の数。多すぎると、メモリを使う */
+const MAX_REDO = 50;
+/** 「はじめからやり直す」を、もう一度押すまでの猶予（ms）。押しまちがいで、作りかけを消さないため */
+const RESET_CONFIRM_MS = 4000;
 
 export function BadgeEditor({
   spec,
   initialData,
   initialImage,
+  draftKey,
   confirmLabel = "これで決定",
   onExport,
 }: BadgeEditorProps) {
@@ -106,8 +138,10 @@ export function BadgeEditor({
   const safeRadius = safeDiameterMm(spec) / 2;
 
   const restored = useMemo(() => parseEditorState(initialData), [initialData]);
-  // 写真の層は、写真を読み込んだときに足す。保存してあった文字・スタンプは、最初から入れる
-  const [layers, setLayers] = useState<Layer[]>(() => (restored?.layers ?? []).filter(isDecor));
+  // 写真の層は、写真を読み込んだときに足す。保存してあった文字・スタンプ・線は、最初から入れる
+  const [layers, setLayers] = useState<Layer[]>(() =>
+    (restored?.layers ?? []).filter((layer) => layer.type !== "image"),
+  );
   const [background, setBackground] = useState(restored?.background.color ?? DEFAULT_BACKGROUND);
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
   const [loaded, setLoaded] = useState<Loaded | undefined>(undefined);
@@ -115,7 +149,17 @@ export function BadgeEditor({
   const [tab, setTab] = useState<Tab>("photo");
   const [draft, setDraft] = useState<TextDraft>({ text: "", fontId: "maru", color: INK });
   const [stickerColor, setStickerColor] = useState<string>(DEFAULT_DECOR_COLOR);
+  const [penColor, setPenColor] = useState<string>(INK);
+  const [penWidth, setPenWidth] = useState(DEFAULT_PEN_MM);
+  /** 取り消した線（やり直せる）。新しい線を描いたら、空になる */
+  const [redoStack, setRedoStack] = useState<StrokeLayer[]>([]);
   const [fontsVersion, setFontsVersion] = useState(0);
+  /** 途中保存を調べ終わったか。調べ終わる前に保存すると、残っていた途中保存を、空のデザインで上書きしてしまう */
+  const [draftReady, setDraftReady] = useState(
+    draftKey === undefined || initialImage !== undefined || initialData !== undefined,
+  );
+  const [resumed, setResumed] = useState(false);
+  const [confirmingReset, setConfirmingReset] = useState(false);
   const [message, setMessage] = useState<string | undefined>(undefined);
   const [busy, setBusy] = useState(false);
 
@@ -140,7 +184,9 @@ export function BadgeEditor({
   const imageLayer = layers.find((layer): layer is ImageLayer => layer.type === "image");
   /** 選んでいる層。何も選んでいなければ、写真（あれば） */
   const activeId = selectedId ?? (imageLayer ? IMAGE_ID : undefined);
-  const active = layers.find((layer) => layerId(layer) === activeId);
+  const active = layers.find(
+    (layer): layer is MovableLayer => isMovable(layer) && layerId(layer) === activeId,
+  );
 
   // ---- 書体 ----
 
@@ -239,13 +285,15 @@ export function BadgeEditor({
   }, []);
 
   const transform = useCallback(
-    (id: string, change: (placement: Placement, layer: Layer) => Placement) => {
+    (id: string, change: (placement: Placement, layer: MovableLayer) => Placement) => {
       setLayers((current) =>
         updateLayer(current, id, (layer) =>
-          withPlacement(
-            layer,
-            constrainPlacement(layer, change(placementOf(layer), layer), diameter),
-          ),
+          isMovable(layer)
+            ? withPlacement(
+                layer,
+                constrainPlacement(layer, change(placementOf(layer), layer), diameter),
+              )
+            : layer,
         ),
       );
     },
@@ -274,8 +322,23 @@ export function BadgeEditor({
     [diameter],
   );
 
+  const penMode = tab === "pen";
+  /** いま描いている線の ID（ペンのとき） */
+  const drawingRef = useRef<string | undefined>(undefined);
+
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     const point = toMm(event);
+    if (penMode) {
+      // ペンは、1 本の指だけで描く（2 本目の指は無視する）
+      if (pointers.current.size > 0) return;
+      const stroke = newStrokeLayer(penColor, penWidth, point);
+      drawingRef.current = stroke.id;
+      event.currentTarget.setPointerCapture(event.pointerId);
+      pointers.current.set(event.pointerId, point);
+      setRedoStack([]);
+      setLayers((current) => addStroke(current, stroke));
+      return;
+    }
     if (pointers.current.size === 0) {
       // 触り始め：触った場所にある層を選ぶ。何もなければ、写真
       const hit = hitTest(layersRef.current, point, extentOf);
@@ -291,6 +354,14 @@ export function BadgeEditor({
 
   const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
     const before = pointers.current.get(event.pointerId);
+    if (penMode) {
+      const drawing = drawingRef.current;
+      if (!before || drawing === undefined) return;
+      const after = toMm(event);
+      pointers.current.set(event.pointerId, after);
+      setLayers((current) => appendStrokePoint(current, drawing, after));
+      return;
+    }
     const target = targetRef.current;
     if (!before || target === undefined) return;
     const after = toMm(event);
@@ -306,13 +377,14 @@ export function BadgeEditor({
 
   const onPointerEnd = (event: React.PointerEvent<HTMLDivElement>) => {
     pointers.current.delete(event.pointerId);
+    if (pointers.current.size === 0) drawingRef.current = undefined;
   };
 
   // マウスのホイールで、ポインターの位置を中心に拡大・縮小する。ページのスクロールは止める
   // （React の onWheel は、ページのスクロールを止められないため、直接登録する）
   useEffect(() => {
     const frame = frameRef.current;
-    if (!frame || activeId === undefined) return;
+    if (!frame || activeId === undefined || penMode) return;
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();
       const about = toMm(event);
@@ -321,12 +393,12 @@ export function BadgeEditor({
     };
     frame.addEventListener("wheel", onWheel, { passive: false });
     return () => frame.removeEventListener("wheel", onWheel);
-  }, [activeId, toMm, transform]);
+  }, [activeId, penMode, toMm, transform]);
 
   // ---- ボタン ----
 
   /** 写真は、キャンバスの中心を軸に。文字とスタンプは、自分の中心を軸に拡大・回転する */
-  const aboutOf = (placement: Placement, layer: Layer): Point =>
+  const aboutOf = (placement: Placement, layer: MovableLayer): Point =>
     layer.type === "image" ? CENTER : { x: placement.x, y: placement.y };
 
   const zoomBy = (factor: number) => {
@@ -398,6 +470,89 @@ export function BadgeEditor({
       ),
     );
 
+  // ---- ペン ----
+
+  const undoDrawing = () => {
+    const result = undoStroke(layersRef.current);
+    const removed = result.removed;
+    if (!removed) return;
+    setLayers(result.layers);
+    setRedoStack((current) => [...current, removed].slice(-MAX_REDO));
+  };
+
+  const redoDrawing = () => {
+    const stroke = redoStack[redoStack.length - 1];
+    if (!stroke) return;
+    setRedoStack((current) => current.slice(0, -1));
+    setLayers((current) => addStroke(current, stroke));
+  };
+
+  const clearDrawing = () => {
+    setLayers((current) => clearStrokes(current));
+    setRedoStack([]);
+  };
+
+  // ---- 途中保存（ブラウザ内）----
+
+  // 開いたとき、前回の続きがあれば、読み戻す（initialData / initialImage があるときは、そちらを使う）
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 開いたときに 1 回だけ調べる
+  useEffect(() => {
+    if (draftReady || !draftKey) return;
+    let cancelled = false;
+    void loadDraft(draftKey).then(async (saved) => {
+      const state = saved ? parseEditorState(saved.editorData) : undefined;
+      if (cancelled) return;
+      if (saved && state) {
+        setBackground(state.background.color);
+        setLayers(state.layers.filter((layer) => layer.type !== "image"));
+        const savedImage = state.layers.find(
+          (layer): layer is ImageLayer => layer.type === "image",
+        );
+        await accept(saved.image, savedImage);
+        if (!cancelled) setResumed(true);
+      }
+      if (!cancelled) setDraftReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [draftKey]);
+
+  // 変えるたびに、少し待ってから、まとめて保存する（写真があるときだけ。写真がないと、続きにならない）
+  useEffect(() => {
+    if (!draftKey || !draftReady || !loaded) return;
+    const timer = setTimeout(() => {
+      void saveDraft(draftKey, {
+        savedAt: Date.now(),
+        editorData: {
+          ...createEmptyState(spec),
+          background: { color: background },
+          layers: pruneEmptyText(layers),
+        },
+        image: loaded.image.blob,
+      });
+    }, DRAFT_SAVE_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [draftKey, draftReady, loaded, layers, background, spec]);
+
+  /** はじめからやり直す。押しまちがいで消さないよう、2 回押してもらう */
+  const resetAll = () => {
+    if (!confirmingReset) {
+      setConfirmingReset(true);
+      setTimeout(() => setConfirmingReset(false), RESET_CONFIRM_MS);
+      return;
+    }
+    setConfirmingReset(false);
+    setLayers([]);
+    setLoaded(undefined);
+    setBackground(DEFAULT_BACKGROUND);
+    setSelectedId(undefined);
+    setRedoStack([]);
+    setResumed(false);
+    setMessage(undefined);
+    if (draftKey) void clearDraft(draftKey);
+  };
+
   const removeActive = () => {
     if (!active || !isDecor(active)) return;
     setLayers((current) => removeLayer(current, active.id));
@@ -459,7 +614,8 @@ export function BadgeEditor({
       ? effectiveDpi(loaded.image.width, imageLayer.widthMm) < MIN_RECOMMENDED_DPI
       : false;
 
-  const selectedDecor = active && isDecor(active) ? active : undefined;
+  const selectedDecor = active && isDecor(active) && !penMode ? active : undefined;
+  const hasStrokes = layers.some(isStroke);
   const selectedExtent = selectedDecor ? extentOf(selectedDecor) : undefined;
   const canExport = Boolean(imageLayer) && !busy;
   const disabledTools = activeId === undefined;
@@ -558,6 +714,7 @@ export function BadgeEditor({
       </details>
 
       {message && <Notice tone="error">{message}</Notice>}
+      {resumed && <Notice>前回の続きから再開しました。</Notice>}
       {uncovered && (
         <Notice>
           写真が、印刷される範囲（薄い線の円）を覆っていません。端に白い部分が出ます。拡大するか、「位置を戻す」を押してください。
@@ -590,7 +747,7 @@ export function BadgeEditor({
         <Button
           variant="line"
           onClick={() => select(nextLayerId(layers, activeId))}
-          disabled={layers.length < 2}
+          disabled={layers.filter(isMovable).length < 2}
         >
           次を選ぶ
         </Button>
@@ -640,6 +797,11 @@ export function BadgeEditor({
               1 本の指でドラッグすると動き、2
               本の指で拡大・回転できます。文字やスタンプは、触って選びます。
             </p>
+            {(loaded || layers.length > 0) && (
+              <Button variant="line" onClick={resetAll}>
+                {confirmingReset ? "もう一度押すと、全部消えます" : "はじめからやり直す"}
+              </Button>
+            )}
           </div>
         )}
         {tab === "text" && (
@@ -657,6 +819,20 @@ export function BadgeEditor({
             color={stickerColor}
             onColor={changeStickerColor}
             onAdd={addSticker}
+          />
+        )}
+        {tab === "pen" && (
+          <PenPanel
+            color={penColor}
+            onColor={setPenColor}
+            widthMm={penWidth}
+            onWidth={setPenWidth}
+            canUndo={hasStrokes}
+            canRedo={redoStack.length > 0}
+            hasStrokes={hasStrokes}
+            onUndo={undoDrawing}
+            onRedo={redoDrawing}
+            onClear={clearDrawing}
           />
         )}
         {tab === "background" && <BackgroundPanel color={background} onColor={setBackground} />}

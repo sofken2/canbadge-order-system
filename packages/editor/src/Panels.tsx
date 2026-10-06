@@ -1,6 +1,7 @@
 import { Button } from "@canbadge/ui";
 import { DEFAULT_STRENGTH, FILTER_CHOICES } from "./filter-params";
 import { EDITOR_FONTS } from "./fonts";
+import { PEN_MAX_MM, PEN_MIN_MM } from "./layers";
 import { type Filter, MAX_TEXT_LENGTH, type StickerLayer, type TextLayer } from "./model";
 import { PALETTE } from "./palette";
 import { STICKER_VIEWBOX, STICKERS } from "./stickers";
@@ -206,6 +207,62 @@ export function FilterPanel({
         </label>
       )}
       {disabled && <p className="cb-muted">先に、写真を選んでください。</p>}
+    </div>
+  );
+}
+
+export function PenPanel({
+  color,
+  onColor,
+  widthMm,
+  onWidth,
+  canUndo,
+  canRedo,
+  hasStrokes,
+  onUndo,
+  onRedo,
+  onClear,
+}: {
+  color: string;
+  onColor: (color: string) => void;
+  widthMm: number;
+  onWidth: (widthMm: number) => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  hasStrokes: boolean;
+  onUndo: () => void;
+  onRedo: () => void;
+  onClear: () => void;
+}) {
+  return (
+    <div className="cb-editor__panel">
+      <p className="cb-muted">
+        絵の上を、指でなぞると描けます。ほかの道具に切り替えると、写真や飾りを動かす操作に戻ります。
+      </p>
+      <Swatches label="ペンの色" value={color} onPick={onColor} />
+      <label className="cb-field">
+        <span className="cb-field__label">太さ {widthMm.toFixed(1)} mm</span>
+        <input
+          type="range"
+          className="cb-editor__range"
+          min={PEN_MIN_MM}
+          max={PEN_MAX_MM}
+          step={0.5}
+          value={widthMm}
+          onChange={(event) => onWidth(Number(event.target.value))}
+        />
+      </label>
+      <div className="cb-editor__pen-actions">
+        <Button variant="line" onClick={onUndo} disabled={!canUndo}>
+          ひとつ戻す
+        </Button>
+        <Button variant="line" onClick={onRedo} disabled={!canRedo}>
+          やり直す
+        </Button>
+        <Button variant="line" onClick={onClear} disabled={!hasStrokes}>
+          描いたものを全部消す
+        </Button>
+      </div>
     </div>
   );
 }

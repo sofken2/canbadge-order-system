@@ -5,6 +5,8 @@ export type LoadedImage = {
   canvas: HTMLCanvasElement;
   width: number;
   height: number;
+  /** 読み込んだもとのファイル。途中保存で、同じ手順で読み込み直すために残す */
+  blob: Blob;
 };
 
 async function toBlob(source: Blob | string): Promise<Blob> {
@@ -56,7 +58,8 @@ export async function loadImage(
   source: Blob | string,
   maxSide: number = MAX_SOURCE_SIDE,
 ): Promise<LoadedImage> {
-  const decoded = await decode(await toBlob(source));
+  const blob = await toBlob(source);
+  const decoded = await decode(blob);
   try {
     const { width, height } = fitWithin(decoded.width, decoded.height, maxSide);
     const canvas = document.createElement("canvas");
@@ -66,7 +69,7 @@ export async function loadImage(
     if (!context) throw new Error("この端末では、画像を扱えません");
     context.imageSmoothingQuality = "high";
     context.drawImage(decoded.source, 0, 0, width, height);
-    return { canvas, width, height };
+    return { canvas, width, height, blob };
   } finally {
     decoded.release();
   }
