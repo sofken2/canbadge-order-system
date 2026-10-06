@@ -64,7 +64,10 @@ export type Stack = {
  * api と print-worker を起動する。待ち時間は短くする（SSE の確認・印刷キューの巡回を 0.2 秒ごと、
 印刷は待たずに即座に）。DB は先に作らない（空の DB への同時起動も、確かめるため）
  */
-export async function startStack(dataDir: string): Promise<Stack> {
+export async function startStack(
+  dataDir: string,
+  extraEnv: Record<string, string> = {},
+): Promise<Stack> {
   const port = freePort();
   const env = {
     DATA_DIR: dataDir,
@@ -72,6 +75,7 @@ export async function startStack(dataDir: string): Promise<Stack> {
     SSE_POLL_MS: "200",
     PRINT_POLL_MS: "200",
     PRINT_WAIT_OVERRIDE_SECONDS: "0",
+    ...extraEnv,
   };
   const api = start("api", "apps/api/src/index.ts", env);
   const printWorker = start("print-worker", "apps/print-worker/src/index.ts", env);

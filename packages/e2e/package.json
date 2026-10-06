@@ -6,15 +6,18 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
-    "test": "bun test"
+    "test": "bun test",
+    "load": "bun src/load/main.ts"
   },
   "devDependencies": {
     "@canbadge/config": "workspace:*"
   },
   "dependencies": {
     "@canbadge/api-client": "workspace:*",
+    "@canbadge/badge-spec": "workspace:*",
     "@canbadge/db": "workspace:*",
     "@canbadge/fixtures": "workspace:*",
-    "@canbadge/shared": "workspace:*"
+    "@canbadge/shared": "workspace:*",
+    "zod": "^4.6.5"
   }
 }
