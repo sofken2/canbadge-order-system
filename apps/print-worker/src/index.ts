@@ -9,6 +9,10 @@ const dataDir = resolveDataDir();
 const db = openDatabase({ path: databasePath(dataDir) });
 
 const driver = createDriver(process.env, { devOutDir: join(dataDir, "print-out") });
+// 印刷できない原因（プリンターが見つからないなど）を、起動時に知らせる。止めはしない（プリンターの電源が、あとで入ることもある）
+for (const problem of (await driver.preflight?.()) ?? []) {
+  console.log(`print-worker: 注意：${problem}`);
+}
 const waitOverride = process.env.PRINT_WAIT_OVERRIDE_SECONDS;
 const intervalMs = Number(process.env.PRINT_POLL_MS ?? 2000);
 
