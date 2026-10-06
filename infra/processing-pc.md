@@ -120,6 +120,10 @@ cd C:\canbadge\infra\windows
 
 `canbadge` でログオンすると、`start-all.ps1` が実行される（Caddy・api・print-worker）。
 
+## 8-2. バックアップの定期実行
+
+DB と画像を、数分おきに、別のドライブへ複製する。手順は [backup.md](backup.md) の 1 章（`.env` の `BACKUP_DIR`、`register-backup-task.ps1`）。
+
 ## 9. Windows Update
 
 学祭の前後で、更新による再起動や遅さが出ないようにする。
@@ -152,7 +156,7 @@ PC を再起動して、**何も操作せずに**次が揃うことを確認す�
 | 手動で全部止める | `C:\canbadge\infra\windows\stop-all.ps1` |
 | 手動で全部起動する | `C:\canbadge\infra\windows\start-all.ps1` |
 | ログを見る | `C:\canbadge\data\logs\` の `caddy.log`・`api.log`・`print-worker.log`（`.err` は標準エラー） |
-| コードを更新する | `cd C:\canbadge; git pull; bun install` のあと、`stop-all.ps1` → `start-all.ps1` |
+| コードを更新する | `cd C:\canbadge; git pull; bun install; bun run build` のあと、`stop-all.ps1` → `start-all.ps1`（画面は、ビルドしないと更新されない） |
 
 - 落ちたプロセスは、`start-all.ps1` が数秒〜1 分後に自動で起動し直す。落ち続けるときは、待つ時間を延ばしながら、ログに記録する
 - ログが 20 MB を超えると、次の起動時に `.old` に退避される

@@ -12,6 +12,8 @@
 | `windows/register-startup-task.ps1` | ログオン時に `start-all.ps1` を実行するタスクを登録する |
 | `windows/configure-processing-pc.ps1` | 電源・ロック画面・自動再起動の設定（本番の処理PC でだけ） |
 | `windows/install-tools.ps1` | Git・Bun・Caddy・cloudflared・SumatraPDF を入れる |
+| `windows/run-backup.ps1`・`register-backup-task.ps1`・`check-backup.ps1` | バックアップを 1 回取る／数分おきに取るタスクの登録／取れているかの確認 |
+| `backup.md` | バックアップと、予備機での復旧・リハーサルの手順（I04） |
 | `processing-pc.md` | 処理PC の構築手順（専用ユーザー・自動ログオン・自動起動・Windows Update）（I01） |
 | `cloudflare.md` | サービス化・Access・Turnstile・WAF／レート制限・学内疎通の確認の手順（I03） |
 
@@ -147,4 +149,4 @@ cloudflared tunnel run canbadge
 - [x] I03（一部）: 独自ドメイン、名前付きトンネル（手動起動）
 - [ ] I03: トンネルの Windows サービス化、Access（スタッフ画面のログイン）、Turnstile、WAF・レート制限、学内ネットワークからの疎通確認（手順は [cloudflare.md](cloudflare.md)。ダッシュボードの操作と実機での確認は管理者が行う）
 - [ ] I01: 処理PC の自動ログオン・自動起動・Windows Update 停止・スリープ無効化（スクリプトと手順書は [processing-pc.md](processing-pc.md)。本番の処理PC での実施と確認が残っている）
-- [ ] I04: バックアップと復旧手順
+- [ ] I04: バックアップと復旧手順（実装と手順書は [backup.md](backup.md)。本番の処理PC での定期実行の登録と、予備機での復旧リハーサルが残っている）

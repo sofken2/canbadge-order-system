@@ -17,9 +17,12 @@ SQLite（bun:sqlite）+ Drizzle。状態変更の唯一の入口。
 | `src/queries.ts` | 読み取りだけの関数（1 件の取得） |
 | `src/listings.ts` | 画面向けの一覧と集計（注文の検索・印刷履歴・印刷済みバッジ・売上）。新しい順で、続きは `before` で取る |
 | `src/rows.ts` | DB の行を、契約のエンティティにする（null は省略に、zod で検証） |
+| `src/backup.ts` | バックアップ（`VACUUM INTO` で整合性のある DB のコピー＋画像の差分コピー）と復旧。CLI は `backup-cli.ts`・`restore-cli.ts`（`bun run backup`・`bun run restore`）。手順は `infra/backup.md` |
 | `src/clock.ts` | 手で進められる時計（テスト・サンプルデータで時刻を固定する） |
 
 使うときは `import { ... } from "@canbadge/db"` だけにする。
+
+- 稼働中の DB ファイルを、そのままコピーしない（書き込み中に壊れる）。バックアップは `backupData`（`VACUUM INTO`）を使う
 
 ## ルール
 
