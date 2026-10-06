@@ -1,0 +1,275 @@
+/* Hallmark · macrostructure: Work queue (app screen · tabs + checklist rows) · genre: modern-minimal · theme: Coral (design.md)
+ * tone: utilitarian — match the printed sheet at a glance: same order, big numbers, one clear choice per badge
+ * tokens only — no inline colours or font stacks · pre-emit critique: P4 H4 E4 S4 R4 V3
+ */
+
+/* ---- 一時停止の帯（どのタブからでも押せる） ---- */
+
+.cb-print__pause {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-rule-strong);
+  border-radius: var(--radius-card);
+  background: var(--color-card);
+}
+
+.cb-print__pause p {
+  margin: 0;
+  font-weight: 700;
+}
+
+/* 止めているときは、地の色と太い枠で目立たせる（色だけに頼らず、文でも伝える） */
+.cb-print__pause[data-paused] {
+  border-width: 3px;
+  border-color: var(--color-accent-deep);
+  background: var(--color-accent-tint);
+}
+
+/* ---- 確認：用紙と同じ並びの、バッジのリスト ---- */
+
+.cb-print__sheet-head {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  margin: 0 0 var(--space-xs);
+  font-weight: 700;
+}
+
+.cb-print__slots {
+  list-style: none;
+  margin: var(--space-md) 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.cb-print__slot {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm);
+  border: 1px solid var(--color-rule-strong);
+  border-radius: var(--radius-card);
+  background: var(--color-card);
+}
+
+.cb-print__slot[data-reprint] {
+  border-width: 3px;
+  border-color: var(--color-accent-deep);
+  background: var(--color-accent-tint);
+}
+
+/* 用紙の何番目か（用紙と画面を、同じ順で見比べる手がかり） */
+.cb-print__position {
+  min-width: 1.75rem;
+  text-align: center;
+  color: var(--color-muted);
+  font: 700 var(--text-md) / 1 var(--font-display);
+  font-variant-numeric: tabular-nums;
+}
+
+.cb-print__thumb {
+  width: 3.5rem;
+  height: 3.5rem;
+  object-fit: cover;
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-input);
+}
+
+.cb-print__slot .cb-number {
+  margin: 0;
+}
+
+/* OK / 再印刷：2 つのうち 1 つ。押した方が黒地になる */
+.cb-print__choice {
+  display: grid;
+  grid-auto-flow: column;
+  gap: var(--space-2xs);
+}
+
+.cb-print__choice button {
+  min-width: 4.25rem;
+  min-height: var(--size-control-lg);
+  border: 1px solid var(--color-rule-strong);
+  border-radius: var(--radius-input);
+  background: var(--color-card);
+  color: var(--color-ink);
+  font: 700 var(--text-base) / 1.2 var(--font-body);
+  cursor: pointer;
+}
+
+.cb-print__choice button[aria-pressed="true"] {
+  border-color: var(--color-ink);
+  background: var(--color-ink);
+  color: var(--color-paper);
+}
+
+.cb-print__slot[data-reprint] .cb-print__choice button[aria-pressed="true"] {
+  border-color: var(--color-accent-deep);
+  background: var(--color-accent-deep);
+  color: var(--color-accent-ink);
+}
+
+.cb-print__choice button:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* ---- バッジ・印刷ジョブ：選べる一覧 ---- */
+
+.cb-print__search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.cb-print__list {
+  list-style: none;
+  margin: 0 0 var(--space-lg);
+  padding: 0;
+  display: grid;
+  gap: var(--space-xs);
+}
+
+.cb-print__row,
+.cb-print__sheet {
+  border: 1px solid var(--color-rule-strong);
+  border-radius: var(--radius-card);
+  background: var(--color-card);
+}
+
+.cb-print__row[data-selected],
+.cb-print__sheet[data-selected] {
+  border-width: 3px;
+  border-color: var(--color-ink);
+}
+
+.cb-print__pick {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: 4rem;
+  padding: var(--space-xs) var(--space-sm);
+  cursor: pointer;
+}
+
+.cb-print__pick input[type="checkbox"] {
+  width: 1.75rem;
+  height: 1.75rem;
+  flex: none;
+  accent-color: var(--color-ink);
+}
+
+.cb-print__pick .cb-number {
+  margin: 0;
+}
+
+.cb-print__meta {
+  display: grid;
+  gap: var(--space-2xs);
+  font-size: var(--text-sm);
+}
+
+.cb-print__sheet-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding-right: var(--space-sm);
+}
+
+/* シートに載っていたバッジの、小さな一覧（用紙の順） */
+.cb-print__mini {
+  list-style: none;
+  margin: 0;
+  padding: 0 var(--space-sm) var(--space-sm);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(4.5rem, 1fr));
+  gap: var(--space-xs);
+}
+
+.cb-print__mini li {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  font: 700 var(--text-sm) / 1.2 var(--font-display);
+}
+
+.cb-print__mini img {
+  width: 3rem;
+  height: 3rem;
+  object-fit: cover;
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-input);
+}
+
+.cb-print__mini small {
+  color: var(--color-muted);
+  font: 500 var(--text-xs) / 1.2 var(--font-body);
+}
+
+.cb-print__mini li[data-result="reprint"] span {
+  color: var(--color-accent-deep);
+}
+
+/* 選んだ件数と実行ボタン。スクロールしても、画面の下に残る */
+.cb-print__bar {
+  position: sticky;
+  bottom: var(--space-xs);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  border: 2px solid var(--color-ink);
+  border-radius: var(--radius-card);
+  background: var(--color-paper);
+  font-weight: 700;
+}
+
+/* ---- 再印刷の確認（ConfirmDialog の中身） ---- */
+
+.cb-print__impact {
+  list-style: none;
+  margin: var(--space-sm) 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.cb-print__impact li {
+  display: grid;
+  gap: var(--space-2xs);
+  padding: var(--space-sm);
+  border-left: 4px solid var(--color-accent-deep);
+  background: var(--color-accent-tint);
+}
+
+.cb-print__numbers {
+  font: 700 var(--text-xl) / 1.2 var(--font-display);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* PDF へのリンク。ブラウザ標準の青ではなく、本文の色で、下線で示す */
+.cb-print a {
+  color: var(--color-ink);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.cb-print a:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}

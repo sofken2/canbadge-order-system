@@ -225,14 +225,14 @@ export function AssemblePage() {
     <main className="cb-page cb-asm">
       <h1>組み立て・受け渡し</h1>
 
-      <div className="cb-asm__tabs" role="tablist" aria-label="作業">
+      <div className="cb-switch" role="tablist" aria-label="作業">
         <button
           type="button"
           role="tab"
           aria-selected={tab === "assemble"}
           onClick={() => setTab("assemble")}
         >
-          組み立て <span className="cb-asm__count">{assembleCount}</span>
+          組み立て <span className="cb-switch__count">{assembleCount}</span>
         </button>
         <button
           type="button"
@@ -240,8 +240,8 @@ export function AssemblePage() {
           aria-selected={tab === "pickup"}
           onClick={() => setTab("pickup")}
         >
-          受け渡し <span className="cb-asm__count">{grouped.ready.length}</span>
-          {longWaiting > 0 && <span className="cb-asm__flag">待ち長い {longWaiting}</span>}
+          受け渡し <span className="cb-switch__count">{grouped.ready.length}</span>
+          {longWaiting > 0 && <span className="cb-switch__flag">待ち長い {longWaiting}</span>}
         </button>
       </div>
 

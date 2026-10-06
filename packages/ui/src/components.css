@@ -410,3 +410,92 @@ p {
 .cb-qr__ink {
   fill: var(--color-ink);
 }
+
+/* ---- 作業の切り替え（Switch）。スタッフ画面で、2 つ以上の作業を切り替える ---- */
+
+.cb-switch {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: var(--space-xs);
+  margin-bottom: var(--space-md);
+}
+
+.cb-switch button {
+  min-height: var(--size-control-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  border: 1px solid var(--color-rule-strong);
+  border-radius: var(--radius-card);
+  background: var(--color-card);
+  color: var(--color-ink);
+  font: 700 var(--text-md) / 1.2 var(--font-body);
+  cursor: pointer;
+}
+
+.cb-switch button[aria-selected="true"] {
+  border-color: var(--color-ink);
+  background: var(--color-ink);
+  color: var(--color-paper);
+}
+
+.cb-switch button:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.cb-switch__count {
+  font: 700 var(--text-lg) / 1 var(--font-display);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 待ちが長い注文の数。色だけでなく、文字でも伝える */
+.cb-switch__flag {
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+/* ---- 確認ダイアログ（ConfirmDialog。標準の <dialog>） ---- */
+
+.cb-confirm {
+  width: min(32rem, calc(100vw - 2 * var(--space-md)));
+  max-height: calc(100dvh - 2 * var(--space-md));
+  padding: var(--space-lg);
+  border: 2px solid var(--color-ink);
+  border-radius: var(--radius-card);
+  background: var(--color-paper);
+  color: var(--color-ink);
+  overflow: auto;
+}
+
+.cb-confirm::backdrop {
+  background: oklch(20% 0.02 50 / 0.55);
+}
+
+.cb-confirm h2 {
+  margin: 0 0 var(--space-sm);
+}
+
+.cb-confirm__body p {
+  margin: 0 0 var(--space-xs);
+}
+
+.cb-confirm__error {
+  margin: var(--space-sm) 0 0;
+  color: var(--color-accent-deep);
+  font-weight: 700;
+}
+
+.cb-confirm__actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}

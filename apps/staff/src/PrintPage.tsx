@@ -1,76 +1,459 @@
-import { printSheetStatusLabels } from "@canbadge/shared";
-import { useAction, useResource } from "@canbadge/ui";
-import { useState } from "react";
+import {
+  orderStatusLabels,
+  type PrintedItemView,
+  type PrintSheetView,
+  printSheetStatusLabels,
+  printSlotResultLabels,
+} from "@canbadge/shared";
+import { Button, Notice, TextField, useAction, useResource } from "@canbadge/ui";
+import { useMemo, useState } from "react";
 import { api } from "./api";
+import { ConfirmDialog } from "./ConfirmDialog";
+import {
+  isReprintableOrderStatus,
+  type ReprintTarget,
+  reprintImpact,
+  reprintResultMessage,
+  sheetTally,
+  splitReprintable,
+  toggled,
+} from "./print-logic";
+import "./print.css";
 
-// 仮画面（T09）。印刷済みバッジの履歴・履歴からの再印刷・一時停止（S03）は、印刷確認画面で作る。
+type Tab = "check" | "items" | "sheets";
+type Message = { tone: "info" | "error"; text: string };
 
-/**
- * 印刷確認。印刷中のシートに載っているバッジを、用紙の位置の順に出し、
- * 用紙を見て、再印刷にするバッジだけを選んで確認する（選ばなかったバッジは OK）
- */
-export function PrintPage() {
+const time = (iso: string): string =>
+  new Date(iso).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
+
+/** 再印刷の前の確認と、実行。バッジ一覧からも、印刷ジョブからも、同じ流れで使う */
+function useReprint(onDone: (message: Message) => void) {
+  const [targets, setTargets] = useState<readonly ReprintTarget[] | undefined>(undefined);
+  const [excludedCount, setExcludedCount] = useState(0);
+
+  const run = useAction(async () => {
+    if (!targets) return;
+    const result = await api.call("reprint", {
+      body: { orderItemIds: targets.map((target) => target.orderItemId) },
+    });
+    setTargets(undefined);
+    onDone({ tone: "info", text: reprintResultMessage(result) });
+  });
+
+  const dialog = (
+    <ConfirmDialog
+      open={Boolean(targets)}
+      title={`${targets?.length ?? 0} 個のバッジを、再印刷します`}
+      confirmLabel="再印刷にする"
+      running={run.running}
+      error={run.error}
+      onConfirm={() => void run.run()}
+      onCancel={() => setTargets(undefined)}
+    >
+      {targets && (
+        <>
+          <p>次の注文のバッジを、印刷待ちに戻し、次のシートに載せます。</p>
+          <ul className="cb-print__impact">
+            {reprintImpact(targets).map((line) => (
+              <li key={line.status}>
+                <strong className="cb-print__numbers">{line.numbers.join("・")}</strong>
+                <span>{line.text}</span>
+              </li>
+            ))}
+          </ul>
+          {excludedCount > 0 && (
+            <p className="cb-muted">
+              受け渡し済みなどで再印刷できない {excludedCount} 個は、除いています。
+            </p>
+          )}
+        </>
+      )}
+    </ConfirmDialog>
+  );
+
+  return {
+    /** 再印刷できないものを外して、確認を開く。できるものがなければ、開かず false */
+    ask: (all: readonly ReprintTarget[]): boolean => {
+      const { reprintable, excluded } = splitReprintable(all);
+      if (reprintable.length === 0) {
+        onDone({
+          tone: "error",
+          text: "選んだバッジは、再印刷できません。まだ印刷待ち・印刷中か、受け渡し済み・取り消しなどの注文です。",
+        });
+        return false;
+      }
+      setExcludedCount(excluded.length);
+      setTargets(reprintable);
+      return true;
+    },
+    dialog,
+  };
+}
+
+/** 確認：印刷中のシートを、用紙と同じ並びで見て、再印刷にするバッジだけを選ぶ（選ばなかったバッジは OK） */
+function CheckTab({ onMessage }: { onMessage: (message: Message) => void }) {
   const current = useResource(() => api.call("getCurrentPrintSheet"), {
     subscribe: (reload) => api.subscribe("staffEvents", { onEvent: reload, onOpen: reload }),
   });
   const [reprint, setReprint] = useState<ReadonlySet<string>>(new Set());
-
-  const check = useAction(async (sheetId: string) => {
-    await api.call("checkPrintSheet", {
-      params: { sheetId },
-      body: { reprintOrderItemIds: [...reprint] },
-    });
-    setReprint(new Set());
-    current.reload();
-  });
-
-  if (current.error) return <p role="alert">{current.error}</p>;
   const sheet = current.data?.sheet;
 
+  const check = useAction(async (target: PrintSheetView) => {
+    await api.call("checkPrintSheet", {
+      params: { sheetId: target.id },
+      body: { reprintOrderItemIds: [...reprint] },
+    });
+    const tally = sheetTally(
+      target.slots.map((slot) => slot.orderItemId),
+      reprint,
+    );
+    setReprint(new Set());
+    current.reload();
+    onMessage({
+      tone: "info",
+      text:
+        tally.reprint === 0
+          ? `${tally.ok} 個を、OK にしました。組み立てに進みます`
+          : `${tally.ok} 個を OK に、${tally.reprint} 個を再印刷にしました。再印刷の分は、次のシートに載ります`,
+    });
+  });
+
+  if (current.error && !current.data) return <Notice tone="error">{current.error}</Notice>;
+  if (!sheet) {
+    return <p className="cb-muted">確認するシートは、ありません。印刷が始まると、ここに出ます。</p>;
+  }
+
+  const tally = sheetTally(
+    sheet.slots.map((slot) => slot.orderItemId),
+    reprint,
+  );
+  const slots = [...sheet.slots].sort((a, b) => a.position - b.position);
+
   return (
-    <main>
-      <h1>印刷確認（仮画面）</h1>
-      {!sheet && <p>印刷中のシートはありません。</p>}
-      {sheet && (
-        <section>
-          <p>
-            シート：{printSheetStatusLabels[sheet.status]} ／{" "}
-            <a
-              href={api.url("getPrintSheetPdf", { params: { sheetId: sheet.id } })}
-              target="_blank"
-              rel="noreferrer"
+    <section aria-label="印刷中のシート">
+      <p className="cb-print__sheet-head">
+        <span>
+          {time(sheet.printedAt)} に印刷（{printSheetStatusLabels[sheet.status]}）
+        </span>
+        <a
+          href={api.url("getPrintSheetPdf", { params: { sheetId: sheet.id } })}
+          target="_blank"
+          rel="noreferrer"
+        >
+          PDF を開く
+        </a>
+      </p>
+      <p className="cb-muted">
+        用紙の注文番号と、見比べてください。印字が失敗しているバッジだけ、「再印刷」にします。
+      </p>
+
+      <ol className="cb-print__slots">
+        {slots.map((slot) => {
+          const isReprint = reprint.has(slot.orderItemId);
+          return (
+            <li
+              key={slot.orderItemId}
+              className="cb-print__slot"
+              data-reprint={isReprint || undefined}
             >
-              PDF を開く
-            </a>
-          </p>
-          <p>用紙の注文番号と見比べて、やり直したいバッジにチェックを入れてください。</p>
-          <ol>
-            {sheet.slots.map((slot) => (
-              <li key={slot.orderItemId}>
-                <img src={slot.thumbnailUrl} alt="バッジの画像" width={80} height={80} />{" "}
-                <strong style={{ fontSize: "1.5rem" }}>{slot.orderNumberText}</strong>{" "}
-                <label>
+              <span className="cb-print__position">{slot.position + 1}</span>
+              <img src={slot.thumbnailUrl} alt="" className="cb-print__thumb" />
+              <span className="cb-number cb-number--medium">{slot.orderNumberText}</span>
+              <div className="cb-print__choice">
+                <button
+                  type="button"
+                  aria-label={`OK（注文 ${slot.orderNumberText}）`}
+                  aria-pressed={!isReprint}
+                  onClick={() => isReprint && setReprint(toggled(reprint, slot.orderItemId))}
+                >
+                  OK
+                </button>
+                <button
+                  type="button"
+                  aria-label={`再印刷（注文 ${slot.orderNumberText}）`}
+                  aria-pressed={isReprint}
+                  onClick={() => !isReprint && setReprint(toggled(reprint, slot.orderItemId))}
+                >
+                  再印刷
+                </button>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+
+      {check.error && <Notice tone="error">{check.error}</Notice>}
+      <Button size="large" block onClick={() => void check.run(sheet)} disabled={check.running}>
+        {tally.reprint === 0
+          ? `${tally.ok} 個すべて OK にする`
+          : `${tally.ok} 個 OK・${tally.reprint} 個 再印刷で確定する`}
+      </Button>
+    </section>
+  );
+}
+
+/** バッジ：印刷済みのバッジを、注文番号で探し、選んで再印刷に回す */
+function ItemsTab({ onMessage }: { onMessage: (message: Message) => void }) {
+  const [query, setQuery] = useState("");
+  const [applied, setApplied] = useState("");
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+
+  const items = useResource(
+    () =>
+      api.call("listPrintedItems", { query: { ...(applied ? { q: applied } : {}), limit: 100 } }),
+    {
+      deps: [applied],
+      subscribe: (reload) => api.subscribe("staffEvents", { onEvent: reload, onOpen: reload }),
+    },
+  );
+  const reprint = useReprint((message) => {
+    setSelected(new Set());
+    items.reload();
+    onMessage(message);
+  });
+
+  const list = items.data?.items ?? [];
+  const chosen = list.filter((item) => selected.has(item.orderItemId));
+  const toTarget = (item: PrintedItemView): ReprintTarget => item;
+
+  return (
+    <section aria-label="印刷済みのバッジ">
+      <form
+        className="cb-print__search"
+        onSubmit={(event) => {
+          event.preventDefault();
+          setApplied(query.trim());
+          setSelected(new Set());
+        }}
+      >
+        <TextField
+          label="注文番号で探す"
+          value={query}
+          inputMode="numeric"
+          autoComplete="off"
+          onChange={(event) => setQuery(event.target.value)}
+        />
+        <Button type="submit" variant="ink">
+          探す
+        </Button>
+      </form>
+
+      {items.error && <Notice tone="error">{items.error}</Notice>}
+      {items.data && list.length === 0 && (
+        <p className="cb-muted">
+          {applied
+            ? `「${applied}」の印刷済みのバッジは、ありません。`
+            : "印刷済みのバッジは、まだありません。"}
+        </p>
+      )}
+
+      <ul className="cb-print__list">
+        {list.map((item) => {
+          const can = item.reprintable && isReprintableOrderStatus(item.orderStatus);
+          const checked = selected.has(item.orderItemId);
+          return (
+            <li
+              key={item.orderItemId}
+              className="cb-print__row"
+              data-selected={checked || undefined}
+            >
+              <label className="cb-print__pick">
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  disabled={!can}
+                  onChange={() => setSelected(toggled(selected, item.orderItemId))}
+                />
+                <img src={item.thumbnailUrl} alt="" className="cb-print__thumb" />
+                <span className="cb-number cb-number--medium">{item.orderNumberText}</span>
+                <span className="cb-print__meta">
+                  <span>{orderStatusLabels[item.orderStatus]}</span>
+                  <span className="cb-muted">
+                    {time(item.lastPrintedAt)} ・ {item.printCount} 回印刷
+                    {!can && " ・ 再印刷できません"}
+                  </span>
+                </span>
+              </label>
+            </li>
+          );
+        })}
+      </ul>
+      {items.data?.nextBefore && (
+        <p className="cb-muted">
+          新しい 100 個だけを出しています。古いものは、注文番号で探してください。
+        </p>
+      )}
+
+      {chosen.length > 0 && (
+        <div className="cb-print__bar">
+          <span>{chosen.length} 個を選んでいます</span>
+          <Button size="large" onClick={() => reprint.ask(chosen.map(toTarget))}>
+            再印刷にする
+          </Button>
+        </div>
+      )}
+      {reprint.dialog}
+    </section>
+  );
+}
+
+/** 印刷ジョブ：印刷したシートの履歴。シートごとに、PDF を見て、載っていたバッジを、まとめて再印刷に回す */
+function SheetsTab({ onMessage }: { onMessage: (message: Message) => void }) {
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const sheets = useResource(() => api.call("listPrintSheets", { query: { limit: 100 } }), {
+    subscribe: (reload) => api.subscribe("staffEvents", { onEvent: reload, onOpen: reload }),
+  });
+  const reprint = useReprint((message) => {
+    setSelected(new Set());
+    sheets.reload();
+    onMessage(message);
+  });
+
+  const list = sheets.data?.items ?? [];
+  const chosenItems = useMemo(
+    () =>
+      list
+        .filter((sheet) => selected.has(sheet.id))
+        .flatMap((sheet) => sheet.slots)
+        // 同じバッジが、再印刷を重ねて、複数のシートに載ることがある（1 つにまとめる）
+        .filter(
+          (slot, index, all) => all.findIndex((s) => s.orderItemId === slot.orderItemId) === index,
+        ),
+    [list, selected],
+  );
+
+  return (
+    <section aria-label="印刷ジョブの履歴">
+      {sheets.error && <Notice tone="error">{sheets.error}</Notice>}
+      {sheets.data && list.length === 0 && (
+        <p className="cb-muted">印刷したシートは、まだありません。</p>
+      )}
+
+      <ul className="cb-print__list">
+        {list.map((sheet) => {
+          const checked = selected.has(sheet.id);
+          return (
+            <li key={sheet.id} className="cb-print__sheet" data-selected={checked || undefined}>
+              <div className="cb-print__sheet-top">
+                <label className="cb-print__pick">
                   <input
                     type="checkbox"
-                    checked={reprint.has(slot.orderItemId)}
-                    onChange={(event) => {
-                      const next = new Set(reprint);
-                      if (event.target.checked) next.add(slot.orderItemId);
-                      else next.delete(slot.orderItemId);
-                      setReprint(next);
-                    }}
+                    checked={checked}
+                    onChange={() => setSelected(toggled(selected, sheet.id))}
                   />
-                  再印刷
+                  <span>
+                    <strong>{time(sheet.printedAt)}</strong> に印刷 ・{" "}
+                    {printSheetStatusLabels[sheet.status]} ・ {sheet.slots.length} 個
+                  </span>
                 </label>
-              </li>
-            ))}
-          </ol>
-          <button type="button" onClick={() => void check.run(sheet.id)} disabled={check.running}>
-            確認する（{sheet.slots.length - reprint.size} 個 OK、{reprint.size} 個 再印刷）
-          </button>
-          {check.error && <p role="alert">{check.error}</p>}
-        </section>
+                <a
+                  href={api.url("getPrintSheetPdf", { params: { sheetId: sheet.id } })}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  PDF を開く
+                </a>
+              </div>
+              <ol className="cb-print__mini">
+                {[...sheet.slots]
+                  .sort((a, b) => a.position - b.position)
+                  .map((slot) => (
+                    <li key={slot.orderItemId} data-result={slot.result}>
+                      <img src={slot.thumbnailUrl} alt="" />
+                      <span>{slot.orderNumberText}</span>
+                      <small>{printSlotResultLabels[slot.result]}</small>
+                    </li>
+                  ))}
+              </ol>
+            </li>
+          );
+        })}
+      </ul>
+      {sheets.data?.nextBefore && <p className="cb-muted">新しい 100 件だけを出しています。</p>}
+
+      {chosenItems.length > 0 && (
+        <div className="cb-print__bar">
+          <span>
+            {selected.size} 件のシート（{chosenItems.length} 個）
+          </span>
+          <Button size="large" onClick={() => reprint.ask(chosenItems)}>
+            まとめて再印刷
+          </Button>
+        </div>
       )}
+      {reprint.dialog}
+    </section>
+  );
+}
+
+/**
+ * 印刷確認。「確認」「バッジ」「印刷ジョブ」の 3 つ。
+ * 再印刷は、注文の状態が戻る（組み立て中・完成も印刷待ちに戻る）ので、実行の前に、対象の番号と影響を見せる。
+ * 印刷の一時停止・再開は、どのタブからでも押せる
+ */
+export function PrintPage() {
+  const [tab, setTab] = useState<Tab>("check");
+  const [message, setMessage] = useState<Message | undefined>(undefined);
+
+  const settings = useResource(() => api.call("getSettings"), {
+    subscribe: (reload) => api.subscribe("staffEvents", { onEvent: reload, onOpen: reload }),
+  });
+  const paused = settings.data?.printPaused ?? false;
+  const toggle = useAction(async () => {
+    await api.call(paused ? "resumePrintQueue" : "pausePrintQueue");
+    settings.reload();
+  });
+
+  const pick = (next: Tab) => {
+    setTab(next);
+    setMessage(undefined);
+  };
+
+  return (
+    <main className="cb-page cb-print">
+      <h1>印刷確認</h1>
+
+      <div className="cb-print__pause" data-paused={paused || undefined}>
+        <p>
+          {paused ? "印刷を止めています。新しいシートは、印刷されません" : "印刷は、動いています"}
+        </p>
+        <Button
+          variant={paused ? "primary" : "line"}
+          onClick={() => void toggle.run()}
+          disabled={toggle.running || !settings.data}
+        >
+          {paused ? "印刷を再開する" : "印刷を止める"}
+        </Button>
+      </div>
+      {toggle.error && <Notice tone="error">{toggle.error}</Notice>}
+
+      <div className="cb-switch" role="tablist" aria-label="印刷の作業">
+        {(
+          [
+            ["check", "確認"],
+            ["items", "バッジ"],
+            ["sheets", "印刷ジョブ"],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={tab === id}
+            onClick={() => pick(id)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {message && <Notice tone={message.tone}>{message.text}</Notice>}
+
+      <div role="tabpanel">
+        {tab === "check" && <CheckTab onMessage={setMessage} />}
+        {tab === "items" && <ItemsTab onMessage={setMessage} />}
+        {tab === "sheets" && <SheetsTab onMessage={setMessage} />}
+      </div>
     </main>
   );
 }
