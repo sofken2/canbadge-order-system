@@ -9,11 +9,20 @@
 #               （本番はドメイン。staff.localhost は、STAFF_HOST に関係なく、常にスタッフ用になる）
 #   WEB_DIST    来場者用の画面の場所        ../../apps/web/dist（この Caddyfile からの相対）
 #   STAFF_DIST  スタッフ用の画面の場所      ../../apps/staff/dist
+#   ANUBIS_ENABLED  1 にすると、来場者用の画面（HTML）の前に Anubis（ボット対策）を置く     0
+#   ANUBIS_PORT     Anubis のポート                                                         8923
+#   WEB_ORIGIN_PORT Anubis の向こう側（来場者用の画面を返す、内部だけのポート）            8081
 
 {
 	# TLS は Cloudflare 側で終端する。Caddy は HTTP だけを受ける
 	auto_https off
 	admin off
+	servers {
+		# cloudflared（その PC の中）から来た要求は、Cf-Connecting-Ip を、来場者の IP として扱う。
+		# Anubis が、来場者ごとに確認を数えるために使う（{client_ip}）
+		trusted_proxies static private_ranges
+		client_ip_headers Cf-Connecting-Ip
+	}
 }
 
 # /api/* は、どちらのホスト名からも api に渡す。スタッフ用 API を来場者用のホスト名から
@@ -29,13 +38,17 @@
 }
 
 # 画面（SPA）。ファイル名にハッシュが付く /assets/* は長く、index.html は毎回確かめさせる
-# （画面を更新したのに、古い index.html が残って動かなくなるのを防ぐ）
-(spa) {
+# （画面を更新したのに、古い index.html が残って動かなくなるのを防ぐ）。
+# 2 つに分けているのは、来場者用では、Anubis を、HTML（pages）だけに掛けるため（assets は、そのまま返す）
+(spa_assets) {
 	handle /assets/* {
 		header Cache-Control "public, max-age=31536000, immutable"
 		encode zstd gzip
 		file_server
 	}
+}
+
+(spa_pages) {
 	handle {
 		header Cache-Control "no-cache"
 		encode zstd gzip
@@ -45,19 +58,45 @@
 	}
 }
 
+# Anubis（ボット対策。infra/anubis/）。ANUBIS_ENABLED=1 のときだけ、HTML の要求を Anubis に渡す。
+# Anubis は、確認を済ませた要求だけを、WEB_ORIGIN_PORT（下の内部サイト）に渡す。
+# {$ANUBIS_ENABLED:0} は、起動時に値に置き換わる（無効なら、条件が常に偽になり、何も変わらない）
+(anubis) {
+	@anubis expression "{$ANUBIS_ENABLED:0}" == "1"
+	handle @anubis {
+		reverse_proxy 127.0.0.1:{$ANUBIS_PORT:8923} {
+			header_up X-Real-IP {client_ip}
+			header_up X-Http-Version {http.request.proto}
+		}
+	}
+}
+
 # スタッフ用（本番: badge-staff.<ドメイン>）。
 # staff.localhost も常に含める。処理PC の 2 画面目の呼び出しモニターを、Cloudflare を通さず
 # （= Access のログインなしで）開くため。localhost は、その PC の中からしか開けない
 http://{$STAFF_HOST:staff.localhost}:{$CADDY_PORT:8080}, http://staff.localhost:{$CADDY_PORT:8080} {
 	root * {$STAFF_DIST:../../apps/staff/dist}
 	import api
-	import spa
+	import spa_assets
+	import spa_pages
 }
 
 # 来場者用（本番: badge.<ドメイン>）。上に一致しないホスト名はすべてここに来る。
-# 仮 URL（trycloudflare.com）はホスト名が毎回変わるため、ホスト名を固定しない
+# 仮 URL（trycloudflare.com）はホスト名が毎回変わるため、ホスト名を固定しない。
+# 順番に意味がある：api → assets → （有効なら）Anubis → 画面の HTML
 :{$CADDY_PORT:8080} {
 	root * {$WEB_DIST:../../apps/web/dist}
 	import api
-	import spa
+	import spa_assets
+	import anubis
+	import spa_pages
+}
+
+# Anubis の向こう側。来場者用の画面の HTML を返すだけの、この PC の中からしか開けない内部サイト。
+# Anubis を使わないときも、起動しておく（害はない）。外からは、Anubis を通らないと届かない
+# ホスト名は問わない（Anubis は、来場者が使ったホスト名のまま転送してくる）
+http://:{$WEB_ORIGIN_PORT:8081} {
+	bind 127.0.0.1
+	root * {$WEB_DIST:../../apps/web/dist}
+	import spa_pages
 }
