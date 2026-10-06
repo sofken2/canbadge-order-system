@@ -4,7 +4,21 @@ import { type BadgeSpec, badgeSpec } from "./spec";
 import { mmToPx } from "./units";
 import { validateBadgeSpec } from "./validate";
 
-describe("現在の設定（仮の値）", () => {
+describe("確定した寸法", () => {
+  // バッジマシンの寸法：内径（見える円）58mm、印刷サイズ 70mm。エディタのガイドと PDF の両方が、この値から導く
+  test("見える円は 58mm、印刷する円は 70mm（塗り足しは片側 6mm）", () => {
+    expect(badgeSpec.diameterMm).toBe(58);
+    expect(printDiameterMm(badgeSpec)).toBe(70);
+    expect(badgeSpec.bleedMm).toBe(6);
+  });
+
+  test("70mm の円が、用紙の面付けに収まる（2 列 × 3 行・矛盾なし）", () => {
+    expect(validateBadgeSpec(badgeSpec)).toEqual([]);
+    expect(slotsPerSheet(badgeSpec)).toBe(6);
+  });
+});
+
+describe("現在の設定（寸法以外は仮の値）", () => {
   test("矛盾がない", () => {
     expect(validateBadgeSpec(badgeSpec)).toEqual([]);
   });
