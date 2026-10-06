@@ -41,3 +41,22 @@ export function classifyOrigin(input: {
   if (forwarded !== undefined && !isLoopback(forwarded)) return "lan";
   return "local";
 }
+
+/**
+ * 来場者の IP（回数の制限の相手）。
+ * - Cloudflare 経由：cf-connecting-ip（Cloudflare が付ける。外から偽れない）
+ * - Caddy 経由：X-Forwarded-For のいちばん右（実際の接続元。左側は偽れるので見ない）
+ * - 直接：接続元のアドレス
+ * わからなければ undefined
+ */
+export function clientAddress(input: {
+  headers: { get: (name: string) => string | null | undefined };
+  remoteAddress: string | undefined;
+}): string | undefined {
+  const cf = input.headers.get("cf-connecting-ip")?.trim();
+  if (cf) return cf;
+  return (
+    nearestForwardedAddress(input.headers.get("x-forwarded-for") ?? undefined) ??
+    input.remoteAddress
+  );
+}

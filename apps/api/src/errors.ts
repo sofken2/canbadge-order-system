@@ -6,13 +6,16 @@ import { ZodError } from "zod";
 export class ApiException extends Error {
   readonly code: ErrorCode;
   readonly details?: unknown;
+  /** RATE_LIMITED で、あと何秒待てばよいか。Retry-After ヘッダーになる */
+  readonly retryAfterSeconds?: number;
 
   /** message は画面にそのまま出せる日本語にする */
-  constructor(code: ErrorCode, message: string, details?: unknown) {
+  constructor(code: ErrorCode, message: string, details?: unknown, retryAfterSeconds?: number) {
     super(message);
     this.name = "ApiException";
     this.code = code;
     this.details = details;
+    if (retryAfterSeconds !== undefined) this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 
@@ -23,7 +26,11 @@ export const validationFailed = (message: string, details?: unknown): ApiExcepti
   new ApiException("VALIDATION_FAILED", message, details);
 
 /** 例外を、失敗時の本体（契約の ApiError）と HTTP ステータスにする */
-export function toApiError(error: unknown): { status: number; body: ApiError } {
+export function toApiError(error: unknown): {
+  status: number;
+  body: ApiError;
+  retryAfterSeconds?: number;
+} {
   const build = (code: ErrorCode, message: string, details?: unknown) => ({
     status: errorHttpStatus[code],
     body: {
@@ -31,7 +38,12 @@ export function toApiError(error: unknown): { status: number; body: ApiError } {
     } satisfies ApiError,
   });
 
-  if (error instanceof ApiException) return build(error.code, error.message, error.details);
+  if (error instanceof ApiException) {
+    const built = build(error.code, error.message, error.details);
+    return error.retryAfterSeconds === undefined
+      ? built
+      : { ...built, retryAfterSeconds: error.retryAfterSeconds };
+  }
   if (error instanceof DbError) return build(error.code, error.message, error.details);
   if (error instanceof ZodError) {
     return build("VALIDATION_FAILED", "入力が正しくありません", error.issues);

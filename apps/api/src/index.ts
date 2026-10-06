@@ -1,8 +1,10 @@
 import { databasePath, openDatabase, resolveDataDir } from "@canbadge/db";
 import { getConnInfo } from "hono/bun";
+import { createAbuseGuards } from "./abuse";
 import { accessConfigFromEnv, createAccessVerifier } from "./access";
 import { createApp } from "./app";
 import { createEventHub } from "./events";
+import { createTurnstileVerifier } from "./turnstile";
 
 const port = Number(process.env.API_PORT ?? 3002);
 const dataDir = resolveDataDir();
@@ -13,6 +15,7 @@ const events = createEventHub(db, { intervalMs: Number(process.env.SSE_POLL_MS ?
 
 const accessConfig = accessConfigFromEnv(process.env);
 const allowPublicStaff = process.env.ALLOW_UNAUTHENTICATED_STAFF === "1";
+const turnstileSecret = process.env.TURNSTILE_SECRET_KEY?.trim();
 
 const app = createApp({
   db,
@@ -22,8 +25,17 @@ const app = createApp({
   allowPublicStaff,
   // Cloudflare Access の JWT を検証する（A05）。未設定なら、Cloudflare 経由のスタッフ用は、すべて断る
   access: accessConfig ? createAccessVerifier(accessConfig) : undefined,
+  // Turnstile のトークンを、サーバーで検証する（A06）。未設定なら、検証しない（開発用）
+  turnstile: turnstileSecret ? createTurnstileVerifier({ secret: turnstileSecret }) : undefined,
+  abuse: createAbuseGuards(),
   remoteAddressOf: (c) => getConnInfo(c).remote.address,
 });
+
+if (!turnstileSecret) {
+  console.warn(
+    "api: TURNSTILE_SECRET_KEY が未設定です。注文の確認（Turnstile）を、サーバーで検証しません（開発用。本番では必ず設定する）",
+  );
+}
 
 if (allowPublicStaff) {
   console.warn(

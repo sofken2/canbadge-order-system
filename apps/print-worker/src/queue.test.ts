@@ -48,7 +48,7 @@ function paidItem(): { orderId: string; itemId: string; orderNumber: number } {
     imagePath: "images/a.png",
     editorData: { version: 1 },
     quantity: 1,
-    anonToken: "t".repeat(32),
+    anonToken: crypto.randomUUID().replaceAll("-", ""),
   });
   transitionOrder(db, { orderId: order.id, to: "paid", actor: "staff" });
   return { orderId: order.id, itemId: items[0]?.id ?? "", orderNumber: order.orderNumber };
@@ -70,7 +70,7 @@ describe("印刷キューの巡回", () => {
       imagePath: "images/a.png",
       editorData: { version: 1 },
       quantity: 1,
-      anonToken: "t".repeat(32),
+      anonToken: crypto.randomUUID().replaceAll("-", ""),
     });
     expect(await runQueueOnce(db, options())).toEqual({ status: "empty" });
   });
