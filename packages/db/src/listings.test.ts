@@ -252,6 +252,8 @@ describe("印刷できるバッジ", () => {
     expect(listPrintableItems(db)[0]).toMatchObject({
       printCount: 1,
       orderNumber: second.order.orderNumber,
+      // PDF に載せる画像（デザインの画像のパス）が付く
+      imagePath: "images/sample.png",
     });
   });
 });

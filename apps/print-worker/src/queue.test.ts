@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -15,6 +15,7 @@ import {
   setPrintPaused,
   transitionOrder,
 } from "@canbadge/db";
+import { encodePng } from "@canbadge/fixtures";
 import { createDevDriver, type PrintDriver, type PrintJob } from "./driver";
 import { runQueueOnce } from "./queue";
 
@@ -26,6 +27,9 @@ let driver: PrintDriver;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "canbadge-print-"));
+  // 注文のデザイン画像（PDF に載せるので、本物の PNG が要る）
+  mkdirSync(join(dir, "images"), { recursive: true });
+  writeFileSync(join(dir, "images", "a.png"), encodePng(8, 8, new Uint8Array(8 * 8 * 3)));
   clock = createManualClock("2026-11-03T09:00:00+09:00");
   db = openDatabase({ path: ":memory:", now: clock.now });
   openBusinessDay(db, { actor: "staff" });
