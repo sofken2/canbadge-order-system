@@ -1,3 +1,4 @@
+import "@canbadge/scanner/styles.css";
 import "@canbadge/ui/styles.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";

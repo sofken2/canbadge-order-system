@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./styles.css": "./src/scanner.css"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -12,6 +13,12 @@
     "test": "bun test --pass-with-no-tests"
   },
   "devDependencies": {
-    "@canbadge/config": "workspace:*"
+    "@canbadge/config": "workspace:*",
+    "@types/react": "^19.3.0"
+  },
+  "dependencies": {
+    "@canbadge/ui": "workspace:*",
+    "jsqr": "^1.4.0",
+    "react": "^19.3.0"
   }
 }
