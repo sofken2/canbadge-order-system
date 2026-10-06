@@ -1,0 +1,33 @@
+# Anubis（来場者用サイトの入口で、ボットを選別する）の方針。
+# 既定の方針（Cloudflare・中国・ブラジルの重み付けなど）は、学祭のサイトには合わないので、使わない。
+# 方針の書き方: https://anubis.techaro.lol/docs/admin/policies
+#
+# 守るのは、来場者用の画面の HTML（/orders/<ID> など）。/api/* と /assets/* は、Caddy が Anubis を通さず、
+# 直接渡す（API は JSON を返すので、確認の画面（HTML）が返ると、画面が壊れる）。
+# 注文そのものを守るのは、Turnstile（W02・A06）。Anubis は、その手前で、ボットを減らす役目
+bots:
+  # .well-known・favicon・robots.txt・sitemap は、そのまま通す
+  - import: (data)/common/keep-internet-working.yaml
+
+  # AI・LLM 用のクローラーは、断る
+  - import: (data)/meta/ai-block-aggressive.yaml
+
+  # ブラウザらしいものには、計算の問題（Proof of Work）を解いてもらう
+  - name: generic-browser
+    user_agent_regex: Mozilla|Opera
+    action: CHALLENGE
+
+  # ブラウザではないもの（curl・監視など）は、通す。守りたいのは、ブラウザのふりをするボット
+  - name: everything-else
+    path_regex: .*
+    action: ALLOW
+
+# 問題が通ったとき・断ったときも、HTTP の状態は 200 のまま（ボットに、失敗を悟らせないため。Anubis の標準）
+status_codes:
+  CHALLENGE: 200
+  DENY: 200
+
+# 状態は、メモリに持つ。Anubis を再起動すると、来場者は、もう一度、確認する
+store:
+  backend: memory
+  parameters: {}

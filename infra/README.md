@@ -6,7 +6,9 @@
 | パス | 内容 |
 | --- | --- |
 | `caddy/Caddyfile` | 唯一の入口。ホスト名で来場者用・スタッフ用の画面（静的ファイル）に振り分け、`/api/*` を api に渡す |
+| `anubis/botPolicies.yaml` | Anubis（ボット対策）の方針。来場者用の画面（HTML）に、計算の問題を解いてもらう |
 | `cloudflared/config.example.yml` | 名前付きトンネルの設定の見本（実際の設定と認証ファイルはリポジトリに入れない） |
+| `windows/install-anubis.ps1` | Anubis を、公式リリースから取り、ハッシュを確かめて `data\tools\anubis\` に置く |
 | `windows/install-cloudflared-service.ps1` | cloudflared を Windows サービスにする（管理者の PowerShell） |
 | `windows/start-all.ps1`・`stop-all.ps1` | Caddy・api・print-worker を起動し、落ちたら再起動し続ける／全部止める |
 | `windows/register-startup-task.ps1` | ログオン時に `start-all.ps1` を実行するタスクを登録する |
@@ -30,6 +32,28 @@ Caddy が、ホスト名で画面（ビルドした静的ファイル）を振�
 | `https://badge-staff.sofken2-ts.app/` | スタッフ用の画面（Access のログインが先に出る） |
 
 確認したこと：SSE（`/api/staff/events`）は、Caddy 経由で、接続が 70ms 以内、状態変更のイベントが、api の巡回間隔（2 秒）どおりに届く。Caddy による遅れはない。
+
+## Anubis（ボット対策・任意）
+
+[Anubis](https://anubis.techaro.lol/) は、来場者用の画面の入口で、ブラウザのふりをするボットを選ぶ。最初の 1 回だけ、「あなたがボットでないことを確認しています」の画面が出て、ブラウザが小さな計算の問題を解く（既定の難しさで、手元の Chrome では 1 秒ほど）。通ったブラウザは、1 週間、確認なしで使える。**既定は使わない。**
+
+```
+来場者 → Caddy ─┬─ /api/*・/assets/* ──────────────→ api・静的ファイル（Anubis を通らない）
+                └─ そのほか（HTML）→ Anubis → Caddy（内部サイト 127.0.0.1:8081）→ 来場者用の画面
+```
+
+- 守るのは、来場者用の画面の **HTML だけ**。`/api/*` は JSON を返すので、確認の画面が返ると画面が壊れる。注文そのものを守るのは Turnstile（W02・A06）で、Anubis は、その手前でボットを減らす
+- スタッフ用（`staff.*`・`staff.localhost`）と呼び出しモニターは、通らない
+- 使うとき（処理PC）：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File infra\windows\install-anubis.ps1   # 初回だけ。data\tools\anubis\anubis.exe に置く
+```
+
+`.env` に `ANUBIS_ENABLED=1` と、署名鍵 `ANUBIS_ED25519_PRIVATE_KEY_HEX` を書いて（`.env.example` に作り方）、`start-all.ps1` を起動し直す。Anubis も、Caddy・api と同じく、落ちたら再起動される。方針は `infra/anubis/botPolicies.yaml`（AI のクローラーは断り、ブラウザには問題を出し、`curl` などは通す）。
+- **確認したこと**：Chrome で、確認の画面 → 約 1.3 秒で画面が出る／確認済みの 2 回目は確認なしで 0.2 秒／`/api` は確認なしで届く／`GPTBot` は断られる／`curl` は通る／Anubis を切ると、これまでどおり
+- **未確認**：実機のスマホでの待ち時間、Cloudflare 経由での `Cf-Connecting-Ip`（来場者の IP として使う）、LINE などアプリ内ブラウザでの動き
+- 難しすぎると、古いスマホで待たされる。`ANUBIS_DIFFICULTY`（既定 4）を上げ下げして調整する
 
 LAN 経由の PIN 認証は、優先度を下げた機能なので実装していない（CLAUDE.md）。
 
