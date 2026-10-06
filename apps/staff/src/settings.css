@@ -1,0 +1,110 @@
+/* Hallmark · macrostructure: Control panel (app screen · tabs + sections, irreversible actions set apart) · genre: modern-minimal · theme: Coral (design.md)
+ * tone: utilitarian — the manager reads the state at a glance; busy is one tap; open/close are set apart and confirmed
+ * tokens only — no inline colours or font stacks · pre-emit critique: P4 H4 E4 S4 R4 V3
+ */
+
+.cb-settings h2 {
+  margin: var(--space-lg) 0 var(--space-xs);
+}
+
+.cb-settings__block {
+  display: grid;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+
+.cb-settings__block h2 {
+  margin: 0;
+}
+
+.cb-settings__block p {
+  margin: 0;
+}
+
+/* 取り消せない操作は、枠で、ほかから離す */
+.cb-settings__danger {
+  padding: var(--space-md);
+  border: 2px solid var(--color-ink);
+  border-radius: var(--radius-card);
+  background: var(--color-card);
+}
+
+/* ---- 設定の入力 ---- */
+
+.cb-settings__field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-md);
+}
+
+.cb-settings__suffix {
+  padding-bottom: var(--space-xs);
+  color: var(--color-muted);
+  font: 700 var(--text-md) / 1 var(--font-body);
+}
+
+.cb-settings .cb-input[aria-invalid="true"] {
+  border-color: var(--color-accent-deep);
+}
+
+/* ---- 売上 ---- */
+
+.cb-settings__net-label {
+  margin: var(--space-md) 0 0;
+  color: var(--color-muted);
+}
+
+/* 現金との照合に使う額。画面でいちばん大きく */
+.cb-settings__net {
+  margin: 0 0 var(--space-md);
+  font: 700 var(--text-number) / 1 var(--font-display);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.cb-settings__hours {
+  list-style: none;
+  margin: 0 0 var(--space-md);
+  padding: 0;
+  display: grid;
+  gap: var(--space-xs);
+}
+
+.cb-settings__hours li {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.cb-settings__hour {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.cb-settings__bar {
+  height: 1.25rem;
+  border-radius: var(--radius-input);
+  background: var(--color-paper-2);
+  overflow: hidden;
+}
+
+.cb-settings__bar span {
+  display: block;
+  height: 100%;
+  background: var(--color-ink);
+}
+
+.cb-settings__hour-amount {
+  display: grid;
+  justify-items: end;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.cb-settings__hour-amount small {
+  color: var(--color-muted);
+  font: 500 var(--text-xs) / 1.2 var(--font-body);
+}

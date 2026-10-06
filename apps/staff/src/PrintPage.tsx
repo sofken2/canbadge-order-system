@@ -5,10 +5,9 @@ import {
   printSheetStatusLabels,
   printSlotResultLabels,
 } from "@canbadge/shared";
-import { Button, Notice, TextField, useAction, useResource } from "@canbadge/ui";
+import { Button, ConfirmDialog, Notice, TextField, useAction, useResource } from "@canbadge/ui";
 import { useMemo, useState } from "react";
 import { api } from "./api";
-import { ConfirmDialog } from "./ConfirmDialog";
 import {
   isReprintableOrderStatus,
   type ReprintTarget,

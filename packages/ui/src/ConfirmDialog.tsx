@@ -1,5 +1,5 @@
-import { Button } from "@canbadge/ui";
 import { type ReactNode, useEffect, useRef } from "react";
+import { Button } from "./Button";
 
 /**
  * 実行前の確認。標準の <dialog> を使う（フォーカスの閉じ込めと Esc での取り消しが、ブラウザの仕事になる）。
