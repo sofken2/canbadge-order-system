@@ -17,6 +17,7 @@
     "@types/react": "^19.3.0"
   },
   "dependencies": {
-    "react": "^19.3.0"
+    "react": "^19.3.0",
+    "uqr": "^0.1.3"
   }
 }

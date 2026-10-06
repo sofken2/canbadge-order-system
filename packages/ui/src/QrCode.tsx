@@ -1,10 +1,10 @@
 import { useMemo } from "react";
 import { encode } from "uqr";
-import { qrPathData } from "./order-status";
+import { qrPathData } from "./qr";
 
 /**
- * QR コード。レジのカメラで読み取るので、白い地に黒、まわりに 4 マスの余白を付ける（QR の規格）。
- * 色は、地の色が明るく、マスの色が暗いことだけが大事。値は CSS（order-status.css）で、トークンから決める
+ * QR コード。カメラで読み取るので、白い地に黒、まわりに 4 マスの余白を付ける（QR の規格）。
+ * 色は、地の色が明るく、マスの色が暗いことだけが大事。値は CSS（components.css）で、トークンから決める
  */
 export function QrCode({ value, label }: { value: string; label: string }) {
   const { size, path } = useMemo(() => {

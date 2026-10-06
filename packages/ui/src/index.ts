@@ -4,4 +4,5 @@ export * from "./Button";
 export * from "./Field";
 export * from "./hooks";
 export * from "./Notice";
+export * from "./QrCode";
 export * from "./StatusLabel";

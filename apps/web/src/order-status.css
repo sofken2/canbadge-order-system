@@ -39,23 +39,6 @@
   justify-items: center;
 }
 
-.cb-qr {
-  display: block;
-  width: 100%;
-  max-width: 22rem;
-  height: auto;
-  border: 1px solid var(--color-rule);
-  border-radius: var(--radius-card);
-}
-
-.cb-qr__bg {
-  fill: var(--color-card);
-}
-
-.cb-qr__ink {
-  fill: var(--color-ink);
-}
-
 /* ---- 注文番号と確認コード ---- */
 
 .cb-ticket__ids {
