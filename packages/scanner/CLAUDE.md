@@ -13,7 +13,7 @@
 | パス | 内容 |
 | --- | --- |
 | `src/QrScanner.tsx` | 部品本体。カメラの起動・停止、読み取りの繰り返し、表示 |
-| `src/decoder.ts` | 解読。端末標準の `BarcodeDetector` があれば使い、なければ jsQR（フレームを 640px に縮小して解く） |
+| `src/decoder.ts` | 解読。jsQR で、フレームを 640px に縮小して解く。仕様書 6.3 により、ブラウザ標準（`BarcodeDetector`）には依存しない（明示的に頼んだときだけ使う実験用の経路は残す） |
 | `src/scan-logic.ts` | 二重処理の防止（`shouldAccept`）、カメラが使えない理由と文言、縮小の計算。画面から切り離した純粋な関数 |
 | `src/feedback.ts` | 読めたときの、振動と短い音 |
 | `src/scanner.css` | 見た目（トークンの変数だけを使う） |
@@ -33,8 +33,8 @@
 
 ```sh
 chrome --use-fake-device-for-media-stream --use-fake-ui-for-media-stream \
-  --use-file-for-fake-video-capture=<QR を映した .y4m> http://localhost:3001/scan
+  --use-file-for-fake-video-capture=<QR を映した .y4m> http://localhost:3001/register
 ```
 
-`/scan?decoder=js` で jsQR、`/scan?decoder=native` で端末の標準を指定できる（確認用の仮画面。S02 に組み込んだら消す）。
+偽のカメラの確認は、スタッフのレジ画面（`/register`）で行える。
 実機（iPhone・Android）で、スマホの画面に出した QR（反射・明るさ）を、早めに試すこと。

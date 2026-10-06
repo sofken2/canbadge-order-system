@@ -22,7 +22,7 @@ export type QrScannerProps = {
   /** 同じ値を、前に読んでから、この間は無視する（ms）。同じ QR を向けたままでも、二重に処理しない */
   ignoreSameMs?: number;
   feedback?: Feedback;
-  /** 解読の方法。既定は、使えれば端末の標準、なければ jsQR */
+  /** 解読の方法。既定は jsQR（仕様書 6.3）。native は、端末の標準（実験用） */
   decoder?: DecoderKind;
 };
 
@@ -51,7 +51,7 @@ export function QrScanner({
   paused = false,
   ignoreSameMs = 3000,
   feedback,
-  decoder: decoderKind = "auto",
+  decoder: decoderKind = "js",
 }: QrScannerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const trackRef = useRef<MediaStreamTrack | undefined>(undefined);

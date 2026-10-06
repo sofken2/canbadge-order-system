@@ -1,4 +1,4 @@
-import type { InputHTMLAttributes, ReactNode } from "react";
+import type { InputHTMLAttributes, ReactNode, Ref } from "react";
 
 export type FieldProps = Omit<InputHTMLAttributes<HTMLInputElement>, "className"> & {
   /** ラベルは常に見せる（placeholder をラベルの代わりにしない） */
@@ -6,13 +6,15 @@ export type FieldProps = Omit<InputHTMLAttributes<HTMLInputElement>, "className"
   hint?: ReactNode;
   /** スタッフが番号を入れる、大きな下線だけの入力欄 */
   numeric?: boolean;
+  /** 入力欄の参照（ハンディスキャナーの入力のために、画面が、入力欄へ移すとき） */
+  ref?: Ref<HTMLInputElement>;
 };
 
-export function TextField({ label, hint, numeric = false, ...rest }: FieldProps) {
+export function TextField({ label, hint, numeric = false, ref, ...rest }: FieldProps) {
   return (
     <label className="cb-field">
       <span className="cb-field__label">{label}</span>
-      <input className={numeric ? "cb-input cb-input--number" : "cb-input"} {...rest} />
+      <input ref={ref} className={numeric ? "cb-input cb-input--number" : "cb-input"} {...rest} />
       {hint && <span className="cb-field__hint">{hint}</span>}
     </label>
   );

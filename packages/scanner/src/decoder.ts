@@ -1,10 +1,11 @@
 import jsQR from "jsqr";
 import { fitSize } from "./scan-logic";
 
-// QR の解読。端末が標準の BarcodeDetector（Android の Chrome など）を持っていれば、それを使う（速く、電池も食わない）。
-// 持っていなければ（iPhone の Safari など）、jsQR で、フレームを縮小してから解く。
+// QR の解読。jsQR で、フレームを縮小してから解く（どの端末でも同じ動きになる）。
 
-export type DecoderKind = "auto" | "native" | "js";
+// 仕様書 6.3：解読は、ブラウザの標準機能に依存せず、ライブラリ（jsQR）で行う（端末による対応差を避けるため）。
+// 標準の BarcodeDetector は、明示的に頼んだときだけ使う（実験用。既定では使わない）。
+export type DecoderKind = "js" | "native";
 
 export type Decoder = {
   kind: "native" | "js";
@@ -60,8 +61,8 @@ function createJs(): Decoder {
   };
 }
 
-/** 解読の方法を決める。native を頼んでも、使えない端末では、js にする */
-export async function createDecoder(kind: DecoderKind = "auto"): Promise<Decoder> {
+/** 解読の方法を決める。既定は jsQR。native を頼んでも、使えない端末では、js にする */
+export async function createDecoder(kind: DecoderKind = "js"): Promise<Decoder> {
   if (kind !== "js") {
     const native = await createNative();
     if (native) return native;

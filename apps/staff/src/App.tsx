@@ -3,7 +3,6 @@ import { AssemblePage } from "./AssemblePage";
 import { MonitorPage } from "./MonitorPage";
 import { PrintPage } from "./PrintPage";
 import { RegisterPage } from "./RegisterPage";
-import { ScanPage } from "./ScanPage";
 import { SettingsPage } from "./SettingsPage";
 
 // 仮画面（T09）の入口。パスで画面を切り替える最小限のルーティング。ナビは @canbadge/ui の .cb-tabs（T10）。
@@ -14,7 +13,6 @@ const pages = [
   { path: "/assemble", label: "組み立て・受け渡し", element: <AssemblePage /> },
   { path: "/monitor", label: "呼び出しモニター", element: <MonitorPage /> },
   { path: "/settings", label: "設定", element: <SettingsPage /> },
-  { path: "/scan", label: "読み取り（確認用）", element: <ScanPage /> },
 ] as const;
 
 export function App() {
