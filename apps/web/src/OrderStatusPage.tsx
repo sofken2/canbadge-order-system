@@ -1,7 +1,7 @@
 import { badgeSpec } from "@canbadge/badge-spec";
 import { OutputPreview } from "@canbadge/editor";
 import { orderStatusLabels } from "@canbadge/shared";
-import { Button, Notice, navigate, StatusLabel, useResource } from "@canbadge/ui";
+import { Button, Notice, navigate, QrCode, StatusLabel, useResource } from "@canbadge/ui";
 import { useEffect, useRef } from "react";
 import { api } from "./api";
 import {
@@ -13,7 +13,6 @@ import {
   stepState,
 } from "./order-status";
 import "./order-status.css";
-import { QrCode } from "./QrCode";
 
 /** できあがりを知らせる、振動の長さ（ms）。短く、2 回 */
 const READY_VIBRATION = [200, 100, 200];

@@ -1,28 +1,85 @@
-import { useResource } from "@canbadge/ui";
+import { QrCode, useResource } from "@canbadge/ui";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api";
+import { siteUrl } from "./env";
+import { densityFor, newlyReady, sortReady } from "./monitor-logic";
+import "./monitor.css";
 
-// 仮画面（T09）。文字の大きさ・サイトへの固定 QR（S05）は、呼び出しモニターで作る。
+/** 新しくできあがった番号を、目立たせておく時間 */
+const HIGHLIGHT_MS = 8000;
 
-/** 呼び出しモニター。完成した（ready）注文の番号を、大きく並べる。注文 ID は、api が返さない */
+/**
+ * 呼び出しモニター。処理 PC の 2 画面目に、全画面で出す表示専用の画面（操作はない）。
+ * できあがった（ready）番号を大きく並べ、受け渡されたら消える。サイトへの固定 QR も出す。
+ * 注文 ID は api が返さない（QR の中身なので、画面に出さない）
+ */
 export function MonitorPage() {
   const ready = useResource(() => api.call("getMonitorReady"), {
     subscribe: (reload) => api.subscribe("monitorEvents", { onEvent: reload, onOpen: reload }),
+    // 回線や SSE が途切れても、画面が古いままにならないよう、念のため定期的に読み直す
+    refreshMs: 15000,
   });
+  const items = useMemo(() => sortReady(ready.data?.items ?? []), [ready.data]);
 
-  if (ready.error) return <p role="alert">{ready.error}</p>;
-  const items = ready.data?.items ?? [];
+  // 新しい番号を、しばらく目立たせる。最初の表示では、何も光らせない
+  const seen = useRef<Set<number> | undefined>(undefined);
+  const [fresh, setFresh] = useState<ReadonlySet<number>>(new Set());
+  useEffect(() => {
+    if (!ready.data) return;
+    const added = newlyReady(seen.current, items);
+    seen.current = new Set(items.map((item) => item.orderNumber));
+    if (added.size === 0) return;
+    setFresh((current) => new Set([...current, ...added]));
+    const timer = setTimeout(
+      () => setFresh((current) => new Set([...current].filter((n) => !added.has(n)))),
+      HIGHLIGHT_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [items, ready.data]);
+
+  const digits = Math.max(3, ...items.map((item) => item.orderNumberText.length));
 
   return (
-    <main>
-      <h1>お呼び出し（仮画面）</h1>
-      {items.length === 0 && <p>いま、お呼び出し中の番号はありません。</p>}
-      <ul style={{ listStyle: "none", padding: 0, display: "flex", flexWrap: "wrap", gap: "1rem" }}>
-        {items.map((item) => (
-          <li key={item.orderNumber} style={{ fontSize: "6rem", fontWeight: "bold" }}>
-            {item.orderNumberText}
-          </li>
-        ))}
-      </ul>
+    <main className="cb-monitor" data-density={densityFor(items.length)}>
+      <section className="cb-monitor__called" aria-label="お呼び出し中の番号" aria-live="polite">
+        <h1 className="cb-monitor__title">できあがりました</h1>
+        {items.length === 0 ? (
+          <p className="cb-monitor__empty">いま、お呼び出し中の番号は、ありません</p>
+        ) : (
+          <ul className="cb-monitor__grid" style={{ "--digits": digits } as React.CSSProperties}>
+            {items.map((item) => (
+              <li
+                key={item.orderNumber}
+                className="cb-monitor__cell"
+                data-fresh={fresh.has(item.orderNumber) || undefined}
+              >
+                <span className="cb-monitor__number">{item.orderNumberText}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <aside className="cb-monitor__side">
+        <p className="cb-monitor__guide">番号を呼ばれた方は、受け取り口へ</p>
+        {siteUrl ? (
+          <figure className="cb-monitor__qr">
+            <QrCode value={siteUrl} label="缶バッジの注文サイトの QR コード" />
+            <figcaption>
+              <strong>注文はこちらから</strong>
+              <span>スマホで読み取ってください</span>
+            </figcaption>
+          </figure>
+        ) : (
+          // 来場者には見せない、スタッフ向けの注意（QR が出ていないことに、気づけるように）
+          <p className="cb-monitor__missing">サイトの URL（VITE_SITE_URL）が、未設定です</p>
+        )}
+        {ready.error && (
+          <p className="cb-monitor__offline" role="status">
+            通信が途切れています。番号が、古い可能性があります
+          </p>
+        )}
+      </aside>
     </main>
   );
 }

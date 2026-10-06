@@ -1,0 +1,157 @@
+/* Hallmark · macrostructure: Signboard (one purpose, no chrome · big type, one QR panel) · genre: modern-minimal · theme: Coral (design.md)
+ * tone: utilitarian — read from several metres away; no decoration, maximum contrast; the number is the interface
+ * tokens only — no inline colours or font stacks · pre-emit critique: P4 H5 E4 S4 R5 V3
+ */
+
+.cb-monitor {
+  min-height: 100dvh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 22rem);
+  gap: var(--space-xl);
+  padding: var(--space-xl);
+  background: var(--color-paper);
+  color: var(--color-ink);
+}
+
+.cb-monitor__called {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.cb-monitor__title {
+  margin: 0;
+  font: 700 var(--text-xl) / 1.2 var(--font-body);
+  padding-bottom: var(--space-sm);
+  border-bottom: 4px solid var(--color-ink);
+}
+
+.cb-monitor__empty {
+  margin: auto 0;
+  color: var(--color-muted);
+  font: 500 var(--text-xl) / 1.4 var(--font-body);
+  text-align: center;
+}
+
+/* ---- 番号 ---- */
+
+.cb-monitor__grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1;
+  display: grid;
+  gap: var(--space-md);
+  align-content: start;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.cb-monitor[data-density="some"] .cb-monitor__grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.cb-monitor[data-density="many"] .cb-monitor__grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.cb-monitor[data-density="crowded"] .cb-monitor__grid {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+/* 枠の幅から、番号の大きさを決める。桁数が増えても、画面が違っても、はみ出さない */
+.cb-monitor__cell {
+  container-type: inline-size;
+  display: grid;
+  place-items: center;
+  padding-block: var(--space-sm);
+  border: 2px solid var(--color-ink);
+  border-radius: var(--radius-card);
+  background: var(--color-card);
+}
+
+.cb-monitor__number {
+  font: 700 calc(100cqi / (var(--digits, 3) * 0.62 + 0.9)) / 1 var(--font-display);
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* できあがったばかりの番号：地の色を変え、枠を太くする（色だけに頼らず、太さでも伝える） */
+.cb-monitor__cell[data-fresh] {
+  border-width: 6px;
+  border-color: var(--color-accent-deep);
+  background: var(--color-accent-tint);
+  animation: cb-monitor-arrive 900ms ease-out;
+}
+
+@keyframes cb-monitor-arrive {
+  from {
+    transform: scale(1.06);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cb-monitor__cell[data-fresh] {
+    animation: none;
+  }
+}
+
+/* ---- 右の列：案内と、固定 QR ---- */
+
+.cb-monitor__side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  align-items: stretch;
+  justify-content: flex-end;
+}
+
+.cb-monitor__guide {
+  margin: 0;
+  font: 700 var(--text-xl) / 1.35 var(--font-body);
+}
+
+.cb-monitor__qr {
+  margin: 0;
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.cb-monitor__qr .cb-qr {
+  max-width: none;
+}
+
+.cb-monitor__qr figcaption {
+  display: grid;
+  gap: var(--space-2xs);
+  font: 500 var(--text-lg) / 1.35 var(--font-body);
+}
+
+.cb-monitor__missing,
+.cb-monitor__offline {
+  margin: 0;
+  padding: var(--space-sm) var(--space-md);
+  border: 2px solid var(--color-accent-deep);
+  border-radius: var(--radius-card);
+  font: 700 var(--text-md) / 1.4 var(--font-body);
+}
+
+/* 縦長の画面（モニターを縦置きにしたとき）は、QR を下に置く */
+@media (max-aspect-ratio: 1 / 1) {
+  .cb-monitor {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cb-monitor__side {
+    flex-direction: row;
+    align-items: flex-end;
+    justify-content: space-between;
+  }
+
+  .cb-monitor__qr {
+    width: min(14rem, 40vw);
+  }
+}
