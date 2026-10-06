@@ -3,7 +3,7 @@ import type { Context, Hono } from "hono";
 import type { z } from "zod";
 import type { Deps } from "./deps";
 import { ApiException, validationFailed } from "./errors";
-import { assertNotPublic } from "./guard";
+import { authorizeNonVisitor } from "./guard";
 
 type EndpointOf<N extends EndpointName> = (typeof endpoints)[N];
 
@@ -53,7 +53,7 @@ async function readJson(c: Context): Promise<unknown> {
 export function registerRoutes(app: Hono, handlers: Handlers, deps: Deps): void {
   for (const [name, endpoint] of Object.entries(endpoints) as [EndpointName, Endpoint][]) {
     app.on(endpoint.method, endpoint.path, async (c) => {
-      if (endpoint.access !== "visitor") assertNotPublic(c, deps);
+      if (endpoint.access !== "visitor") await authorizeNonVisitor(c, deps, endpoint.access);
 
       const input = {
         c,

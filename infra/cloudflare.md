@@ -36,7 +36,7 @@ cd infra/windows
 4. **One-time PIN**：メールに届くコードで入る方式（アカウント作成が不要）。**Zero Trust → Integrations → Identity providers** で有効にし、アプリの「Accepted identity providers」でも選ぶ。選ばないと、ログイン方法が「Cloudflare」（Cloudflare アカウント）だけになり、スタッフは入れない
 5. 保存後、Application の **Audience (AUD) tag**（Overview）を控える
 
-控えた値を、処理PC の `.env` に書く（A05 が JWT の署名を検証するのに使う）。
+控えた値を、処理PC の `.env` に書く（api が、Access の JWT の署名を検証するのに使う）。**書かないと、スタッフ用の画面は、Cloudflare 経由では、すべて「使えません」になる**（開けっぱなしには、しない）。
 
 | `.env` のキー | 値 |
 | --- | --- |
@@ -113,5 +113,20 @@ Free プランで使えるものだけを、有効にする。
 
 ## 引き継ぎ
 
-- A05（スタッフ認証）：`CF_ACCESS_TEAM_DOMAIN`・`CF_ACCESS_AUD` を使って、`Cf-Access-Jwt-Assertion` の署名を検証する
+- A05（スタッフ認証）：実装済み。`CF_ACCESS_TEAM_DOMAIN`・`CF_ACCESS_AUD` で、`Cf-Access-Jwt-Assertion` の署名を検証する（`apps/api/CLAUDE.md`）。公開前の確認は、下の「A05 の確認」
 - A06（乱用対策）・W02：Turnstile のキーを使う
+
+## A05 の確認（公開前）
+
+処理PC の `.env` に `CF_ACCESS_TEAM_DOMAIN`・`CF_ACCESS_AUD` を書き、api を起動し直してから確かめる（api の起動時に、未設定の警告が出ていないこと）。
+
+| # | 確認 | 期待 |
+| --- | --- | --- |
+| 1 | 登録したメールで、`https://badge-staff.…/` にログインして、レジ・設定の画面を開く | 開ける。操作もできる |
+| 2 | ログインせずに、`https://badge-staff.…/api/staff/settings` を開く | Access のログイン画面（API には届かない） |
+| 3 | 来場者用のアドレス（`https://badge.…/api/staff/settings`）を開く | 401 |
+| 4 | 処理PC の `http://staff.localhost:8080/monitor` | 番号が出る |
+| 5 | 来場者用のアドレスで `…/api/monitor/ready` | 401 |
+| 6 | 会場の LAN の別の端末から `http://<処理PC の IP>:8080/api/staff/settings` | 401（PIN 認証は未実装。スタッフは、Cloudflare 経由で使う） |
+
+**`ALLOW_UNAUTHENTICATED_STAFF=1` を、本番の `.env` に書かないこと**（書くと、認証なしで、すべての経路から使える。api の起動時に警告が出る）。

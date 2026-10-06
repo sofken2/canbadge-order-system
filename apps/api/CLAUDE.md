@@ -13,7 +13,8 @@ Hono on Bun。契約（`packages/shared`）の全エンドポイントを実装�
 | `src/views.ts` | DB のエンティティから、画面に返す形（`OrderView` など）を組み立てる |
 | `src/errors.ts` | 例外を、契約の失敗の形（`{ error: { code, message } }`）と HTTP ステータスにする |
 | `src/events.ts` | 操作ログ（AuditLog）から SSE イベントを作り、購読者に配る |
-| `src/guard.ts` | 公開経路（Cloudflare 経由）からスタッフ用・モニター用を使えなくする（A05 まで） |
+| `src/guard.ts` | スタッフ用・モニター用の API を、経路ごとに、使わせる・断る（A05）。判定は `origin.ts`、Access の JWT の検証は `access.ts` |
+| `src/origin.ts`・`src/access.ts` | 接続元の経路の判定（Cloudflare・localhost・LAN）、Cloudflare Access の JWT の署名検証（jose） |
 | `src/images.ts`・`src/anon.ts` | 画像の保存と配信の最小限、匿名トークンの Cookie |
 
 ## エンドポイントを足す・変えるとき
@@ -28,9 +29,25 @@ Hono on Bun。契約（`packages/shared`）の全エンドポイントを実装�
 - **画面に返す形は、`views.ts` で項目を選んで作る。** 匿名トークン、スタッフ向けの確認コード、モニター向けの注文 ID を含めない。契約のスキーマでの検証が、含めていないことをもう一度確かめる
 - 失敗は、`ApiException` か `DbError` を投げる。`message` は、画面にそのまま出せる日本語にする
 - 外部からの入力（Cookie・multipart を含む）は検証する。JSON は契約のスキーマが検証するが、それ以外はハンドラーで検証する
-- 認証（A05）・Turnstile と上限（A06）・画像の検証（A02）・SSE の本番化（A03）は、それぞれのタスクで入れる。ここにあるのは骨組み
+- Turnstile と上限（A06）・画像の検証（A02）・SSE の本番化（A03）は、それぞれのタスクで入れる。ここにあるのは骨組み
+
+## スタッフ認証（A05）
+
+`/api/staff/*` と `/api/monitor/*` は、接続元の経路で扱いが変わる（`guard.ts`）。
+
+| 経路 | スタッフ用 | モニター用 |
+| --- | --- | --- |
+| Cloudflare 経由（`cf-ray`・`cf-connecting-ip` がある） | `Cf-Access-Jwt-Assertion` の署名・発行者・aud・期限を検証して通す。なければ 401 | 401 |
+| その PC の中（localhost） | 通す | 通す |
+| 会場の LAN など、その PC の外 | 401（PIN 認証は、優先度を下げた機能で、未実装） | 401 |
+
+- **ヘッダーがあるだけでは通さない。** 署名は、Cloudflare の公開鍵（`https://<チーム>.cloudflareaccess.com/cdn-cgi/access/certs`）で検証する（jose。キャッシュされる）。取得に失敗したら、断る（開けっぱなしにしない）
+- `CF_ACCESS_TEAM_DOMAIN`・`CF_ACCESS_AUD` が未設定なら、Cloudflare 経由のスタッフ用は、すべて断る。起動時に警告が出る
+- Caddy 経由のとき、api への接続は常に localhost になる。そのため、Caddy が付ける `X-Forwarded-For` の**いちばん右**（実際の接続元）も見る。左側は、クライアントが偽れるので、見ない
+- 断るときの文には、認証の仕組みの詳細を出さない。理由は、api のログにだけ残る
+- 認証を自作しない。署名の検証は、jose に任せる
 
 ## 試し方
 
 - `bun run db:reset` でサンプルデータを入れてから `bun run dev`
-- スタッフ用・モニター用の API は、Cloudflare を通ったリクエスト（`cf-ray` ヘッダー付き）を 401 で断る。開発で公開経路から試したいときだけ、`.env` に `ALLOW_UNAUTHENTICATED_STAFF=1`
+- 開発サーバーは、その PC の中（localhost）からなので、認証なしでスタッフ用を使える。Cloudflare 経由・LAN から試したいときだけ、`.env` に `ALLOW_UNAUTHENTICATED_STAFF=1`（**本番では付けない**。付けると、起動時に警告が出る）

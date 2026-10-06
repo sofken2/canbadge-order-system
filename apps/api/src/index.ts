@@ -1,4 +1,6 @@
 import { databasePath, openDatabase, resolveDataDir } from "@canbadge/db";
+import { getConnInfo } from "hono/bun";
+import { accessConfigFromEnv, createAccessVerifier } from "./access";
 import { createApp } from "./app";
 import { createEventHub } from "./events";
 
@@ -9,13 +11,29 @@ const dataDir = resolveDataDir();
 const db = openDatabase({ path: databasePath(dataDir) });
 const events = createEventHub(db, { intervalMs: Number(process.env.SSE_POLL_MS ?? 2000) });
 
+const accessConfig = accessConfigFromEnv(process.env);
+const allowPublicStaff = process.env.ALLOW_UNAUTHENTICATED_STAFF === "1";
+
 const app = createApp({
   db,
   dataDir,
   events,
-  // スタッフ認証（A05）ができるまでは、公開経路（Cloudflare 経由）からスタッフ用の API を使えなくする
-  allowPublicStaff: process.env.ALLOW_UNAUTHENTICATED_STAFF === "1",
+  // 開発用。本番では付けない（付けると、スタッフ認証なしで、公開経路からも使えてしまう）
+  allowPublicStaff,
+  // Cloudflare Access の JWT を検証する（A05）。未設定なら、Cloudflare 経由のスタッフ用は、すべて断る
+  access: accessConfig ? createAccessVerifier(accessConfig) : undefined,
+  remoteAddressOf: (c) => getConnInfo(c).remote.address,
 });
+
+if (allowPublicStaff) {
+  console.warn(
+    "api: 警告 ALLOW_UNAUTHENTICATED_STAFF=1 のため、スタッフ用の API が、認証なしで、どの経路からも使えます（開発用）",
+  );
+} else if (!accessConfig) {
+  console.warn(
+    "api: CF_ACCESS_TEAM_DOMAIN・CF_ACCESS_AUD が未設定です。Cloudflare 経由のスタッフ用の API は、すべて断ります（その PC の中からは使えます）",
+  );
+}
 
 console.log(`api: http://localhost:${port}（データ置き場: ${dataDir}）`);
 

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { databasePath, getOrder, listOrderItems, openDatabase } from "@canbadge/db";
 import { type SeedSummary, seedSampleData } from "@canbadge/fixtures";
 import type { Hono } from "hono";
+import type { AccessVerifier } from "./access";
 import { createApp } from "./app";
 import { createEventHub } from "./events";
 
@@ -23,7 +24,9 @@ function getTemplate() {
 export type TestApp = ReturnType<typeof createTestApp>;
 
 /** サンプルデータの入った DB と、それを使う API を作る。終わったら close を呼ぶ */
-export function createTestApp(options: { allowPublicStaff?: boolean } = {}) {
+export function createTestApp(
+  options: { allowPublicStaff?: boolean; access?: AccessVerifier; remoteAddress?: string } = {},
+) {
   const source = getTemplate();
   const dir = mkdtempSync(join(tmpdir(), "canbadge-api-"));
   cpSync(source.dir, dir, { recursive: true });
@@ -35,6 +38,8 @@ export function createTestApp(options: { allowPublicStaff?: boolean } = {}) {
     dataDir: dir,
     events,
     allowPublicStaff: options.allowPublicStaff ?? false,
+    access: options.access,
+    remoteAddressOf: options.remoteAddress === undefined ? undefined : () => options.remoteAddress,
   });
 
   const orderId = (name: string): string => {
