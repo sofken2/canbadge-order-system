@@ -183,6 +183,7 @@
       "name": "@canbadge/ui",
       "version": "0.0.0",
       "dependencies": {
+        "@canbadge/shared": "workspace:*",
         "react": "^19.3.0",
         "uqr": "^0.1.3",
       },

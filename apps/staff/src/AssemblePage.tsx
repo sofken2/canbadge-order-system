@@ -1,15 +1,21 @@
 import { QrScanner } from "@canbadge/scanner";
 import type { StaffOrderView } from "@canbadge/shared";
-import { Button, Notice, TextField, useAction, useResource } from "@canbadge/ui";
+import {
+  Button,
+  isCompleteCode,
+  Notice,
+  normalizeConfirmationCode,
+  TextField,
+  useAction,
+  useResource,
+} from "@canbadge/ui";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api";
 import "./assemble.css";
 import {
   formatWait,
   groupOrders,
-  isCompleteCode,
   minutesSince,
-  normalizeConfirmationCode,
   notPickableMessage,
   urgencyOf,
 } from "./assemble-logic";

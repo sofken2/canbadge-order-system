@@ -1,0 +1,18 @@
+/* 注文照会（W04）。見た目の部品・色・書体は、packages/ui のトークンと部品を使う */
+
+.cb-lookup__form {
+  display: grid;
+  gap: var(--space-lg);
+  margin-block: var(--space-lg);
+}
+
+/* 確認コードは、1 文字ずつ、読み取りやすいように、間をあける */
+.cb-lookup__code .cb-input {
+  font-family: var(--font-mono);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+}
+
+.cb-lookup .cb-input[aria-invalid="true"] {
+  border-color: var(--color-accent-deep);
+}

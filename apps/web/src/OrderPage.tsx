@@ -99,6 +99,19 @@ export function OrderPage() {
   return (
     <main className="cb-page">
       <h1>オリジナル缶バッジを、つくろう</h1>
+      <p className="cb-muted">
+        もう注文した方（スマホを変えた・画面を閉じてしまった方）は、
+        <a
+          href="/lookup"
+          onClick={(event) => {
+            event.preventDefault();
+            navigate("/lookup");
+          }}
+        >
+          注文番号と確認コードで、注文を開く
+        </a>
+        。
+      </p>
       {status.error && <Notice tone="error">{status.error}</Notice>}
       {setting && (
         <p className="cb-muted">

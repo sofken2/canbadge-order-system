@@ -76,7 +76,10 @@ export function OrderStatusPage({ orderId }: { orderId: string }) {
         <p className="cb-muted">
           お手数ですが、注文したときの画面をもう一度開くか、ブースのスタッフにお声がけください。
         </p>
-        <Button variant="line" onClick={() => navigate("/")}>
+        <Button block onClick={() => navigate("/lookup")}>
+          注文番号と確認コードで、注文を開く
+        </Button>
+        <Button variant="line" block onClick={() => navigate("/")}>
           はじめの画面に戻る
         </Button>
       </main>
