@@ -55,6 +55,14 @@ async function embedImage(doc: PDFDocument, dataDir: string, path: string): Prom
   throw new Error(`画像の形式が、PNG・JPEG ではありません: ${path}`);
 }
 
+/**
+ * 画像が、PDF に載せられるかを確かめる（ファイルがある・PNG か JPEG・実際に読める）。
+ * 載せられなければ、理由つきで、例外を投げる。印刷キューが、問題のバッジを、シートに載せる前に外すのに使う
+ */
+export async function checkBadgeImage(dataDir: string, path: string): Promise<void> {
+  await embedImage(await PDFDocument.create({ updateMetadata: false }), dataDir, path);
+}
+
 /** 画像が正方形でないとき、円を覆うように（短い辺に合わせて拡大し）中央を使う。正方形なら、そのまま */
 export function coverRect(
   imageWidth: number,
