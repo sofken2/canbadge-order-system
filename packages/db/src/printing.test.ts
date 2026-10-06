@@ -45,6 +45,60 @@ describe("印刷シートの作成", () => {
     }
   });
 
+  test("個数（copies）があるバッジは、その数だけ用紙の位置を使う。位置は、最初の 1 個の位置", () => {
+    const { db } = setup();
+    const a = readyToPrint(db);
+    const b = readyToPrint(db);
+    const c = readyToPrint(db);
+    const { slots } = createPrintSheet(db, {
+      pdfPath: "sheets/s-copies.pdf",
+      orderItemIds: [a.itemId, b.itemId, c.itemId],
+      copies: [2, 1, 3],
+    });
+    // 用紙の 1・2 番目が a、3 番目が b、4〜6 番目が c
+    expect(slots.map((s) => [s.position, s.orderItemId])).toEqual([
+      [0, a.itemId],
+      [2, b.itemId],
+      [3, c.itemId],
+    ]);
+  });
+
+  test("個数が、バッジの数と合わない・0・小数なら、断る（シートは残らない）", () => {
+    const { db } = setup();
+    const a = readyToPrint(db);
+    const b = readyToPrint(db);
+    for (const copies of [[1], [1, 0], [1, 1.5], [1, -1]]) {
+      expect(
+        codeOf(() =>
+          createPrintSheet(db, {
+            pdfPath: "sheets/x.pdf",
+            orderItemIds: [a.itemId, b.itemId],
+            copies,
+          }),
+        ),
+      ).toBe("VALIDATION_FAILED");
+    }
+    expect(getOrderItem(db.orm, a.itemId)?.status).toBe("queued");
+  });
+
+  test("印刷中のシートがあるうちは、次のシートを作れない（確認が済むまで、次を送らない）", () => {
+    const { db } = setup();
+    const a = readyToPrint(db);
+    const b = readyToPrint(db);
+    const first = createPrintSheet(db, { pdfPath: "sheets/1.pdf", orderItemIds: [a.itemId] });
+    expect(
+      codeOf(() => createPrintSheet(db, { pdfPath: "sheets/2.pdf", orderItemIds: [b.itemId] })),
+    ).toBe("CONFLICT");
+    // 断られたバッジは、そのまま印刷待ち
+    expect(getOrderItem(db.orm, b.itemId)?.status).toBe("queued");
+
+    // 確認が済めば、次を作れる
+    checkPrintSheet(db, { sheetId: first.sheet.id, reprintOrderItemIds: [], actor: "staff" });
+    expect(() =>
+      createPrintSheet(db, { pdfPath: "sheets/2.pdf", orderItemIds: [b.itemId] }),
+    ).not.toThrow();
+  });
+
   test("支払い前の注文のバッジは載せられず、シートも残らない", () => {
     const { db } = setup();
     const paid = readyToPrint(db);

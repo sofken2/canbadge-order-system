@@ -22,12 +22,16 @@ export type PrintSheetWithSlots = { sheet: PrintSheet; slots: PrintSlot[] };
 /**
  * 印刷シートを作る。シートと、載せるバッジの状態（印刷中）を、印刷を始める**前に**記録する。
  * こうしておけば、印刷の途中で処理 PC が再起動しても、二重に印刷されず、確認待ちとして残る。
- * orderItemIds の並びが、そのまま PDF 上の位置（0 始まり）になる。
+ * orderItemIds の並びが、そのまま PDF 上の位置になる。
+ * copies は、各バッジを用紙に何個並べるか（個数。省略すると、すべて 1 個）。位置（position）は、
+ * そのバッジの最初の 1 個の、用紙の何番目か（0 から）。例：copies が [2, 1] なら、位置は 0 と 2
+ * （用紙の 1・2 番目が最初のバッジ、3 番目が次のバッジ）。
+ * **印刷中のシートがあるときは、作れない**（同時に印刷中にできるのは 1 枚まで。印刷係の確認が済むまで、次を送らない）。
  * 1 つでも印刷できないバッジがあれば、全体を取り消す
  */
 export function createPrintSheet(
   db: Database,
-  input: { pdfPath: string; orderItemIds: string[] },
+  input: { pdfPath: string; orderItemIds: string[]; copies?: number[] },
 ): PrintSheetWithSlots {
   const path = relativePathSchema.safeParse(input.pdfPath);
   if (!path.success) throw validationFailed("PDF のパスが正しくありません");
@@ -35,15 +39,39 @@ export function createPrintSheet(
   if (new Set(input.orderItemIds).size !== input.orderItemIds.length) {
     throw validationFailed("同じバッジを 2 回載せることはできません");
   }
+  const copies = input.copies ?? input.orderItemIds.map(() => 1);
+  if (
+    copies.length !== input.orderItemIds.length ||
+    copies.some((n) => !Number.isInteger(n) || n < 1)
+  ) {
+    throw validationFailed("バッジごとの個数が正しくありません");
+  }
 
   return write(db, (ctx) => {
+    // 確認と作成を、同じトランザクションで行う。印刷係のいない間に、2 つの worker が、それぞれ別のシートを
+    // 作ってしまうのを防ぐ
+    const printing = ctx.tx
+      .select({ id: printSheets.id })
+      .from(printSheets)
+      .where(eq(printSheets.status, "printing"))
+      .limit(1)
+      .get();
+    if (printing) {
+      throw new DbError(
+        "CONFLICT",
+        "印刷中のシートがあります。印刷係の確認が済んでから、次のシートを作ります",
+        { sheetId: printing.id },
+      );
+    }
+
     const sheetId = idAt(ctx);
     ctx.tx
       .insert(printSheets)
       .values({ id: sheetId, pdfPath: path.data, status: "printing", printedAt: ctx.at })
       .run();
 
-    input.orderItemIds.forEach((orderItemId, position) => {
+    let position = 0;
+    input.orderItemIds.forEach((orderItemId, index) => {
       applyItemTransition(ctx, {
         itemId: orderItemId,
         to: "printing",
@@ -51,6 +79,7 @@ export function createPrintSheet(
         detail: { sheetId },
       });
       ctx.tx.insert(printSlots).values({ sheetId, position, orderItemId, result: "pending" }).run();
+      position += copies[index] ?? 1;
     });
 
     writeAudit(ctx, {
@@ -58,7 +87,7 @@ export function createPrintSheet(
       action: "print_sheet.create",
       targetType: "print_sheet",
       targetId: sheetId,
-      detail: { orderItemIds: input.orderItemIds },
+      detail: { orderItemIds: input.orderItemIds, copies },
     });
     return { sheet: requirePrintSheet(ctx.tx, sheetId), slots: listPrintSlots(ctx.tx, sheetId) };
   });
@@ -148,5 +177,24 @@ export function checkPrintSheet(
       detail: { reprintOrderItemIds: [...reprint] },
     });
     return { sheet: requirePrintSheet(ctx.tx, sheet.id), slots: listPrintSlots(ctx.tx, sheet.id) };
+  });
+}
+
+/**
+ * 印刷キューが、バッジを印刷から外したことを、操作ログに残す（画像が読めないなど）。
+ * バッジは印刷待ちのまま。誰かが気づいて、原因（画像）を直せるよう、記録だけを残す
+ */
+export function recordPrintSkip(
+  db: Database,
+  input: { orderItemId: string; orderNumber: number; reason: string },
+): void {
+  write(db, (ctx) => {
+    writeAudit(ctx, {
+      actor: "system",
+      action: "print.skip",
+      targetType: "order_item",
+      targetId: input.orderItemId,
+      detail: { orderNumber: input.orderNumber, reason: input.reason },
+    });
   });
 }
