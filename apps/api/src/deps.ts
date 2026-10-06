@@ -1,5 +1,7 @@
 import type { Database } from "@canbadge/db";
 import type { SseEvent } from "@canbadge/shared";
+import type { Context } from "hono";
+import type { AccessVerifier } from "./access";
 
 /** 操作ログから作った SSE イベントの配信口（events.ts） */
 export type EventHub = {
@@ -17,8 +19,12 @@ export type Deps = {
   dataDir: string;
   events: EventHub;
   /**
-   * スタッフ用・モニター用の API を、Cloudflare 経由（公開経路）のリクエストにも許すか。
-   * 認証（A05）ができるまでは false にして、公開経路からは使えなくする
+   * スタッフ用・モニター用の API を、すべての経路に許すか。**開発で試すときだけ** true にする
+   * （本番は false。経路ごとの扱いは guard.ts）
    */
   allowPublicStaff: boolean;
+  /** Cloudflare Access の JWT の検証器。CF_ACCESS_* が未設定なら undefined（Cloudflare 経由のスタッフ用は、すべて断る） */
+  access?: AccessVerifier | undefined;
+  /** 接続元のアドレス。サーバー（Bun）が知っている値。テストなど、わからないときは省略する */
+  remoteAddressOf?: ((c: Context) => string | undefined) | undefined;
 };
