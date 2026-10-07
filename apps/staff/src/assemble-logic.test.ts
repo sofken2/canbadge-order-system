@@ -3,10 +3,8 @@ import type { StaffOrderView } from "@canbadge/shared";
 import {
   formatWait,
   groupOrders,
-  isCompleteCode,
   LONG_WAIT_MINUTES,
   minutesSince,
-  normalizeConfirmationCode,
   notPickableMessage,
   urgencyOf,
   VERY_LONG_WAIT_MINUTES,
@@ -76,24 +74,6 @@ describe("注文のまとめ方", () => {
     const count = grouped.toAssemble.length + grouped.assembling.length + grouped.ready.length;
     expect(count).toBe(6);
     expect(items[0]?.orderNumber).toBe(7);
-  });
-});
-
-describe("確認コードの入力", () => {
-  test("小文字・全角・空白を整え、4 文字で切る", () => {
-    expect(normalizeConfirmationCode("k7qh")).toBe("K7QH");
-    expect(normalizeConfirmationCode(" ｋ７ｑｈ ")).toBe("K7QH");
-    expect(normalizeConfirmationCode("K7QH9")).toBe("K7QH");
-  });
-
-  test("使わない文字（0 O 1 I L）と記号は、捨てる", () => {
-    expect(normalizeConfirmationCode("K0O7-1IQ")).toBe("K7Q");
-    expect(normalizeConfirmationCode("L")).toBe("");
-  });
-
-  test("4 文字そろったら、完成", () => {
-    expect(isCompleteCode("K7Q")).toBe(false);
-    expect(isCompleteCode("K7QH")).toBe(true);
   });
 });
 

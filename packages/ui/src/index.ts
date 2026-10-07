@@ -2,6 +2,7 @@
 // 部品は増やしすぎない。必要になった画面のタスクが足す
 export * from "./Button";
 export * from "./ConfirmDialog";
+export * from "./confirmation-code";
 export * from "./Field";
 export * from "./hooks";
 export * from "./Notice";

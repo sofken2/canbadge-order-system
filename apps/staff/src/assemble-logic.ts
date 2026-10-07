@@ -1,10 +1,4 @@
-import {
-  CONFIRMATION_CODE_ALPHABET,
-  CONFIRMATION_CODE_LENGTH,
-  type OrderStatus,
-  orderStatusLabels,
-  type StaffOrderView,
-} from "@canbadge/shared";
+import { type OrderStatus, orderStatusLabels, type StaffOrderView } from "@canbadge/shared";
 
 // 組み立て・受け渡し画面の、画面から切り離した判定と計算（テストできるように）。
 
@@ -56,20 +50,6 @@ export function groupOrders(items: readonly StaffOrderView[]): Grouped {
     ready: items.filter((order) => order.status === "ready").sort(byReady),
   };
 }
-
-/**
- * 確認コードの入力を、整える。全角・小文字を直し、使わない文字（0 O 1 I L と記号・空白）は捨てる。
- * 4 文字までで切る。正しいかどうかの照合は、api が行う（ここは、入力の整形だけ）
- */
-export function normalizeConfirmationCode(raw: string): string {
-  const allowed = new Set(CONFIRMATION_CODE_ALPHABET);
-  return [...raw.normalize("NFKC").toUpperCase()]
-    .filter((char) => allowed.has(char))
-    .slice(0, CONFIRMATION_CODE_LENGTH)
-    .join("");
-}
-
-export const isCompleteCode = (code: string): boolean => code.length === CONFIRMATION_CODE_LENGTH;
 
 /** 受け渡しできない状態のとき、画面に出す説明（してほしいことつき）。受け渡せる（ready）なら、空 */
 export function notPickableMessage(status: OrderStatus, orderNumberText: string): string {
