@@ -13,7 +13,9 @@ export function createApp(deps: Deps): Hono {
   const app = new Hono();
 
   // 画面と Caddy が疎通を確かめるための口。業務のエンドポイントではなく、契約には含めない
-  app.get("/api/health", (c) => c.json({ status: "ok" }));
+  app.get("/api/health", (c) =>
+    c.json({ status: "ok", sseConnections: deps.events.listenerCount() }),
+  );
 
   registerRoutes(app, handlers, deps);
 

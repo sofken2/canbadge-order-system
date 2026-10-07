@@ -79,12 +79,25 @@ export function createEventHub(db: Database, options: { intervalMs: number }): E
   let lastSeq = latest.seq;
 
   const poll = () => {
-    const rows = listAuditLogsSince(db, lastSeq, 500);
-    for (const { seq, log } of rows) {
-      lastSeq = seq;
-      for (const event of eventsFromAudit(log)) {
-        for (const listener of listeners) listener(event);
+    // 定期実行の中で、例外を外に出さない。print-worker が書き込み中で、DB が一瞬使えないときなどに、
+    // api プロセス全体が落ちるのを防ぐ（次の巡回で、続きから読む）
+    try {
+      const rows = listAuditLogsSince(db, lastSeq, 500);
+      for (const { seq, log } of rows) {
+        lastSeq = seq;
+        for (const event of eventsFromAudit(log)) {
+          for (const listener of listeners) {
+            try {
+              listener(event);
+            } catch (error) {
+              // 1 つの接続の失敗で、ほかの接続への配信を止めない
+              console.error("api: SSE の配信に失敗しました", error);
+            }
+          }
+        }
       }
+    } catch (error) {
+      console.error("api: 操作ログを読めませんでした（次の巡回で、もう一度）", error);
     }
   };
 
@@ -96,6 +109,7 @@ export function createEventHub(db: Database, options: { intervalMs: number }): E
       return () => listeners.delete(listener);
     },
     poll,
+    listenerCount: () => listeners.size,
     stop: () => {
       if (timer) clearInterval(timer);
       listeners.clear();
