@@ -13,7 +13,9 @@ export type ManagedProcess = {
 
 function start(name: string, script: string, env: Record<string, string>): ManagedProcess {
   const root = findRepoRoot();
-  const child = Bun.spawn([process.execPath, "run", join(root, script)], {
+  // --no-env-file：リポジトリ直下の .env を、読ませない。開発者の .env（本物の Turnstile のシークレットなど）が混ざると、
+  // 通し確認が、その人の設定で変わってしまう（CI には .env がないので、CI と同じ条件にそろえる）。必要な値は、env で渡す
+  const child = Bun.spawn([process.execPath, "--no-env-file", "run", join(root, script)], {
     cwd: root,
     env: { ...process.env, ...env },
     stdout: "pipe",

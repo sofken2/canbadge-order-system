@@ -18,6 +18,7 @@
 | `backup.md` | バックアップと、予備機での復旧・リハーサルの手順（I04） |
 | `processing-pc.md` | 処理PC の構築手順（専用ユーザー・自動ログオン・自動起動・Windows Update）（I01） |
 | `discord.md` | Discord のアイコンの取り込み（W08）の設定：アプリの登録・`.env`・実機での確認の表（使わなければ不要） |
+| `moving.md` | 処理PC を替える手順（診断・セットアップ・引っ越し）。設定は `.env`（開発と共通）と `.env.production`（処理PC だけ）に分けてある |
 | `cloudflare.md` | サービス化・Access・Turnstile・WAF／レート制限・学内疎通の確認の手順（I03） |
 
 ## いまの状態

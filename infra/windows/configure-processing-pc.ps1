@@ -13,11 +13,39 @@
 
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "common.ps1")
 
 function Set-Policy([string]$path, [string]$name, [int]$value) {
   if (-not (Test-Path $path)) { New-Item -Path $path -Force | Out-Null }
   New-ItemProperty -Path $path -Name $name -Value $value -PropertyType DWord -Force | Out-Null
   Write-Host "設定: $path  $name = $value"
+}
+
+# 変更する前の値を保存する（restore-power-settings.ps1 が、元に戻すのに使う）。
+# すでに保存してあれば、上書きしない（2 回目以降は、変更後の値を、元の値と取り違えるため）
+$backupPath = Get-PowerBackupPath
+if (-not (Test-Path $backupPath)) {
+  $policies = @(
+    @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization"; Name = "NoLockScreen" },
+    @{ Path = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"; Name = "InactivityTimeoutSecs" },
+    @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU"; Name = "NoAutoRebootWithLoggedOnUsers" }
+  ) | ForEach-Object {
+    $item = Get-ItemProperty -Path $_.Path -Name $_.Name -ErrorAction SilentlyContinue
+    @{ Path = $_.Path; Name = $_.Name; Existed = ($null -ne $item); Value = $(if ($null -ne $item) { [int]$item.($_.Name) } else { $null }) }
+  }
+  $hibernate = Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Power" -Name "HibernateEnabled" -ErrorAction SilentlyContinue
+  $before = @{
+    SavedAt = (Get-Date).ToString("s")
+    StandbySeconds = (Get-AcSeconds "SUB_SLEEP" "STANDBYIDLE")
+    HibernateSeconds = (Get-AcSeconds "SUB_SLEEP" "HIBERNATEIDLE")
+    MonitorSeconds = (Get-AcSeconds "SUB_VIDEO" "VIDEOIDLE")
+    DiskSeconds = (Get-AcSeconds "SUB_DISK" "DISKIDLE")
+    HibernateEnabled = $(if ($null -ne $hibernate) { [int]$hibernate.HibernateEnabled } else { $null })
+    Policies = @($policies)
+  }
+  New-Item -ItemType Directory -Force -Path (Split-Path $backupPath) | Out-Null
+  $before | ConvertTo-Json -Depth 5 | Set-Content -Path $backupPath -Encoding UTF8
+  Write-Host "変更前の値を保存しました: $backupPath（元に戻すとき: restore-power-settings.ps1）"
 }
 
 # 電源（AC 接続時）。画面もオフにしない（呼び出しモニターを出し続けるため）

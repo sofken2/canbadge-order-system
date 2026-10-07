@@ -7,21 +7,13 @@
 
 param([int]$MaxAgeMinutes = 15)
 
-$repo = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
-
-function Read-EnvValue([string]$name) {
-  $envFile = Join-Path $repo ".env"
-  if (-not (Test-Path $envFile)) { return $null }
-  foreach ($line in Get-Content $envFile -Encoding UTF8) {
-    if ($line -match "^\s*$name\s*=\s*(.*?)\s*$") { return $Matches[1].Trim('"').Trim([char]39) }
-  }
-  return $null
-}
+. (Join-Path $PSScriptRoot "common.ps1")
+$repo = Get-RepoRoot
 
 # 環境変数があればそれを使う（run-backup.ps1 と同じく、実行時の環境変数が .env より優先される）
 $backupDir = $env:BACKUP_DIR
 if (-not $backupDir) { $backupDir = Read-EnvValue "BACKUP_DIR" }
-if (-not $backupDir) { Write-Host "NG: .env に BACKUP_DIR がありません"; exit 1 }
+if (-not $backupDir) { Write-Host "NG: .env.production（または .env）に BACKUP_DIR がありません"; exit 1 }
 if (-not [System.IO.Path]::IsPathRooted($backupDir)) { $backupDir = Join-Path $repo $backupDir }
 if (-not (Test-Path $backupDir)) { Write-Host "NG: バックアップ先が見つかりません（外付けドライブが外れていないか）: $backupDir"; exit 1 }
 

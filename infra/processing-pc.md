@@ -11,6 +11,8 @@
 | Caddy・api・print-worker | ログオン時に、タスクスケジューラが `start-all.ps1` を実行。落ちたら自動で再起動する（手順 8） |
 | web・staff の画面 | ビルドした静的ファイルを Caddy が配信する（I02 で行う。I01 の範囲外） |
 
+> **いまの PC を処理PC にする・別の PC に替える場合は、[moving.md](moving.md) が近道。** `setup-processing-pc.ps1` が、手順 3・4・7・8（ツール・ビルド・トンネルのサービス・自動起動）をまとめて行い、`check-processing-pc.ps1` が、足りないものを一覧にする。手作業で残るのは、手順 1（専用ユーザー。いまの PC のユーザーを使うなら不要）・5〜6（電源・自動ログオン。当日の直前）・9（Windows Update）。本番の値（実プリンター・本番の URL・バックアップ先）は、`.env.production` に置く（雛形は [env.production.example](env.production.example)）。
+
 スクリプトは、すべて `infra/windows/` にある。**管理者の PowerShell** と書いてある手順は、スタートメニューで PowerShell を右クリックして「管理者として実行」を選ぶ。
 
 > 開発用のPC では、`configure-processing-pc.ps1`（手順 5）を**実行しない**。スリープしなくなり、画面がロックされなくなる。
