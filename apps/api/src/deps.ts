@@ -12,6 +12,8 @@ export type EventHub = {
   /** 操作ログの新しい行を読み、イベントを配る（定期実行される。テストでは手で呼ぶ） */
   poll: () => void;
   stop: () => void;
+  /** いま、イベントを受け取っている接続の数（SSE の接続の数。運用の確認に使う） */
+  listenerCount: () => number;
 };
 
 /** ハンドラーが使うもの。起動時（index.ts）かテストが組み立てる */
@@ -20,6 +22,8 @@ export type Deps = {
   /** データ置き場（DB・画像・PDF） */
   dataDir: string;
   events: EventHub;
+  /** SSE の接続を保つための、空のコメント行（ハートビート）を送る間隔（ms）。省略すると 20 秒 */
+  sseHeartbeatMs?: number | undefined;
   /**
    * スタッフ用・モニター用の API を、すべての経路に許すか。**開発で試すときだけ** true にする
    * （本番は false。経路ごとの扱いは guard.ts）

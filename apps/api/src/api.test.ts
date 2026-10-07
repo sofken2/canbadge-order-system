@@ -337,6 +337,6 @@ describe("SSE", () => {
 describe("疎通", () => {
   test("/api/health は、契約の外の疎通用の口", async () => {
     const res = await call(t.app, "GET", "/api/health");
-    expect(await res.json()).toEqual({ status: "ok" });
+    expect(await res.json()).toEqual({ status: "ok", sseConnections: 0 });
   });
 });

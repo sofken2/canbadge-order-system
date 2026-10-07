@@ -21,6 +21,8 @@ const app = createApp({
   db,
   dataDir,
   events,
+  // SSE のハートビートの間隔（ms）。省略すると 20 秒（SSE_HEARTBEAT_MS で変えられる。短くするのは、確認用）
+  sseHeartbeatMs: process.env.SSE_HEARTBEAT_MS ? Number(process.env.SSE_HEARTBEAT_MS) : undefined,
   // 開発用。本番では付けない（付けると、スタッフ認証なしで、公開経路からも使えてしまう）
   allowPublicStaff,
   // Cloudflare Access の JWT を検証する（A05）。未設定なら、Cloudflare 経由のスタッフ用は、すべて断る

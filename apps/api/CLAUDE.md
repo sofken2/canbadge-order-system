@@ -12,7 +12,7 @@ Hono on Bun。契約（`packages/shared`）の全エンドポイントを実装�
 | `src/handlers/` | エンドポイントごとの処理。`public.ts`（来場者）・`staff.ts`・`monitor.ts`・`sse.ts` |
 | `src/views.ts` | DB のエンティティから、画面に返す形（`OrderView` など）を組み立てる |
 | `src/errors.ts` | 例外を、契約の失敗の形（`{ error: { code, message } }`）と HTTP ステータスにする |
-| `src/events.ts` | 操作ログ（AuditLog）から SSE イベントを作り、購読者に配る |
+| `src/events.ts` | 操作ログ（AuditLog）から SSE イベントを作り、購読者に配る。数秒ごとに操作ログを読む（api 自身も print-worker も、同じ操作ログを通る） |
 | `src/guard.ts` | スタッフ用・モニター用の API を、経路ごとに、使わせる・断る（A05）。判定は `origin.ts`、Access の JWT の検証は `access.ts` |
 | `src/turnstile.ts`・`src/abuse.ts`・`src/rate-limit.ts` | 乱用対策（A06）。Turnstile のサーバー側の検証、IP ごとの回数の制限、照会の総当たり対策 |
 | `src/origin.ts`・`src/access.ts` | 接続元の経路の判定（Cloudflare・localhost・LAN）、Cloudflare Access の JWT の署名検証（jose） |
@@ -30,7 +30,7 @@ Hono on Bun。契約（`packages/shared`）の全エンドポイントを実装�
 - **画面に返す形は、`views.ts` で項目を選んで作る。** 匿名トークン、スタッフ向けの確認コード、モニター向けの注文 ID を含めない。契約のスキーマでの検証が、含めていないことをもう一度確かめる
 - 失敗は、`ApiException` か `DbError` を投げる。`message` は、画面にそのまま出せる日本語にする
 - 外部からの入力（Cookie・multipart を含む）は検証する。JSON は契約のスキーマが検証するが、それ以外はハンドラーで検証する
-- 画像の検証（A02）・SSE の本番化（A03）は、それぞれのタスクで入れる。ここにあるのは骨組み
+- 画像の検証・サムネイル・期限切れの削除（A02）は、そのタスクで入れる。ここにあるのは最小限
 
 ## スタッフ認証（A05）
 
@@ -65,6 +65,17 @@ Hono on Bun。契約（`packages/shared`）の全エンドポイントを実装�
 - 回数の制限は、メモリに持つ（api は 1 プロセス）。api を再起動すると、数え直しになる
 - 来場者の IP は、Cloudflare 経由なら `cf-connecting-ip`、Caddy 経由なら `X-Forwarded-For` のいちばん右、直接なら接続元（`origin.ts` の `clientAddress`）
 - テスト用のシークレット（Cloudflare 公式）：`1x0000000000000000000000000000000AA`（常に成功）・`2x0000000000000000000000000000000AA`（常に失敗）・`3x0000000000000000000000000000000AA`（トークンが使用済み）。サイトキーのテスト用は `1x00000000000000000000AA`（常に成功）
+
+## SSE（A03）
+
+SSE は、「変わった」ことだけを知らせる。受け取った画面が、REST で最新の状態を取り直す（取りこぼしても、つなぎ直したときに、全量を取り直せば、正しい状態に戻る）。購読は 3 種類：`/api/events/orders/:id`（来場者・自分の注文だけ）、`/api/staff/events`（スタッフ）、`/api/monitor/events`（呼び出しモニター・注文 ID を含まない）。
+
+- **ハートビート**：20 秒ごとに、空のコメント行（`: ping`）を送る。Cloudflare は、100 秒データが流れない接続を切るので、それより十分に短くする。`SSE_HEARTBEAT_MS` で変えられる（短くするのは、確認用）
+- 最初に、`: connected` と、つなぎ直しの待ち（`retry: 3000`）を送る。切れたあとは、ブラウザ（EventSource）が、3 秒後に、自動でつなぎ直し、画面が全量を取り直す
+- **後始末**：接続が切れたら、購読とタイマーを、必ず片づける。ハートビートを送れなかった（相手の端末が、回線ごと消えた）接続も、そこで片づける（放っておくと、購読が溜まり続ける）
+- **定期実行の頑丈さ**：操作ログを読む処理（数秒ごと）は、例外を外に出さない。print-worker が書き込み中で DB が一瞬使えないときに、api プロセス全体が落ちないように、ログに残して、次の巡回で続きから読む。1 つの接続への配信が失敗しても、ほかの接続には、届ける
+- **接続の数の確認**：`GET /api/health` の `sseConnections`。接続が、溜まり続けていないかを、運用で見られる
+- Caddy は、SSE をため込まない設定（`flush_interval -1`）。圧縮も、`/api` には、掛けない
 
 ## 試し方
 

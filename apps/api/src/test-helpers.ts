@@ -34,6 +34,8 @@ export function createTestApp(
     remoteAddress?: string;
     /** 回数の制限の時計（テストで進める） */
     now?: () => number;
+    /** SSE のハートビートの間隔（ms） */
+    sseHeartbeatMs?: number;
   } = {},
 ) {
   const source = getTemplate();
@@ -46,6 +48,7 @@ export function createTestApp(
     db,
     dataDir: dir,
     events,
+    sseHeartbeatMs: options.sseHeartbeatMs,
     allowPublicStaff: options.allowPublicStaff ?? false,
     access: options.access,
     turnstile: options.turnstile,
