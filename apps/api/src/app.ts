@@ -21,7 +21,9 @@ export function createApp(deps: Deps): Hono {
     c.json({ error: { code: "NOT_FOUND" as const, message: "このアドレスは存在しません" } }, 404),
   );
   app.onError((error, c) => {
-    const { status, body } = toApiError(error);
+    const { status, body, retryAfterSeconds } = toApiError(error);
+    // 制限に達したときは、あと何秒待てばよいかも、ヘッダーで伝える
+    if (retryAfterSeconds !== undefined) c.header("Retry-After", String(retryAfterSeconds));
     return c.json(body, status as 400);
   });
   return app;

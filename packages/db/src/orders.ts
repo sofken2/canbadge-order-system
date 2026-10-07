@@ -12,10 +12,10 @@ import {
   quantitySchema,
   relativePathSchema,
 } from "@canbadge/shared";
-import { and, eq, sql } from "drizzle-orm";
+import { and, count, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { writeAudit } from "./audit";
-import type { Database } from "./connection";
+import type { Database, Reader } from "./connection";
 import { conflict, DbError, validationFailed } from "./errors";
 import { generateConfirmationCode } from "./generate";
 import { getSetting, listOrderItems, requireOrder } from "./queries";
@@ -33,6 +33,16 @@ const createOrderInputSchema = z.object({
   sourceArchiveEntryId: z.string().optional(),
 });
 export type CreateOrderInput = z.input<typeof createOrderInputSchema>;
+
+/** 匿名トークンの持ち主が、いま持っている支払い待ち（submitted）の注文の数 */
+export function countPendingOrders(reader: Reader, anonToken: string): number {
+  const row = reader
+    .select({ n: count() })
+    .from(orders)
+    .where(and(eq(orders.anonToken, anonToken), eq(orders.status, "submitted")))
+    .get();
+  return row?.n ?? 0;
+}
 
 export type CreatedOrder = { order: Order; items: OrderItem[]; design: Design };
 
@@ -57,6 +67,17 @@ export function createOrder(db: Database, input: CreateOrderInput): CreatedOrder
     }
     if (data.quantity > setting.maxQuantityPerOrder) {
       throw validationFailed(`1 回の注文は ${setting.maxQuantityPerOrder} 個までです`);
+    }
+
+    // 1 端末（匿名トークン）あたりの、支払い待ちの注文の上限。同じトランザクションで数えるので、
+    // 同時に何件も出されても、上限を超えない
+    const pending = countPendingOrders(ctx.tx, data.anonToken);
+    if (pending >= setting.maxPendingPerDevice) {
+      throw new DbError(
+        "RATE_LIMITED",
+        `支払い待ちの注文が ${setting.maxPendingPerDevice} 件あります。レジで支払うか、取り消してから、注文してください`,
+        { pending, limit: setting.maxPendingPerDevice },
+      );
     }
 
     const designId = idAt(ctx);

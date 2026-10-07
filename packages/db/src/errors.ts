@@ -8,6 +8,7 @@ export type DbErrorCode = Extract<
   | "CONFLICT"
   | "CONFIRMATION_MISMATCH"
   | "NOT_ACCEPTING"
+  | "RATE_LIMITED"
   | "VALIDATION_FAILED"
 >;
 

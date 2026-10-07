@@ -4,9 +4,11 @@ import { join } from "node:path";
 import { databasePath, getOrder, listOrderItems, openDatabase } from "@canbadge/db";
 import { type SeedSummary, seedSampleData } from "@canbadge/fixtures";
 import type { Hono } from "hono";
+import { createAbuseGuards } from "./abuse";
 import type { AccessVerifier } from "./access";
 import { createApp } from "./app";
 import { createEventHub } from "./events";
+import type { TurnstileVerifier } from "./turnstile";
 
 const NOW = new Date("2026-11-03T12:00:00+09:00");
 
@@ -25,7 +27,14 @@ export type TestApp = ReturnType<typeof createTestApp>;
 
 /** サンプルデータの入った DB と、それを使う API を作る。終わったら close を呼ぶ */
 export function createTestApp(
-  options: { allowPublicStaff?: boolean; access?: AccessVerifier; remoteAddress?: string } = {},
+  options: {
+    allowPublicStaff?: boolean;
+    access?: AccessVerifier;
+    turnstile?: TurnstileVerifier;
+    remoteAddress?: string;
+    /** 回数の制限の時計（テストで進める） */
+    now?: () => number;
+  } = {},
 ) {
   const source = getTemplate();
   const dir = mkdtempSync(join(tmpdir(), "canbadge-api-"));
@@ -39,6 +48,8 @@ export function createTestApp(
     events,
     allowPublicStaff: options.allowPublicStaff ?? false,
     access: options.access,
+    turnstile: options.turnstile,
+    abuse: createAbuseGuards(options.now),
     remoteAddressOf: options.remoteAddress === undefined ? undefined : () => options.remoteAddress,
   });
 

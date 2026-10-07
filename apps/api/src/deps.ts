@@ -1,7 +1,9 @@
 import type { Database } from "@canbadge/db";
 import type { SseEvent } from "@canbadge/shared";
 import type { Context } from "hono";
+import type { AbuseGuards } from "./abuse";
 import type { AccessVerifier } from "./access";
+import type { TurnstileVerifier } from "./turnstile";
 
 /** 操作ログから作った SSE イベントの配信口（events.ts） */
 export type EventHub = {
@@ -25,6 +27,10 @@ export type Deps = {
   allowPublicStaff: boolean;
   /** Cloudflare Access の JWT の検証器。CF_ACCESS_* が未設定なら undefined（Cloudflare 経由のスタッフ用は、すべて断る） */
   access?: AccessVerifier | undefined;
+  /** Turnstile の検証器。TURNSTILE_SECRET_KEY が未設定なら undefined（開発用。注文の確認を、検証しない） */
+  turnstile?: TurnstileVerifier | undefined;
+  /** 来場者向けの API の、回数の制限（A06） */
+  abuse: AbuseGuards;
   /** 接続元のアドレス。サーバー（Bun）が知っている値。テストなど、わからないときは省略する */
   remoteAddressOf?: ((c: Context) => string | undefined) | undefined;
 };

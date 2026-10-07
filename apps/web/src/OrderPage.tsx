@@ -10,7 +10,7 @@ import { TurnstileWidget } from "./TurnstileWidget";
 /** 作りかけのデザインの、ブラウザ内の保存名。注文が済んだら消す */
 const DRAFT_KEY = "order-design";
 
-/** 開発（Turnstile のキーなし）のとき、トークンの代わりに送る文字列。サーバー側の検証は A06 */
+/** 開発（Turnstile のキーなし）のとき、トークンの代わりに送る文字列。api は、TURNSTILE_SECRET_KEY が未設定のときだけ、これを受け付ける（A06） */
 const DEV_TOKEN = "dev";
 
 type Design = BadgeEditorExport & {

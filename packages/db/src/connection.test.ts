@@ -8,6 +8,7 @@ import { openDatabase } from "./connection";
 import { createOrder } from "./orders";
 import { orderItems } from "./schema";
 import { openBusinessDay } from "./settings";
+import { uniqueToken } from "./test-helpers";
 
 let dir: string;
 beforeEach(() => {
@@ -63,13 +64,10 @@ describe("DB の接続", () => {
     const a = openDatabase({ path, now: clock.now });
     openBusinessDay(a, { actor: "staff" });
     const b = openDatabase({ path, now: clock.now });
-    const input = {
-      imagePath: "images/a.png",
-      editorData: { version: 1 },
-      quantity: 1,
-      anonToken: "t".repeat(32),
-    };
-    const numbers = [a, b, a, b, a, b].map((db) => createOrder(db, input).order.orderNumber);
+    const input = { imagePath: "images/a.png", editorData: { version: 1 }, quantity: 1 };
+    const numbers = [a, b, a, b, a, b].map(
+      (db) => createOrder(db, { ...input, anonToken: uniqueToken() }).order.orderNumber,
+    );
     expect(numbers).toEqual([1, 2, 3, 4, 5, 6]);
     a.close();
     b.close();

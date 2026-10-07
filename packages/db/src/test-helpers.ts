@@ -5,6 +5,13 @@ import { openBusinessDay } from "./settings";
 
 export const TOKEN = "a".repeat(32);
 
+let tokenCounter = 0;
+/** 呼ぶたびに違う匿名トークン（32 文字）。1 端末あたりの支払い待ちの上限（A06）に当たらないよう、注文ごとに別の端末として扱う */
+export function uniqueToken(): string {
+  tokenCounter += 1;
+  return `${"u".repeat(24)}${String(tokenCounter).padStart(8, "0")}`;
+}
+
 /** メモリ上の DB を開き、営業を開始した状態にする。時刻は手で進められる */
 export function setup(startIso = "2026-11-03T09:00:00+09:00") {
   const clock = createManualClock(startIso);
@@ -20,12 +27,13 @@ export function setupClosed(startIso = "2026-11-03T09:00:00+09:00") {
   return { db, clock };
 }
 
-export function placeOrder(db: Database, quantity = 1) {
+/** 注文する。token を省くと、注文ごとに別の端末（匿名トークン）になる */
+export function placeOrder(db: Database, quantity = 1, token: string = uniqueToken()) {
   return createOrder(db, {
     imagePath: "images/sample.png",
     editorData: { version: 1 },
     quantity,
-    anonToken: TOKEN,
+    anonToken: token,
   });
 }
 

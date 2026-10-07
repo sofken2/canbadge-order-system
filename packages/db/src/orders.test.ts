@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { confirmationCodeSchema } from "@canbadge/shared";
 import { listAuditLogsSince } from "./audit";
 import { DbError } from "./errors";
-import { applyOrderTransition, createOrder, transitionOrder } from "./orders";
+import { applyOrderTransition, countPendingOrders, createOrder, transitionOrder } from "./orders";
 import { getOrder, getOrderByNumber, listOrderItems } from "./queries";
 import { openBusinessDay, setAcceptance, updateSetting } from "./settings";
 import { checkPrintSheet, createPrintSheet } from "./sheets";
@@ -26,7 +26,7 @@ describe("注文の作成", () => {
 
   test("注文・明細・デザインが作られ、支払い待ちで始まる", () => {
     const { db } = setup();
-    const { order, items, design } = placeOrder(db);
+    const { order, items, design } = placeOrder(db, 1, TOKEN);
     expect(order.status).toBe("submitted");
     expect(order.businessDate).toBe("2026-11-03");
     expect(order.totalAmount).toBe(300);
@@ -257,5 +257,82 @@ describe("操作ログと整合性", () => {
     const before = listAuditLogsSince(db, 0).length;
     expect(codeOf(() => payOrder(db, order.id))).toBe("CONFLICT");
     expect(listAuditLogsSince(db, 0)).toHaveLength(before);
+  });
+});
+
+describe("1 端末あたりの支払い待ちの上限（A06）", () => {
+  const OTHER = "b".repeat(32);
+
+  test("上限（既定 2 件）に達したら、RATE_LIMITED で断る。別の端末は、そのまま注文できる", () => {
+    const { db } = setup();
+    placeOrder(db, 1, TOKEN);
+    placeOrder(db, 1, TOKEN);
+    expect(codeOf(() => placeOrder(db, 1, TOKEN))).toBe("RATE_LIMITED");
+    expect(() => placeOrder(db, 1, OTHER)).not.toThrow();
+  });
+
+  test("断った注文は、作られない（番号も進まない）", () => {
+    const { db } = setup();
+    placeOrder(db, 1, TOKEN);
+    placeOrder(db, 1, TOKEN);
+    codeOf(() => placeOrder(db, 1, TOKEN));
+    expect(placeOrder(db, 1, OTHER).order.orderNumber).toBe(3);
+  });
+
+  test("支払い・取り消しで、支払い待ちが減れば、また注文できる", () => {
+    const { db } = setup();
+    const first = placeOrder(db, 1, TOKEN);
+    placeOrder(db, 1, TOKEN);
+    expect(countPendingOrders(db.orm, TOKEN)).toBe(2);
+
+    payOrder(db, first.order.id);
+    expect(countPendingOrders(db.orm, TOKEN)).toBe(1);
+    expect(() => placeOrder(db, 1, TOKEN)).not.toThrow();
+    expect(codeOf(() => placeOrder(db, 1, TOKEN))).toBe("RATE_LIMITED");
+  });
+
+  test("数えるのは、支払い待ち（submitted）だけ。支払い済み・取り消し・期限切れは、数えない", () => {
+    const { db } = setup();
+    const a = placeOrder(db, 1, TOKEN);
+    const b = placeOrder(db, 1, TOKEN);
+    payOrder(db, a.order.id);
+    transitionOrder(db, { orderId: b.order.id, to: "cancelled", actor: "visitor" });
+    expect(countPendingOrders(db.orm, TOKEN)).toBe(0);
+    placeOrder(db, 1, TOKEN);
+    placeOrder(db, 1, TOKEN);
+    setAcceptance(db, { acceptance: "closed", actor: "staff" });
+    expect(countPendingOrders(db.orm, TOKEN)).toBe(0);
+  });
+
+  test("上限は設定（maxPendingPerDevice）に従う。1 にすれば、2 件目から断る", () => {
+    const { db } = setup();
+    updateSetting(db, {
+      actor: "staff",
+      values: {
+        price: 300,
+        maxQuantityPerOrder: 1,
+        maxPendingPerDevice: 1,
+        printMaxWaitSeconds: 60,
+        orderNumberDigits: 3,
+        imageMaxBytes: 1000,
+      },
+    });
+    placeOrder(db, 1, TOKEN);
+    expect(codeOf(() => placeOrder(db, 1, TOKEN))).toBe("RATE_LIMITED");
+  });
+
+  test("断るときの文に、上限と、してほしいこと（支払う・取り消す）が入る", () => {
+    const { db } = setup();
+    placeOrder(db, 1, TOKEN);
+    placeOrder(db, 1, TOKEN);
+    try {
+      placeOrder(db, 1, TOKEN);
+    } catch (error) {
+      expect(error).toBeInstanceOf(DbError);
+      const message = (error as DbError).message;
+      expect(message).toContain("2 件");
+      expect(message).toContain("支払う");
+      expect(message).toContain("取り消して");
+    }
   });
 });

@@ -12,7 +12,8 @@ for (let i = 0; i < Number(countText); i++) {
     imagePath: "images/sample.png",
     editorData: { version: 1 },
     quantity: 1,
-    anonToken: "w".repeat(32),
+    // 注文ごとに別の端末として扱う（端末あたりの支払い待ちの上限に、当たらないように）
+    anonToken: `${"w".repeat(16)}${crypto.randomUUID().replaceAll("-", "")}`.slice(0, 48),
   });
 }
 db.close();
