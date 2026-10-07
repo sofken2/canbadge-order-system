@@ -51,7 +51,9 @@ function useReprint(onDone: (message: Message) => void) {
     >
       {targets && (
         <>
-          <p>次の注文のバッジを、印刷待ちに戻し、次のシートに載せます。</p>
+          <p>
+            次の注文のバッジを、印刷待ちに戻します。印刷待ちのバッジと一緒に、次のシートで印刷します（用紙を無駄にしないよう、少し待つことがあります）。
+          </p>
           <ul className="cb-print__impact">
             {reprintImpact(targets).map((line) => (
               <li key={line.status}>
@@ -113,7 +115,7 @@ function CheckTab({ onMessage }: { onMessage: (message: Message) => void }) {
       text:
         tally.reprint === 0
           ? `${tally.ok} 個を、OK にしました。組み立てに進みます`
-          : `${tally.ok} 個を OK に、${tally.reprint} 個を再印刷にしました。再印刷の分は、次のシートに載ります`,
+          : `${tally.ok} 個を OK に、${tally.reprint} 個を再印刷にしました。再印刷の分は、印刷待ちのバッジと一緒に、次のシートで印刷します（少し待つことがあります）`,
     });
   });
 

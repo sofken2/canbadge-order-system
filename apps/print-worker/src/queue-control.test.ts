@@ -380,3 +380,79 @@ describe("ループの停止", () => {
     expect(started).toBe(1); // 停止後は、新しい巡回が始まらない
   });
 });
+
+describe("再印刷と、印刷待ちのバッジを、いっしょに印刷する", () => {
+  /** 1 枚印刷して、確認する（reprintItemIds だけ、再印刷にする） */
+  async function printAndCheck(reprintItemIds: string[]) {
+    await run();
+    const sheet = getCurrentPrintSheet(db);
+    checkPrintSheet(db, {
+      sheetId: sheet?.id ?? "",
+      reprintOrderItemIds: reprintItemIds,
+      actor: "staff",
+    });
+  }
+
+  test("再印刷が出たとき、待ち時間（60 秒の半分）まで待って、そのあいだに来たバッジと、いっしょに印刷する", async () => {
+    const a = paid();
+    const b = paid();
+    await printAndCheck([a.itemId]); // a は再印刷。b は OK
+    const wait = { waitOverrideSeconds: 60 };
+    const skips = createSkipRegistry();
+    const requeuedAt = new Map<string, number>();
+
+    // 再印刷が、印刷待ちに戻った。1 個だけなので、すぐには、印刷しない
+    expect((await run({ ...wait, skips, requeuedAt })).status).toBe("waiting");
+
+    // そのあいだに、新しい注文が、2 件入る
+    const c = paid();
+    const d = paid();
+    clock.advance(20_000);
+    expect((await run({ ...wait, skips, requeuedAt })).status).toBe("waiting");
+
+    // 再印刷が、30 秒待った（支払いから、ではなく、再印刷に戻ってから）。ここで、印刷する
+    clock.advance(10_000);
+    expect((await run({ ...wait, skips, requeuedAt })).status).toBe("printed");
+    const slots = listPrintSlots(db.orm, getCurrentPrintSheet(db)?.id ?? "");
+    expect(slots.map((s) => s.orderItemId)).toEqual([a.itemId, c.itemId, d.itemId]);
+    expect(b.itemId).toBeDefined();
+  });
+
+  test("再印刷だけのときも、半分の時間（30 秒）で、印刷する（お客さんを、長く待たせない）", async () => {
+    const a = paid();
+    await printAndCheck([a.itemId]);
+    const options = {
+      waitOverrideSeconds: 60,
+      skips: createSkipRegistry(),
+      requeuedAt: new Map<string, number>(),
+    };
+    expect((await run(options)).status).toBe("waiting");
+    clock.advance(29_000);
+    expect((await run(options)).status).toBe("waiting");
+    clock.advance(1_000);
+    expect((await run(options)).status).toBe("printed");
+  });
+
+  test("支払いから時間がたっていても、再印刷の待ち時間は、再印刷に戻ったときから数える", async () => {
+    const a = paid();
+    // 支払いから、ふつうの待ち時間（60 秒）を、とっくにこえてから、印刷して、再印刷になる
+    clock.advance(10 * 60 * 1000);
+    await printAndCheck([a.itemId]);
+    const options = {
+      waitOverrideSeconds: 60,
+      skips: createSkipRegistry(),
+      requeuedAt: new Map<string, number>(),
+    };
+    expect((await run(options)).status).toBe("waiting"); // すぐ印刷、には、ならない
+  });
+
+  test("用紙が埋まる数の、印刷待ちがあれば、再印刷を先頭にして、待たずに印刷する", async () => {
+    const a = paid();
+    await printAndCheck([a.itemId]);
+    const others = [paid(), paid(), paid(), paid(), paid()];
+    const result = await run({ waitOverrideSeconds: 9999 });
+    expect(result.status).toBe("printed");
+    const slots = listPrintSlots(db.orm, getCurrentPrintSheet(db)?.id ?? "");
+    expect(slots.map((s) => s.orderItemId)).toEqual([a.itemId, ...others.map((o) => o.itemId)]);
+  });
+});

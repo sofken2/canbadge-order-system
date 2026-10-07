@@ -84,5 +84,5 @@ export function reprintResultMessage(result: {
   if (done === 0 && skipped > 0) return `すでに印刷待ちのため、何も変えていません（${skipped} 個）`;
   return skipped > 0
     ? `${done} 個を、印刷待ちに戻しました（すでに印刷待ちの ${skipped} 個は、そのままです）`
-    : `${done} 個を、印刷待ちに戻しました。次のシートに載ります`;
+    : `${done} 個を、印刷待ちに戻しました。印刷待ちのバッジと一緒に、次のシートで印刷します（少し待つことがあります）`;
 }

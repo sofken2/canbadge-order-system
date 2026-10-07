@@ -6,9 +6,18 @@ export type Candidate = {
   orderItemId: string;
   /** 用紙に並べる個数（同じバッジを、並べて印刷する） */
   quantity: number;
-  /** 印刷待ちになった時刻（ISO）。待った時間の判断に使う */
+  /** 印刷待ちになった時刻（ISO）。待った時間の判断に使う。再印刷のバッジは、やり直しになった時刻（支払いの時刻ではない） */
   waitingSince: string;
+  /** 再印刷のバッジ（印刷したが、やり直しになったもの）。ほかのバッジより先に載り、待ち時間は、短い */
+  reprint?: boolean;
 };
+
+/**
+ * 再印刷のバッジが、ほかのバッジを待つ時間の割合。印刷を待つ最大の時間（printMaxWaitSeconds）の、この割合まで待つ。
+ * すぐ印刷すると、再印刷が 1 個だけの、ほぼ空の用紙になる。待ちすぎると、やり直しを待っているお客さんが、長く待つ。
+ * その間の、ちょうどよいところ：半分（既定 60 秒なら 30 秒）。その間に、ほかのバッジがそろえば、一緒に印刷する
+ */
+export const REPRINT_WAIT_RATIO = 0.5;
 
 export type Plan<T extends Candidate> =
   /** 載せられるバッジがない */
@@ -24,8 +33,9 @@ export type Plan<T extends Candidate> =
  * - 先頭から順に、残りの枠に収まるバッジを載せる。**個数が残りの枠に収まらないバッジは、載せずに次のシートに回す**
  *   （1 つのバッジを、複数のシートに分けない）。その後ろの、収まるバッジは、載せてよい（枠を余らせない）。
  *   次のシートでは、回されたバッジが先頭に来るので、後回しが続くことはない
- * - 枠がすべて埋まったら、すぐ印刷する。埋まらなくても、載せたバッジのうち**いちばん古いものが**
- *   waitSeconds 待ったら、そのときの分で印刷する
+ * - 枠がすべて埋まったら、すぐ印刷する。埋まらなくても、載せたバッジのどれかが、待ち時間に達したら、そのときの分で印刷する。
+ *   待ち時間は、ふつうのバッジが waitSeconds、**再印刷のバッジは、その半分**（REPRINT_WAIT_RATIO）。
+ *   再印刷が先に載り、残りの枠に、印刷待ちのバッジが、そろっていれば、一緒に載る（再印刷のためだけに、ほぼ空の用紙を出さない）
  * - 1 枚の枠より多い個数のバッジは、どのシートにも載らないので、選ばない（呼ぶ側が、先に外す）
  */
 export function planSheet<T extends Candidate>(
@@ -44,10 +54,19 @@ export function planSheet<T extends Candidate>(
   }
   if (batch.length === 0) return { status: "empty" };
 
-  const oldest = Math.min(...batch.map((item) => new Date(item.waitingSince).getTime()));
-  const waitedSeconds = Math.max(0, (options.nowMs - oldest) / 1000);
-  if (used < options.capacity && waitedSeconds < options.waitSeconds) {
-    return { status: "waiting", used, capacity: options.capacity, waitedSeconds };
+  // 載せたバッジのうち、待ち時間に達したものが、1 つでもあれば、印刷する。待った時間の長さは、報告用に、最長を返す
+  const waitedOf = (item: T) =>
+    Math.max(0, (options.nowMs - new Date(item.waitingSince).getTime()) / 1000);
+  const limitOf = (item: T) =>
+    item.reprint ? options.waitSeconds * REPRINT_WAIT_RATIO : options.waitSeconds;
+  const due = batch.some((item) => waitedOf(item) >= limitOf(item));
+  if (used < options.capacity && !due) {
+    return {
+      status: "waiting",
+      used,
+      capacity: options.capacity,
+      waitedSeconds: Math.max(...batch.map(waitedOf)),
+    };
   }
   return { status: "print", batch, copies, used };
 }

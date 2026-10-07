@@ -35,6 +35,8 @@ export type QueueOptions = {
   waitOverrideSeconds?: number;
   /** 載せられないバッジの記録。巡回をまたいで持つ。省略すると、その巡回だけ */
   skips?: SkipRegistry;
+  /** 再印刷のバッジが、印刷待ちに戻った（このワーカーが、初めて見た）時刻（ms）。巡回をまたいで持つ。省略すると、その巡回だけ */
+  requeuedAt?: Map<string, number>;
   log?: (message: string) => void;
 };
 
@@ -108,6 +110,7 @@ export async function runQueueOnce(db: Database, options: QueueOptions): Promise
   const capacity = options.slots ?? slotsPerSheet(badgeSpec);
   const waitSeconds = options.waitOverrideSeconds ?? setting.printMaxWaitSeconds;
   const skips = options.skips ?? createSkipRegistry();
+  const requeuedAt = options.requeuedAt ?? new Map<string, number>();
   const nowMs = db.now().getTime();
   const skipped: Skipped[] = [];
 
@@ -126,14 +129,34 @@ export async function runQueueOnce(db: Database, options: QueueOptions): Promise
   // 載せるバッジを決める。画像を確かめて、読めないものは外し、決め直す（外したぶん、ほかのバッジが載る）
   let plan: ReturnType<typeof planSheet<PrintableItem>> = { status: "empty" };
   for (let attempt = 0; attempt < 10; attempt++) {
-    const candidates = listPrintableItems(db).filter((item) => {
-      if (skips.has(item.orderItemId, nowMs)) return false;
-      if (item.quantity > capacity) {
-        skip(item, `個数 ${item.quantity} が、1 枚に載る数（${capacity}）を超えています`);
-        return false;
+    const printable = listPrintableItems(db);
+    // 再印刷のバッジは、やり直しになった時刻から、待つ（支払いの時刻では、すでに長く待ったことになってしまう）。
+    // 印刷待ちに戻った時刻は、DB にないので、このワーカーが、初めて見た時刻で、代わりにする
+    for (const item of printable) {
+      if (item.printCount > 0 && !requeuedAt.has(item.orderItemId)) {
+        requeuedAt.set(item.orderItemId, nowMs);
       }
-      return true;
-    });
+    }
+    const stillPrintable = new Set(printable.map((item) => item.orderItemId));
+    for (const id of requeuedAt.keys()) if (!stillPrintable.has(id)) requeuedAt.delete(id);
+
+    const candidates = printable
+      .filter((item) => {
+        if (skips.has(item.orderItemId, nowMs)) return false;
+        if (item.quantity > capacity) {
+          skip(item, `個数 ${item.quantity} が、1 枚に載る数（${capacity}）を超えています`);
+          return false;
+        }
+        return true;
+      })
+      .map((item) => {
+        const since = item.printCount > 0 ? requeuedAt.get(item.orderItemId) : undefined;
+        return {
+          ...item,
+          reprint: item.printCount > 0,
+          waitingSince: since === undefined ? item.waitingSince : new Date(since).toISOString(),
+        };
+      });
     plan = planSheet(candidates, { capacity, waitSeconds, nowMs });
     if (plan.status !== "print") break;
 
@@ -225,7 +248,8 @@ export function startQueueLoop(
   intervalMs: number,
 ): { stop: () => Promise<void> } {
   const skips = options.skips ?? createSkipRegistry();
-  const loopOptions = { ...options, skips };
+  const requeuedAt = options.requeuedAt ?? new Map<string, number>();
+  const loopOptions = { ...options, skips, requeuedAt };
   let current: Promise<void> | undefined;
   let stopped = false;
 
