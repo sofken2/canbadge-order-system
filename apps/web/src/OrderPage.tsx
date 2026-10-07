@@ -156,7 +156,17 @@ export function OrderPage() {
         。
       </p>
       <p className="cb-muted">
-        注文はせずに、作品だけを投稿したい方は、
+        他のお客さんが公開してくれた作品を、
+        <a
+          href="/archive"
+          onClick={(event) => {
+            event.preventDefault();
+            navigate("/archive");
+          }}
+        >
+          みんなの作品
+        </a>
+        で見られます。注文はせずに、作品だけを投稿したい方は、
         <a
           href="/archive/post"
           onClick={(event) => {

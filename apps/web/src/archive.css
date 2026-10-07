@@ -77,3 +77,44 @@
 .cb-mine__card[data-status="public"] .cb-mine__status {
   color: var(--color-ok);
 }
+
+/* みんなの作品（W05）。サムネイルを、並べる。幅は、画面に合わせて、2 列から増やす */
+.cb-gallery {
+  list-style: none;
+  margin: var(--space-lg) 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  gap: var(--space-md);
+}
+
+.cb-gallery__item {
+  display: grid;
+  gap: var(--space-xs);
+  color: var(--color-ink);
+  text-decoration: none;
+}
+
+.cb-gallery__item:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 3px;
+  border-radius: var(--radius-card);
+}
+
+.cb-gallery__thumb {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border: 1px solid var(--color-rule);
+  border-radius: 50%;
+  background: var(--color-paper-2);
+}
+
+.cb-gallery__name {
+  text-align: center;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
