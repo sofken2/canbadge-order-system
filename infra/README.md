@@ -17,6 +17,7 @@
 | `windows/run-backup.ps1`・`register-backup-task.ps1`・`check-backup.ps1` | バックアップを 1 回取る／数分おきに取るタスクの登録／取れているかの確認 |
 | `backup.md` | バックアップと、予備機での復旧・リハーサルの手順（I04） |
 | `processing-pc.md` | 処理PC の構築手順（専用ユーザー・自動ログオン・自動起動・Windows Update）（I01） |
+| `discord.md` | Discord のアイコンの取り込み（W08）の設定：アプリの登録・`.env`・実機での確認の表（使わなければ不要） |
 | `cloudflare.md` | サービス化・Access・Turnstile・WAF／レート制限・学内疎通の確認の手順（I03） |
 
 ## いまの状態

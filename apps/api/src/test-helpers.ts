@@ -7,6 +7,7 @@ import type { Hono } from "hono";
 import { createAbuseGuards } from "./abuse";
 import type { AccessVerifier } from "./access";
 import { createApp } from "./app";
+import type { DiscordClient } from "./discord";
 import { createEventHub } from "./events";
 import type { TurnstileVerifier } from "./turnstile";
 
@@ -34,6 +35,8 @@ export function createTestApp(
     remoteAddress?: string;
     /** 回数の制限の時計（テストで進める） */
     now?: () => number;
+    /** Discord のアイコンの取り込み（W08）。テストでは、偽の Discord につないだ検証器を渡す */
+    discord?: DiscordClient;
   } = {},
 ) {
   const source = getTemplate();
@@ -46,6 +49,7 @@ export function createTestApp(
     db,
     dataDir: dir,
     events,
+    discord: options.discord,
     allowPublicStaff: options.allowPublicStaff ?? false,
     access: options.access,
     turnstile: options.turnstile,

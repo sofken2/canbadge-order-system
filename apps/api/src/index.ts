@@ -1,8 +1,9 @@
-import { databasePath, openDatabase, resolveDataDir } from "@canbadge/db";
+import { databasePath, getSetting, openDatabase, resolveDataDir } from "@canbadge/db";
 import { getConnInfo } from "hono/bun";
 import { createAbuseGuards } from "./abuse";
 import { accessConfigFromEnv, createAccessVerifier } from "./access";
 import { createApp } from "./app";
+import { createDiscordClient, discordConfigFromEnv } from "./discord";
 import { createEventHub } from "./events";
 import { cleanupImages } from "./images";
 import { createTurnstileVerifier } from "./turnstile";
@@ -16,6 +17,7 @@ const events = createEventHub(db, { intervalMs: Number(process.env.SSE_POLL_MS ?
 
 const accessConfig = accessConfigFromEnv(process.env);
 const allowPublicStaff = process.env.ALLOW_UNAUTHENTICATED_STAFF === "1";
+const discordConfig = discordConfigFromEnv(process.env);
 const turnstileSecret = process.env.TURNSTILE_SECRET_KEY?.trim();
 
 const app = createApp({
@@ -28,6 +30,12 @@ const app = createApp({
   access: accessConfig ? createAccessVerifier(accessConfig) : undefined,
   // Turnstile のトークンを、サーバーで検証する（A06）。未設定なら、検証しない（開発用）
   turnstile: turnstileSecret ? createTurnstileVerifier({ secret: turnstileSecret }) : undefined,
+  // Discord のアイコンの取り込み（W08）。未設定なら、取り込みは「使えません」で戻す
+  discord: discordConfig
+    ? createDiscordClient(discordConfig, {
+        maxAvatarBytes: getSetting(db.orm).imageMaxBytes,
+      })
+    : undefined,
   abuse: createAbuseGuards(),
   remoteAddressOf: (c) => getConnInfo(c).remote.address,
 });
