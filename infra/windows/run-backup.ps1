@@ -3,7 +3,8 @@
 #
 # このファイルは UTF-8（BOM 付き）で保存する（Windows PowerShell 5.1 の文字化け対策）。
 
-$repo = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+. (Join-Path $PSScriptRoot "common.ps1")
+$repo = Get-RepoRoot
 Set-Location $repo
 
 $logDir = Join-Path $repo "data\logs"
@@ -18,8 +19,7 @@ if (-not $bun) {
   exit 1
 }
 
-$envArgs = @("--env-file=.env.example")
-if (Test-Path (Join-Path $repo ".env")) { $envArgs += "--env-file=.env" }
+$envArgs = Get-BunEnvArgs $repo
 
 # 標準出力と標準エラーの両方を、ログに追記する
 & $bun.Source @envArgs "packages/db/src/backup-cli.ts" *>&1 | ForEach-Object { "$_" } | Add-Content -Path $log -Encoding UTF8

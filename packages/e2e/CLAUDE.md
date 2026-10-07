@@ -5,7 +5,7 @@ api と print-worker を、本番と同じように別々のプロセスで起�
 | パス | 内容 |
 | --- | --- |
 | `src/flow.test.ts` | 通し確認（T09）。注文 → 支払い → 印刷 → 印刷確認 → 組み立て → 完成 → 呼び出しモニター → 受け渡し |
-| `src/processes.ts` | api と print-worker の起動（`startStack`）。一時的な DB・空いているポート |
+| `src/processes.ts` | api と print-worker の起動（`startStack`）。一時的な DB・空いているポート 。**`--no-env-file` で起動する**（リポジトリ直下の `.env` を読ませない。開発者の `.env` にある本物の Turnstile のシークレットなどで、結果が変わらないように。CI と同じ条件）|
 | `src/load/` | **負荷テストの道具（Q04）**。下の説明 |
 
 ## 負荷テスト（Q04）

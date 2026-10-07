@@ -3,6 +3,9 @@
   // .env はリポジトリ直下に1つだけ置き、全タスクに環境変数をそのまま渡す。
   // 値の違いでキャッシュが外れる問題より、設定の置き場が1か所で済むことを優先する
   "envMode": "loose",
+  // 設定ファイルの中身が変わったら、ビルドのキャッシュを使わない。画面（vite）は、ビルドのときに VITE_SITE_URL などを埋め込むので、
+  // これがないと、.env.production を書き換えても、古い値のままの画面が出てくる
+  "globalDependencies": [".env", ".env.production"],
   // turbo が AGENTS.md を自動で作るのを止める。AI 向けのルールは CLAUDE.md に集約している
   "agentGuidance": false,
   "tasks": {

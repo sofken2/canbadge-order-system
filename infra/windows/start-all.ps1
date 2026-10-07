@@ -9,7 +9,8 @@
 
 $ErrorActionPreference = "Stop"
 
-$repo = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+. (Join-Path $PSScriptRoot "common.ps1")
+$repo = Get-RepoRoot
 Set-Location $repo
 
 # 二重起動を防ぐ（ログオンのたびに、前のものが残っていても増えないように）
@@ -21,15 +22,7 @@ $logDir = Join-Path $repo "data\logs"
 $runDir = Join-Path $repo "data\run"
 New-Item -ItemType Directory -Force -Path $logDir, $runDir | Out-Null
 
-# Caddy は .env を読まないので、必要な値だけをここで取り出す
-function Read-EnvValue([string]$name) {
-  $envFile = Join-Path $repo ".env"
-  if (-not (Test-Path $envFile)) { return $null }
-  foreach ($line in Get-Content $envFile -Encoding UTF8) {
-    if ($line -match "^\s*$name\s*=\s*(.*?)\s*$") { return $Matches[1].Trim('"').Trim([char]39) }
-  }
-  return $null
-}
+# Caddy は .env を読まないので、必要な値だけをここで取り出す（.env.production が優先。common.ps1）
 $staffHost = Read-EnvValue "STAFF_HOST"
 if ($staffHost) { $env:STAFF_HOST = $staffHost }
 $caddyPort = Read-EnvValue "CADDY_PORT"
@@ -45,9 +38,8 @@ function Resolve-Tool([string]$name) {
   return $cmd.Source
 }
 
-# 開発時の `bun run dev` と同じく、.env.example を土台に .env で上書きする
-$bunEnv = @("--env-file=.env.example")
-if (Test-Path (Join-Path $repo ".env")) { $bunEnv += "--env-file=.env" }
+# 開発時の `bun run dev` と同じく .env.example を土台に .env で上書きし、さらに .env.production（処理PC の設定）で上書きする
+$bunEnv = Get-BunEnvArgs $repo
 
 $bun = Resolve-Tool "bun"
 $caddy = Resolve-Tool "caddy"

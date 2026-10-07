@@ -15,8 +15,8 @@
     "format": "biome format --write .",
     "db:reset": "bun --env-file=.env.example --env-file=.env run turbo run db:reset",
     "db:reset:force": "bun --env-file=.env.example --env-file=.env run turbo run db:reset:force",
-    "backup": "bun --env-file=.env.example --env-file=.env packages/db/src/backup-cli.ts",
-    "restore": "bun --env-file=.env.example --env-file=.env packages/db/src/restore-cli.ts"
+    "backup": "bun --env-file=.env.example --env-file=.env --env-file=.env.production packages/db/src/backup-cli.ts",
+    "restore": "bun --env-file=.env.example --env-file=.env --env-file=.env.production packages/db/src/restore-cli.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.0.0",
