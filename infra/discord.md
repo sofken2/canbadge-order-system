@@ -22,7 +22,7 @@
    - **Client ID** を控える（公開してよい）
    - **Client Secret** の「Reset Secret」→ 表示された値を控える（**秘密。再表示できない。人に見せない・コミットしない**）
    - 「**Redirects**」に、戻り先の URL を、**すべて**追加して、保存する：
-     - 本番：`https://<来場者向けのドメイン>/api/discord/callback`
+     - 本番：`https://badge.sofken2-ts.app/api/discord/callback`
      - 開発（この PC で試す）：`http://localhost:3000/api/discord/callback`
    - **URL は、`.env` の `DISCORD_REDIRECT_URI` と、1 文字も違わないこと**（末尾の `/` も）。違うと、Discord が、`Invalid OAuth2 redirect_uri` で断る
 4. 「Bot」や権限（Scopes のうち `identify` 以外）は、**設定しない**
@@ -32,7 +32,7 @@
 ```
 DISCORD_CLIENT_ID=<Client ID>
 DISCORD_CLIENT_SECRET=<Client Secret>
-DISCORD_REDIRECT_URI=https://<来場者向けのドメイン>/api/discord/callback
+DISCORD_REDIRECT_URI=https://badge.sofken2-ts.app/api/discord/callback
 VITE_DISCORD_ENABLED=1
 ```
 
