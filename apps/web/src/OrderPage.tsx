@@ -3,9 +3,19 @@ import { BadgeEditor, type BadgeEditorExport, clearDraft, OutputPreview } from "
 import { acceptanceLabels } from "@canbadge/shared";
 import { Button, Checkbox, Notice, navigate, useAction, useResource } from "@canbadge/ui";
 import { useEffect, useRef, useState } from "react";
+import { ArchivePostFields } from "./ArchivePostFields";
 import { api } from "./api";
+import {
+  canPost,
+  emptyPostForm,
+  type PostFormState,
+  postedMessage,
+  postFailedAfterOrderMessage,
+  toPostRequest,
+} from "./archive-post-logic";
 import { discordErrorMessage, readDiscordReturn } from "./discord-return";
 import { discordEnabled, turnstileSiteKey } from "./env";
+import { setFlash } from "./flash";
 import { TurnstileWidget } from "./TurnstileWidget";
 
 /** 作りかけのデザインの、ブラウザ内の保存名。注文が済んだら消す */
@@ -39,6 +49,9 @@ export function OrderPage() {
   const [step, setStep] = useState<"design" | "confirm">("design");
   const [quantity, setQuantity] = useState(1);
   const [consent, setConsent] = useState(false);
+  // 注文と同時に、みんなの作品として公開する（任意）。公開しなくても、注文できる
+  const [publish, setPublish] = useState(false);
+  const [postForm, setPostForm] = useState<PostFormState>(emptyPostForm);
   const [token, setToken] = useState<string | undefined>(undefined);
   /** 注文を試すたびに増やす。Turnstile のトークンは 1 回しか使えないので、作り直す */
   const [tokenVersion, setTokenVersion] = useState(0);
@@ -75,6 +88,20 @@ export function OrderPage() {
           rightsConsent: true,
         },
       });
+      // 注文は、できている。投稿が失敗しても、注文は止めず、注文状況の画面で伝える
+      if (publish) {
+        try {
+          await api.call("createArchiveEntry", {
+            body: { imageId, editorData: design.editorData, ...toPostRequest(postForm) },
+          });
+          setFlash({ tone: "info", text: postedMessage });
+        } catch (error) {
+          setFlash({
+            tone: "error",
+            text: postFailedAfterOrderMessage(error instanceof Error ? error.message : "原因不明"),
+          });
+        }
+      }
       await clearDraft(DRAFT_KEY);
       navigate(`/orders/${orderId}`);
     } catch (error) {
@@ -90,7 +117,12 @@ export function OrderPage() {
   const accepting = setting?.acceptance === "open";
   const maxQuantity = setting?.maxQuantityPerOrder ?? 1;
   const needsToken = turnstileSiteKey !== undefined;
-  const canSubmit = accepting && consent && (!needsToken || token !== undefined) && !submit.running;
+  const canSubmit =
+    accepting &&
+    consent &&
+    (!publish || canPost(postForm)) &&
+    (!needsToken || token !== undefined) &&
+    !submit.running;
 
   const handleExport = (output: BadgeEditorExport) => {
     setDesign({ ...output, previewUrl: URL.createObjectURL(output.png) });
@@ -122,6 +154,29 @@ export function OrderPage() {
           注文番号と確認コードで、注文を開く
         </a>
         。
+      </p>
+      <p className="cb-muted">
+        注文はせずに、作品だけを投稿したい方は、
+        <a
+          href="/archive/post"
+          onClick={(event) => {
+            event.preventDefault();
+            navigate("/archive/post");
+          }}
+        >
+          作品だけ投稿する
+        </a>
+        。投稿した作品は、
+        <a
+          href="/archive/mine"
+          onClick={(event) => {
+            event.preventDefault();
+            navigate("/archive/mine");
+          }}
+        >
+          自分の投稿
+        </a>
+        から、取り下げられます。
       </p>
       {status.error && <Notice tone="error">{status.error}</Notice>}
       {setting && (
@@ -226,6 +281,18 @@ export function OrderPage() {
                 checked={consent}
                 onChange={(event) => setConsent(event.target.checked)}
               />
+              <Checkbox
+                label="この作品を、「みんなの作品」として、公開してもよい（任意）"
+                checked={publish}
+                onChange={(event) => setPublish(event.target.checked)}
+              />
+              {publish && (
+                <ArchivePostFields
+                  value={postForm}
+                  onChange={setPostForm}
+                  disabled={submit.running}
+                />
+              )}
               {turnstileSiteKey && (
                 <TurnstileWidget
                   siteKey={turnstileSiteKey}

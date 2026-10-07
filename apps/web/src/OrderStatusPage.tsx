@@ -2,8 +2,9 @@ import { badgeSpec } from "@canbadge/badge-spec";
 import { OutputPreview } from "@canbadge/editor";
 import { orderStatusLabels } from "@canbadge/shared";
 import { Button, Notice, navigate, QrCode, StatusLabel, useResource } from "@canbadge/ui";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
+import { takeFlash } from "./flash";
 import {
   guideFor,
   justBecameReady,
@@ -22,6 +23,8 @@ const READY_VIBRATION = [200, 100, 200];
  * 状態は、SSE の通知（変わった）で、取り直す。放置されて、あとで画面に戻ったときも、取り直す
  */
 export function OrderStatusPage({ orderId }: { orderId: string }) {
+  // 注文の確定のあとに、1 回だけ出すお知らせ（例：作品の投稿が、できなかった）。再読み込みでは、出さない
+  const [flash] = useState(() => takeFlash());
   const order = useResource(() => api.call("getOrder", { params: { orderId } }), {
     deps: [orderId],
     subscribe: (reload) => {
@@ -115,6 +118,7 @@ export function OrderStatusPage({ orderId }: { orderId: string }) {
 
       {/* 後で、待合画面の動くキャラクター（GIF・アニメ）を入れる場所。全体の見た目は、ここでは変えない */}
 
+      {flash && <Notice tone={flash.tone}>{flash.text}</Notice>}
       {order.error && <Notice tone="error">{order.error}</Notice>}
 
       {showsQr(data.status) && (

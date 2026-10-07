@@ -1,0 +1,79 @@
+/* アーカイブ（W06 投稿・取り下げ）。見た目の部品・色・書体は、packages/ui のトークンと部品を使う（design.md） */
+
+/* 投稿の入力。枠で囲んで、注文の同意とは、別のものだとわかるようにする */
+.cb-post {
+  display: grid;
+  gap: var(--space-md);
+  margin: var(--space-lg) 0;
+  padding: var(--space-md);
+  border: 1px solid var(--color-rule-strong);
+  border-radius: var(--radius-card);
+  background: var(--color-card);
+}
+
+.cb-post__legend {
+  padding-inline: var(--space-xs);
+  font-weight: 700;
+}
+
+.cb-post p {
+  margin: 0;
+}
+
+/* ボタンを押せない理由を、ボタンの上に出す */
+.cb-post__problem {
+  margin-bottom: var(--space-md);
+}
+
+/* 自分の投稿の一覧 */
+.cb-mine__list {
+  list-style: none;
+  margin: var(--space-lg) 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-md);
+}
+
+.cb-mine__card {
+  display: grid;
+  grid-template-columns: 6rem minmax(0, 1fr);
+  gap: var(--space-md);
+  align-items: start;
+  padding: var(--space-md);
+  border: 1px solid var(--color-rule-strong);
+  border-radius: var(--radius-card);
+  background: var(--color-card);
+}
+
+.cb-mine__thumb {
+  width: 6rem;
+  height: 6rem;
+  object-fit: cover;
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-input);
+  background: var(--color-paper-2);
+}
+
+.cb-mine__body {
+  display: grid;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+
+.cb-mine__body p {
+  margin: 0;
+}
+
+.cb-mine__name {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+/* 公開中だけ、色の印を付ける。文字（状態の名前）も、必ず添える */
+.cb-mine__status {
+  font-weight: 700;
+}
+
+.cb-mine__card[data-status="public"] .cb-mine__status {
+  color: var(--color-ok);
+}

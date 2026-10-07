@@ -109,6 +109,7 @@ bun run dev          # web・staff・api・print-worker を起動する
 | 画面 | URL |
 | --- | --- |
 | 来場者：注文する | http://localhost:3000/ （エディタでデザイン → 注文の確認 → 注文すると、注文状況に移る） |
+| 来場者：作品を投稿する・自分の投稿（取り下げ） | http://localhost:3000/archive/post ・ http://localhost:3000/archive/mine |
 | スタッフ：レジ（QR 読み取り・番号入力 → 確認 → 支払い済み） | http://localhost:3001/register （カメラは https か localhost のときだけ使える） |
 | スタッフ：印刷確認 | http://localhost:3001/print |
 | スタッフ：組み立て・受け渡し | http://localhost:3001/assemble |
