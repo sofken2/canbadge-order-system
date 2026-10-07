@@ -60,5 +60,11 @@ export const badgeSpec: BadgeSpec = {
   dpi: 300,
   paper: { widthMm: 210, heightMm: 297, unprintableMarginMm: 5 },
   layout: { columns: 2, rows: 3, gapXMm: 5, gapYMm: 5, labelHeightMm: 6 },
-  calibration: { scaleX: 1, scaleY: 1, offsetXMm: 0, offsetYMm: 0 },
+  // 実機（Canon PIXUS TS6730・Windows 標準の IPP クラスドライバー・A4 普通紙・実際のサイズ 100%）で、
+  // 較正用ページを印刷して、定規で実測した結果：
+  //   横 150mm の目盛り → 実測 150mm（ずれなし）、縦 250mm の目盛り → 実測 250.5〜251mm（約 0.3% 長い。紙送りの誤差）
+  //   円は、70mm・58mm とも、定規の精度では正確
+  // 縦は、実測の中央（250.75mm）から、250 ÷ 250.75 = 0.997 に縮めて描く。測定の精度（±0.25mm）が、倍率の ±0.1% にあたる。
+  // ずらし（offset）は、測っていないので、0。値を変えたら、`bun run calibration --applied --print` で、縦が 250mm になることを確かめる
+  calibration: { scaleX: 1, scaleY: 0.997, offsetXMm: 0, offsetYMm: 0 },
 };
