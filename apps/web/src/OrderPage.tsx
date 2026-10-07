@@ -14,16 +14,13 @@ import {
   toPostRequest,
 } from "./archive-post-logic";
 import { discordErrorMessage, readDiscordReturn } from "./discord-return";
-import { discordEnabled, turnstileSiteKey } from "./env";
+import { DEV_TURNSTILE_TOKEN, discordEnabled, turnstileSiteKey } from "./env";
 import { setFlash } from "./flash";
+import { QuantityPicker } from "./QuantityPicker";
 import { TurnstileWidget } from "./TurnstileWidget";
 
 /** 作りかけのデザインの、ブラウザ内の保存名。注文が済んだら消す */
 const DRAFT_KEY = "order-design";
-
-/** 開発（Turnstile のキーなし）のとき、トークンの代わりに送る文字列。api は、TURNSTILE_SECRET_KEY が未設定のときだけ、これを受け付ける（A06） */
-const DEV_TOKEN = "dev";
-
 type Design = BadgeEditorExport & {
   /** 仕上がりのプレビューに使う、PNG の一時的なアドレス */
   previewUrl: string;
@@ -84,7 +81,7 @@ export function OrderPage() {
           imageId,
           editorData: design.editorData,
           quantity,
-          turnstileToken: turnstileSiteKey ? (token ?? "") : DEV_TOKEN,
+          turnstileToken: turnstileSiteKey ? (token ?? "") : DEV_TURNSTILE_TOKEN,
           rightsConsent: true,
         },
       });
@@ -156,7 +153,17 @@ export function OrderPage() {
         。
       </p>
       <p className="cb-muted">
-        注文はせずに、作品だけを投稿したい方は、
+        他のお客さんが公開してくれた作品を、
+        <a
+          href="/archive"
+          onClick={(event) => {
+            event.preventDefault();
+            navigate("/archive");
+          }}
+        >
+          みんなの作品
+        </a>
+        で見られます。注文はせずに、作品だけを投稿したい方は、
         <a
           href="/archive/post"
           onClick={(event) => {
@@ -224,32 +231,7 @@ export function OrderPage() {
           <h2>注文の確認</h2>
           <OutputPreview src={design.previewUrl} spec={badgeSpec} />
 
-          {maxQuantity > 1 && (
-            <div className="cb-quantity cb-gap-top">
-              <span className="cb-field__label">個数</span>
-              <div className="cb-quantity__controls">
-                <Button
-                  variant="line"
-                  aria-label="個数を減らす"
-                  disabled={quantity <= 1}
-                  onClick={() => setQuantity((current) => Math.max(1, current - 1))}
-                >
-                  −
-                </Button>
-                <output className="cb-quantity__value" aria-live="polite">
-                  {quantity} 個
-                </output>
-                <Button
-                  variant="line"
-                  aria-label="個数を増やす"
-                  disabled={quantity >= maxQuantity}
-                  onClick={() => setQuantity((current) => Math.min(maxQuantity, current + 1))}
-                >
-                  ＋
-                </Button>
-              </div>
-            </div>
-          )}
+          <QuantityPicker value={quantity} max={maxQuantity} onChange={setQuantity} />
 
           <dl className="cb-summary cb-gap-top">
             <dt>金額</dt>

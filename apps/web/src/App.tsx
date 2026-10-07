@@ -1,4 +1,6 @@
 import { usePath } from "@canbadge/ui";
+import { ArchiveDetailPage } from "./ArchiveDetailPage";
+import { ArchiveListPage } from "./ArchiveListPage";
 import { ArchivePostPage } from "./ArchivePostPage";
 import { LookupPage } from "./LookupPage";
 import { MyArchivePage } from "./MyArchivePage";
@@ -13,5 +15,8 @@ export function App() {
   if (path === "/lookup") return <LookupPage />;
   if (path === "/archive/post") return <ArchivePostPage />;
   if (path === "/archive/mine") return <MyArchivePage />;
+  if (path === "/archive") return <ArchiveListPage />;
+  const entry = /^\/archive\/([0-9A-Za-z]{26})$/.exec(path);
+  if (entry?.[1]) return <ArchiveDetailPage entryId={entry[1]} />;
   return <OrderPage />;
 }
