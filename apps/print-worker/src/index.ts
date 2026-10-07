@@ -2,14 +2,22 @@ import { join } from "node:path";
 import { databasePath, openDatabase, resolveDataDir } from "@canbadge/db";
 import { createDriver } from "./driver";
 import { startQueueLoop } from "./queue";
+import { describeStartup } from "./recovery";
 
 const dataDir = resolveDataDir();
 // api と同じ DB を使う。DB がなければ、空の DB を作る
 const db = openDatabase({ path: databasePath(dataDir) });
 
 const driver = createDriver(process.env, { devOutDir: join(dataDir, "print-out") });
+// 印刷できない原因（プリンターが見つからないなど）を、起動時に知らせる。止めはしない（プリンターの電源が、あとで入ることもある）
+for (const problem of (await driver.preflight?.()) ?? []) {
+  console.log(`print-worker: 注意：${problem}`);
+}
 const waitOverride = process.env.PRINT_WAIT_OVERRIDE_SECONDS;
 const intervalMs = Number(process.env.PRINT_POLL_MS ?? 2000);
+
+// 前の起動で印刷中だったシートがあれば、知らせる（自動では、印刷し直さない）
+for (const message of describeStartup(db, dataDir)) console.log(`print-worker: ${message}`);
 
 const loop = startQueueLoop(
   db,
@@ -26,10 +34,10 @@ console.log(
   `print-worker: 起動しました（ドライバー ${driver.name}、${intervalMs}ms ごとに印刷キューを確認、データ置き場 ${dataDir}）`,
 );
 
-// 止めるときは、DB を閉じてから終わる
+// 止めるときは、いま動いている巡回が終わるのを待ってから、DB を閉じて終わる
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
-  process.on(signal, () => {
-    loop.stop();
+  process.on(signal, async () => {
+    await loop.stop();
     db.close();
     process.exit(0);
   });

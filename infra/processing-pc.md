@@ -124,6 +124,28 @@ cd C:\canbadge\infra\windows
 
 DB と画像を、数分おきに、別のドライブへ複製する。手順は [backup.md](backup.md) の 1 章（`.env` の `BACKUP_DIR`、`register-backup-task.ps1`）。
 
+## 8-3. プリンターの設定（P03）
+
+印刷は、SumatraPDF が、`.env` の `PRINTER_NAME` のプリンターへ、**拡大縮小なし**で送る（`apps/print-worker/CLAUDE.md`）。実寸を保つため、次を、処理PC で、先にやっておく。
+
+1. **プリンターを登録する。** 処理PC に、プリンター（Canon PIXUS TS6730）をつなぎ、Windows の「設定 → Bluetooth とデバイス → プリンターとスキャナー」に追加する。**Canon 公式のドライバーを入れる**のがよい（Windows 標準の「Microsoft IPP Class Driver」は、用紙の種類・品質・フチなしの設定が、限られることがある）
+2. **名前を調べて、`.env` に書く。** リポジトリの `apps/print-worker` で `bun run printers`。出てきた名前を、そのまま `.env` の `PRINTER_NAME` に書く。あわせて `PRINT_DRIVER=sumatra`
+3. **印刷の既定値を決める。** そのプリンターの「印刷設定（基本設定）」で、次にする（SumatraPDF は、ここに載っている既定値で印刷する）。
+   - 用紙サイズ：**A4**。用紙の種類：使う用紙（普通紙・フォト用紙など。インクの量と色が変わる）
+   - 印刷品質：標準以上。**カラー**。**両面印刷：オフ**。**フチなし印刷：オフ**（フチあり。縁の余白は、`badgeSpec.paper.unprintableMarginMm` で見込んである。実測は、下の 5）
+   - 「用紙に合わせる」「縮小」のような、拡大縮小の設定が、プリンター側にあれば、すべてオフ
+4. **SumatraPDF が入っているか。** `install-tools.ps1`（3 章）が入れる。`%LOCALAPPDATA%\SumatraPDF\SumatraPDF.exe` があること（別の場所なら `.env` の `SUMATRA_PATH`）
+5. **較正する（実機で。P01・P03）。**
+   1. `bun run calibration --print` で、較正用ページを、実際に印刷する（用紙が 1 枚出る）
+   2. **入れ子の枠**：全体が見える、いちばん外側の枠が、プリンターの印刷できない縁の幅（mm）。`badgeSpec.paper.unprintableMarginMm` を、これ以上にする
+   3. **定規**：横（160mm）と縦（260mm）を、定規で測る。`scaleX = 160 ÷ 横の実測`、`scaleY = 260 ÷ 縦の実測`
+   4. **円**：70mm と 58mm の円の直径を測る。定規の倍率と、合っているかを見る
+   5. 値を `packages/badge-spec/src/spec.ts` の `calibration` に入れ、`bun run calibration --applied --print` で、もう一度、印刷する。定規が、指定どおりの長さになっていること
+   6. **ずれが残る**（倍率が合わない）ときは、プリンターの設定（拡大縮小・フチなし）を疑う。`noscale` は、SumatraPDF 側の指定で、プリンター側の拡大は止められない
+6. **確認：** スタッフ画面で、実際の注文を 1 件、支払い済みにして、印刷されたシートを、S03 の画面と、見比べる（並び順・注文番号）。バッジマシンで、実際にプレスして、仕上がりを見る（Q01）
+
+**印刷が失敗したときの動き：** ドライバーが失敗しても（プリンターの電源が切れている・用紙切れなど）、自動では、印刷し直さない。スタッフ画面の「印刷確認」に、そのシートが残る。用紙が出ていなければ、「再印刷」を選ぶと、次のシートで印刷される。
+
 ## 9. Windows Update
 
 学祭の前後で、更新による再起動や遅さが出ないようにする。
