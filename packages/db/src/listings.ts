@@ -289,6 +289,8 @@ export type PrintableItem = {
   printCount: number;
   /** 印刷待ちになった時刻の目安（支払った時刻）。「最も古いバッジが一定時間待ったら印刷する」の判断に使う */
   waitingSince: string;
+  /** バッジのデザイン画像。データ置き場からの相対パス（例: images/<ID>.png）。印刷の PDF に載せる */
+  imagePath: string;
 };
 
 /**
@@ -303,9 +305,11 @@ export function listPrintableItems(db: Database): PrintableItem[] {
       orderNumber: orders.orderNumber,
       printCount: orderItems.printCount,
       waitingSince: orders.paidAt,
+      imagePath: designs.imagePath,
     })
     .from(orderItems)
     .innerJoin(orders, eq(orders.id, orderItems.orderId))
+    .innerJoin(designs, eq(designs.id, orderItems.designId))
     .where(and(eq(orderItems.status, "queued"), eq(orders.status, "paid")))
     .orderBy(desc(orderItems.printCount), orders.paidAt, orderItems.id)
     .all()

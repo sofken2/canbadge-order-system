@@ -12,10 +12,10 @@ import {
 } from "@canbadge/db";
 import { formatOrderNumber } from "@canbadge/shared";
 import type { PrintDriver } from "./driver";
-import { renderPlaceholderPdf } from "./placeholder-pdf";
+import { renderSheetPdf } from "./sheet-pdf";
 
 // 印刷キューの最小限。**本番のキュー制御（一時停止中の扱い・再起動後の復旧・再印刷の細かい順序など）は
-// P02、本物の面付け・PDF は P01、本番のドライバーは P03 で作る。** ここは、注文から呼び出しまでを
+// P02、本番のドライバーは P03 で作る。** PDF は、P01 の面付け（sheet-pdf.ts）で作る。 ここは、注文から呼び出しまでを
 // 一通り通す（T09）ための、骨組み。
 
 export type QueueOptions = {
@@ -42,6 +42,10 @@ export type TickResult =
   | { status: "failed"; error: string }
   /** シートは記録済みだが、ドライバーが印刷に失敗した。印刷係が、シートの確認で再印刷を選べる */
   | { status: "driver-failed"; sheetId: string; error: string };
+
+/** 日本時間の「2026-11-03 20:40」。用紙に印字する */
+const jstMinute = (date: Date): string =>
+  new Date(date.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 16).replace("T", " ");
 
 const errorText = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
@@ -70,16 +74,27 @@ export async function runQueueOnce(db: Database, options: QueueOptions): Promise
   const key = newId(db.now());
   const pdfPath = join(sheetsDir(options.dataDir), `${key}.pdf`);
   mkdirSync(sheetsDir(options.dataDir), { recursive: true });
-  await Bun.write(
-    pdfPath,
-    await renderPlaceholderPdf({
-      sheetKey: key,
-      slots: batch.map((item, position) => ({
-        position,
-        orderNumberText: formatOrderNumber(item.orderNumber, setting.orderNumberDigits),
-      })),
-    }),
-  );
+  try {
+    await Bun.write(
+      pdfPath,
+      await renderSheetPdf(
+        badgeSpec,
+        batch.map((item) => ({
+          imagePath: item.imagePath,
+          orderNumberText: formatOrderNumber(item.orderNumber, setting.orderNumberDigits),
+        })),
+        {
+          dataDir: options.dataDir,
+          // 用紙と、S03 の画面（「20:40 に印刷」）を、見比べるための手がかり
+          sheetLabel: `SHEET ${key.slice(-6)}`,
+          printedAtText: jstMinute(db.now()),
+        },
+      ),
+    );
+  } catch (error) {
+    // 画像が読めないなど。シートは記録していないので、バッジは印刷待ちのまま（P02 で、問題のバッジを避ける）
+    return { status: "failed", error: errorText(error) };
+  }
 
   // 印刷する前に、シートとバッジの状態を記録する
   let sheetId: string;

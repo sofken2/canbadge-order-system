@@ -6,12 +6,14 @@
   "scripts": {
     "dev": "bun --watch src/index.ts",
     "build": "bun build src/index.ts --outdir dist --target bun",
+    "calibration": "bun src/calibration-cli.ts",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "test": "bun test --pass-with-no-tests"
   },
   "devDependencies": {
-    "@canbadge/config": "workspace:*"
+    "@canbadge/config": "workspace:*",
+    "@canbadge/fixtures": "workspace:*"
   },
   "dependencies": {
     "@canbadge/badge-spec": "workspace:*",

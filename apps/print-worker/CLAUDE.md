@@ -9,7 +9,23 @@
 | `src/index.ts` | 起動。DB を開き、ドライバーを選び、印刷キューの巡回を始める |
 | `src/queue.ts` | 印刷キュー。`runQueueOnce`（1 回の巡回）と `startQueueLoop`。最小限の骨組みで、本番のキュー制御は P02 |
 | `src/driver.ts` | 印刷ドライバー（`PrintDriver`）。開発用は PDF を `data/print-out/` に複製する。本番用（SumatraPDF）は P03 |
-| `src/placeholder-pdf.ts` | 文字だけの仮の PDF。本物の面付けは P01 で、これを置き換える |
+| `src/layout.ts` | 用紙の上の配置（面付け）。mm・用紙の左上が原点。`layoutSlots`（位置の計算）・`calibrate`（較正の変換）。画面を持たない純粋な計算 |
+| `src/sheet-pdf.ts` | `renderSheetPdf(spec, badges, { dataDir, … })`。バッジの画像を、実寸で円に切り取って並べ、円の下に注文番号を印字した PDF（1 ページ） |
+| `src/calibration-pdf.ts` | `renderCalibrationPdf(spec, { applyCalibration })`。実機で測る、較正用ページ（P03 で使う） |
+| `src/pdf-draw.ts` | PDF に描く小さな道具。mm（用紙の左上が原点）から、PDF の座標（pt・左下が原点）への変換は、ここだけで行う |
+| `src/calibration-cli.ts` | `bun run calibration` で、較正用ページを `data/print-out/` に書き出す |
+
+## 印刷シートの PDF（P01）
+
+- **用紙は A4（`badgeSpec.paper`）。バッジの印刷円（見える円 58mm + 塗り足し 6mm × 2 = 70mm）を、2 列 × 3 行で並べる**。全体は、印刷できる範囲の中央
+- **並び順は、左上から、右へ、次の行へ。** `position` がこの順で、S03 の画面の並びと同じ。用紙の何番目かも、円の下の左に、小さく印字する
+- 各バッジの画像（エディタが出す、塗り足しまでの正方形の PNG）は、**印刷円の中だけに切り取って**置く。円の縁に、細い灰色の線（切り抜きの目安）を引く。縁は、缶の裏に折り込まれる部分なので、仕上がりの表には出ない
+- 注文番号は円の真下。用紙の左上に、シートの名前と日時（日本時間の「分」まで）を小さく印字する。S03 の「20:40 に印刷」と見比べられる
+- 寸法は、画像の画素数に関係なく、mm から pt へ換算して配置する（実寸）。画像が正方形でなければ、円を覆うように拡大して中央を使う
+- **標準フォントは日本語を描けない**ので、PDF の文字は ASCII だけ（注文番号は数字）
+- **較正**：`badgeSpec.calibration`（倍率・ずらし）を、シート全体に掛ける。補正なし（倍率 1・ずらしなし）のときは、何も掛けない。`calibrate` の意味：用紙の左上を原点に、x' = x × scaleX + offsetX、y' = y × scaleY + offsetY（y は下向き。offset が正なら、右・下）
+- **較正用ページ**：`bun run calibration`（補正なし。測定用）／`bun run calibration --applied`（補正あり。確認用）。入れ子の枠（縁から 1〜10mm）で、プリンターの印刷できない縁を、定規（横 160mm・縦 260mm）で、倍率を、円で、大きさを測る。**必ず「実際のサイズ（100%）」で印刷する**
+- 画像が読めない（ない・PNG/JPEG でない・データ置き場の外を指す）ときは、PDF を作らず、キューは `failed` を返す（シートは記録されず、バッジは印刷待ちのまま）。**問題のバッジを避けて次へ進む処理は P02**
 
 環境変数：`PRINT_DRIVER`（既定 dev）、`PRINT_POLL_MS`（巡回の間隔）、`PRINT_WAIT_OVERRIDE_SECONDS`（印刷待ちの最大時間を、設定の代わりに上書きする。開発用）。
 

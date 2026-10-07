@@ -37,6 +37,7 @@
       },
       "devDependencies": {
         "@canbadge/config": "workspace:*",
+        "@canbadge/fixtures": "workspace:*",
       },
     },
     "apps/staff": {
