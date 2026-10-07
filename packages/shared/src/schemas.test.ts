@@ -2,14 +2,17 @@ import { describe, expect, test } from "bun:test";
 import {
   apiErrorSchema,
   archiveEntrySchema,
+  archiveEntryViewSchema,
   auditLogSchema,
   checkPrintSheetRequestSchema,
+  createArchiveEntryRequestSchema,
   createOrderRequestSchema,
   designSchema,
   errorCodeSchema,
   errorHttpStatus,
   monitorReadyItemSchema,
   monitorSseEventSchema,
+  orderFromArchiveRequestSchema,
   orderItemSchema,
   orderSchema,
   orderSseEventSchema,
@@ -17,10 +20,14 @@ import {
   pickupRequestSchema,
   printSheetSchema,
   printSlotSchema,
+  reportListQuerySchema,
   reportSchema,
+  reportViewSchema,
   reprintRequestSchema,
   settingSchema,
   sseEventSchema,
+  staffArchiveEntryViewSchema,
+  staffArchiveQuerySchema,
   staffOrderSearchQuerySchema,
   staffOrderViewSchema,
   staffSseEventSchema,
@@ -267,5 +274,93 @@ describe("SSE イベント", () => {
     expect(
       events.filter((e) => monitorSseEventSchema.safeParse(e).success).map((e) => e.type),
     ).toEqual(["monitor.updated"]);
+  });
+});
+
+describe("アーカイブの入出力（A04）", () => {
+  const post = {
+    imageId: A,
+    editorData: { version: 1 },
+    displayName: "たろう",
+    consent: { selfMade: true, allowOthersToOrder: true },
+  };
+
+  test("投稿：同意の 2 項目が、どちらも true のときだけ通る（欠けている・false・文字列は、通らない）", () => {
+    expect(createArchiveEntryRequestSchema.safeParse(post).success).toBe(true);
+    for (const consent of [
+      { selfMade: false, allowOthersToOrder: true },
+      { selfMade: true, allowOthersToOrder: false },
+      { selfMade: true },
+      { allowOthersToOrder: true },
+      {},
+      { selfMade: "true", allowOthersToOrder: "true" },
+      undefined,
+    ]) {
+      expect(createArchiveEntryRequestSchema.safeParse({ ...post, consent }).success).toBe(false);
+    }
+  });
+
+  test("投稿：表示名は 1〜20 文字（前後の空白は取る）", () => {
+    expect(
+      createArchiveEntryRequestSchema.parse({ ...post, displayName: "  たろう  " }).displayName,
+    ).toBe("たろう");
+    for (const displayName of ["", "   ", "あ".repeat(21)]) {
+      expect(createArchiveEntryRequestSchema.safeParse({ ...post, displayName }).success).toBe(
+        false,
+      );
+    }
+    expect(
+      createArchiveEntryRequestSchema.safeParse({ ...post, displayName: "あ".repeat(20) }).success,
+    ).toBe(true);
+  });
+
+  test("作品からの注文：権利確認への同意が true でなければ、通らない。個数は 1 以上", () => {
+    const ok = { quantity: 1, turnstileToken: "t", rightsConsent: true };
+    expect(orderFromArchiveRequestSchema.safeParse(ok).success).toBe(true);
+    expect(orderFromArchiveRequestSchema.safeParse({ ...ok, rightsConsent: false }).success).toBe(
+      false,
+    );
+    expect(orderFromArchiveRequestSchema.safeParse({ ...ok, quantity: 0 }).success).toBe(false);
+    expect(orderFromArchiveRequestSchema.safeParse({ ...ok, turnstileToken: "" }).success).toBe(
+      false,
+    );
+  });
+
+  test("画面に返す形は、作者の匿名トークンを持たない（スキーマの検証で、余計な項目が落ちる）", () => {
+    const entry = {
+      id: A,
+      displayName: "たろう",
+      thumbnailUrl: "/api/images/x?size=thumb",
+      createdAt: "2026-11-03T00:00:00.000Z",
+      authorAnonToken: "a".repeat(32),
+    };
+    expect(Object.keys(archiveEntryViewSchema.parse(entry))).not.toContain("authorAnonToken");
+    const staffView = staffArchiveEntryViewSchema.parse({
+      ...entry,
+      status: "public",
+      imageUrl: "/api/images/x",
+      openReportCount: 0,
+    });
+    expect(Object.keys(staffView)).not.toContain("authorAnonToken");
+  });
+
+  test("審査の一覧の絞り込み：状態は、4 つの状態のどれか。件数は文字列でも数値になる", () => {
+    expect(staffArchiveQuerySchema.parse({ status: "pending_review", limit: "20" }).limit).toBe(20);
+    expect(staffArchiveQuerySchema.safeParse({ status: "unknown" }).success).toBe(false);
+    expect(staffArchiveQuerySchema.parse({}).status).toBeUndefined();
+    expect(reportListQuerySchema.safeParse({ status: "open" }).success).toBe(true);
+    expect(reportListQuerySchema.safeParse({ status: "pending" }).success).toBe(false);
+  });
+
+  test("通報の表示：通報と、通報された作品の概要", () => {
+    const view = reportViewSchema.parse({
+      id: A,
+      archiveEntryId: B,
+      reason: "理由",
+      status: "open",
+      createdAt: "2026-11-03T00:00:00.000Z",
+      entry: { displayName: "たろう", status: "public", thumbnailUrl: "/t", imageUrl: "/i" },
+    });
+    expect(view.entry.displayName).toBe("たろう");
   });
 });

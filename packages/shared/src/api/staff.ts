@@ -1,13 +1,16 @@
 import { z } from "zod";
+import { archiveEntrySchema, reportSchema } from "../entities/archive";
 import { settingSchema } from "../entities/setting";
 import { confirmationCodeInputSchema, idSchema, orderIdSchema, orderNumberSchema } from "../ids";
 import { isoDateSchema, isoDateTimeSchema, quantitySchema, yenSchema } from "../primitives";
 import {
   acceptanceSchema,
+  archiveStatusSchema,
   orderItemStatusSchema,
   orderStatusSchema,
   printSheetStatusSchema,
   printSlotResultSchema,
+  reportStatusSchema,
 } from "../status";
 import { beforeSchema, limitSchema, pagedSchema } from "./common";
 
@@ -191,3 +194,50 @@ export const salesResponseSchema = z.object({
   }),
 });
 export type SalesResponse = z.infer<typeof salesResponseSchema>;
+
+// ---- アーカイブの審査（S06） ----
+
+/** GET /api/staff/archive。status を指定しなければ、すべての状態 */
+export const staffArchiveQuerySchema = z.object({
+  status: archiveStatusSchema.optional(),
+  before: beforeSchema,
+  limit: limitSchema,
+});
+export type StaffArchiveQuery = z.infer<typeof staffArchiveQuerySchema>;
+
+/** 審査の一覧の 1 点。権利面の確認のため、大きい画像（imageUrl）も返す */
+export const staffArchiveEntryViewSchema = z.object({
+  id: idSchema,
+  displayName: archiveEntrySchema.shape.displayName,
+  status: archiveStatusSchema,
+  thumbnailUrl: z.string(),
+  imageUrl: z.string(),
+  createdAt: isoDateTimeSchema,
+  reviewedAt: isoDateTimeSchema.optional(),
+  /** 未対応（open）の通報の数 */
+  openReportCount: z.int().nonnegative(),
+});
+export type StaffArchiveEntryView = z.infer<typeof staffArchiveEntryViewSchema>;
+export const staffArchiveListResponseSchema = pagedSchema(staffArchiveEntryViewSchema);
+export type StaffArchiveListResponse = z.infer<typeof staffArchiveListResponseSchema>;
+
+/** GET /api/staff/archive/reports。status を指定しなければ、すべて */
+export const reportListQuerySchema = z.object({
+  status: reportStatusSchema.optional(),
+  before: beforeSchema,
+  limit: limitSchema,
+});
+export type ReportListQuery = z.infer<typeof reportListQuerySchema>;
+
+/** 通報 1 件。通報された作品の概要つき */
+export const reportViewSchema = reportSchema.extend({
+  entry: z.object({
+    displayName: archiveEntrySchema.shape.displayName,
+    status: archiveStatusSchema,
+    thumbnailUrl: z.string(),
+    imageUrl: z.string(),
+  }),
+});
+export type ReportView = z.infer<typeof reportViewSchema>;
+export const reportListResponseSchema = pagedSchema(reportViewSchema);
+export type ReportListResponse = z.infer<typeof reportListResponseSchema>;

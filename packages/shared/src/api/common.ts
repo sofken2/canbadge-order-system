@@ -19,3 +19,5 @@ export function pagedSchema<T extends z.ZodType>(item: T) {
 export const orderIdParamsSchema = z.object({ orderId: idSchema });
 export const sheetIdParamsSchema = z.object({ sheetId: idSchema });
 export const imageIdParamsSchema = z.object({ imageId: idSchema });
+export const archiveEntryIdParamsSchema = z.object({ entryId: idSchema });
+export const reportIdParamsSchema = z.object({ reportId: idSchema });

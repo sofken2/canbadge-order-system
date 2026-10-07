@@ -16,11 +16,11 @@ import { and, count, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { writeAudit } from "./audit";
 import type { Database, Reader } from "./connection";
-import { conflict, DbError, validationFailed } from "./errors";
+import { conflict, DbError, notFound, validationFailed } from "./errors";
 import { generateConfirmationCode } from "./generate";
 import { getSetting, listOrderItems, requireOrder } from "./queries";
 import { toDesign, toOrder, toOrderItem } from "./rows";
-import { designs, orderItems, orders } from "./schema";
+import { archiveEntries, designs, orderItems, orders } from "./schema";
 import { type Ctx, idAt, write } from "./transaction";
 import { findTransition } from "./transition";
 
@@ -78,6 +78,17 @@ export function createOrder(db: Database, input: CreateOrderInput): CreatedOrder
         `支払い待ちの注文が ${setting.maxPendingPerDevice} 件あります。レジで支払うか、取り消してから、注文してください`,
         { pending, limit: setting.maxPendingPerDevice },
       );
+    }
+
+    // 作品からのコピーは、元作品が公開中のときだけ作れる。非公開にされたあとに、入れ違いで作られないよう、
+    // 非公開にする処理（支払い前のコピーを止める）と同じように、トランザクションの中で確かめる
+    if (data.sourceArchiveEntryId) {
+      const source = ctx.tx
+        .select({ status: archiveEntries.status })
+        .from(archiveEntries)
+        .where(eq(archiveEntries.id, data.sourceArchiveEntryId))
+        .get();
+      if (source?.status !== "public") throw notFound("作品");
     }
 
     const designId = idAt(ctx);

@@ -239,6 +239,74 @@ describe("呼び出しモニター向けのエンドポイント", () => {
   });
 });
 
+describe("アーカイブのエンドポイント（A04）", () => {
+  const post = (displayName: string) => ({
+    imageId: state.uploadedImageId,
+    editorData: { version: 1 },
+    displayName,
+    consent: { selfMade: true, allowOthersToOrder: true },
+  });
+  const author = () => ({ cookie: state.cookie ?? "" });
+
+  test("createArchiveEntry → listMyArchive → listStaffArchive（審査待ち）", async () => {
+    const { body } = await run("createArchiveEntry", { json: post("たろう"), headers: author() });
+    state.entryA = (body as { entryId: string }).entryId;
+
+    const mine = await run("listMyArchive", { headers: author() });
+    expect(mine.body).toMatchObject({ items: [{ id: state.entryA, status: "pending_review" }] });
+
+    const staff = await run("listStaffArchive", { query: "?status=pending_review" });
+    expect(JSON.stringify(staff.body)).toContain(state.entryA ?? "");
+  });
+
+  test("approveArchiveEntry → listArchive・getArchiveEntry（公開）", async () => {
+    await run("approveArchiveEntry", { params: { entryId: state.entryA ?? "" } });
+    const list = await run("listArchive", {});
+    expect(JSON.stringify(list.body)).toContain(state.entryA ?? "");
+    await run("getArchiveEntry", { params: { entryId: state.entryA ?? "" } });
+  });
+
+  test("reportArchiveEntry → listArchiveReports → resolveArchiveReport", async () => {
+    const { body } = await run("reportArchiveEntry", {
+      params: { entryId: state.entryA ?? "" },
+      json: { reason: "他人のキャラクターに見えます" },
+    });
+    const reportId = (body as { reportId: string }).reportId;
+    const list = await run("listArchiveReports", { query: "?status=open" });
+    expect(JSON.stringify(list.body)).toContain(reportId);
+    await run("resolveArchiveReport", { params: { reportId } });
+  });
+
+  test("orderFromArchive（作品をコピーして注文）", async () => {
+    // 前のテストで受付を止めているので、開ける（作品からの注文も、受付状態に従う）
+    await call(t.app, "POST", "/api/staff/business-day/open");
+    await call(t.app, "POST", "/api/staff/acceptance", { json: { acceptance: "open" } });
+    await run("orderFromArchive", {
+      params: { entryId: state.entryA ?? "" },
+      json: { quantity: 1, turnstileToken: "dummy", rightsConsent: true },
+    });
+  });
+
+  test("hideArchiveEntry（スタッフが非公開に）・rejectArchiveEntry・withdrawArchiveEntry（作者の取り下げ）", async () => {
+    const hidden = await run("hideArchiveEntry", { params: { entryId: state.entryA ?? "" } });
+    expect(hidden.body).toMatchObject({ status: "hidden" });
+
+    const rejected = await run("createArchiveEntry", { json: post("はなこ"), headers: author() });
+    const rejectedId = (rejected.body as { entryId: string }).entryId;
+    const r = await run("rejectArchiveEntry", { params: { entryId: rejectedId } });
+    expect(r.body).toMatchObject({ status: "rejected" });
+
+    const own = await run("createArchiveEntry", { json: post("じろう"), headers: author() });
+    const ownId = (own.body as { entryId: string }).entryId;
+    await run("approveArchiveEntry", { params: { entryId: ownId } });
+    const withdrawn = await run("withdrawArchiveEntry", {
+      params: { entryId: ownId },
+      headers: author(),
+    });
+    expect(withdrawn.body).toMatchObject({ status: "hidden" });
+  });
+});
+
 describe("契約との対応", () => {
   test("契約のすべてのエンドポイントを、1 本ずつ呼んで確かめた", () => {
     expect([...covered].map(String).sort()).toEqual(Object.keys(endpoints).sort());

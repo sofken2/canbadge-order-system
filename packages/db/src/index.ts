@@ -1,5 +1,6 @@
 // SQLite + Drizzle。状態変更の唯一の入口（packages/db/CLAUDE.md）。
 // app から status 列を直接 UPDATE せず、ここの遷移関数を通す。
+export * from "./archive";
 export * from "./audit";
 export * from "./backup";
 export * from "./clock";
