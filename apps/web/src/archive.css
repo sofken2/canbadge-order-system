@@ -118,3 +118,12 @@
   font-weight: 700;
   overflow-wrap: anywhere;
 }
+
+/* 作品からの注文（W07）。プレビューの円と、見出しの間をあける。個数のボタンと、金額の区切り線を、くっつけない */
+.cb-arcorder {
+  margin-top: var(--space-lg);
+}
+
+.cb-arcorder .cb-quantity {
+  margin-bottom: var(--space-md);
+}

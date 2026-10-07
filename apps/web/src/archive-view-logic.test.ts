@@ -4,6 +4,7 @@ import {
   appendPage,
   authorLine,
   orderBlockedReason,
+  orderErrorMessage,
   REPORT_REASON_MAX,
   reportProblem,
 } from "./archive-view-logic";
@@ -74,5 +75,14 @@ describe("文と、注文できるか", () => {
         orderBlockedReason({ accepting: true, busyMessage: null, entryStatus: status }),
       ).toContain("注文できません");
     }
+  });
+});
+
+describe("作品からの注文の失敗", () => {
+  test("作品が取り下げられていたときは、理由が分かる文にする。ほかの失敗は、api の文のまま", () => {
+    expect(orderErrorMessage("作品が見つかりません")).toContain("取り下げられたかもしれません");
+    expect(orderErrorMessage("支払い待ちの注文が 2 件あります。")).toBe(
+      "支払い待ちの注文が 2 件あります。",
+    );
   });
 });
