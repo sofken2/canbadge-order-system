@@ -11,7 +11,7 @@ import { designs, orderItems, orders, printSheets, printSlots } from "./schema";
 export type Page<T> = { items: T[]; nextBefore: string | null };
 
 /** limit + 1 件読んで、続きがあるかを判断する。目印には、最後に返す行の目印を使う */
-function toPage<T>(rows: T[], limit: number, cursorOf: (row: T) => string): Page<T> {
+export function toPage<T>(rows: T[], limit: number, cursorOf: (row: T) => string): Page<T> {
   const items = rows.slice(0, limit);
   const last = items.at(-1);
   return { items, nextBefore: rows.length > limit && last ? cursorOf(last) : null };

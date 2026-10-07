@@ -351,6 +351,12 @@ type ApiError = { error: { code: ErrorCode; message: string; details?: unknown }
 | 売上集計 | `GET /api/staff/sales?businessDate=` | 時間帯別の件数と金額、返金を引いた合計 | staff（S07） |
 | 呼び出し一覧 | `GET /api/monitor/ready` | `ready` の注文番号一覧。注文 ID（QR の中身）は含めない | staff（S05） |
 | 画像の配信 | `GET /api/images/:imageId`（`?size=thumb`） | 画像 | web・staff |
+| 作品の一覧・詳細 | `GET /api/archive`・`GET /api/archive/:entryId` | 公開中の作品（サムネイル・表示名。詳細は大きい画像と `editorData`）。作者本人は、自分の作品なら、どの状態でも | web（W05） |
+| 自分の投稿 | `GET /api/my/archive` | 自分が投稿した作品と状態 | web（W06） |
+| 投稿・取り下げ・通報 | `POST /api/archive`・`POST /api/archive/:entryId/{withdraw,report}` | 投稿は `{ imageId, editorData, displayName, consent }`（同意 2 項目が true でなければ 400）。取り下げは作者だけ | web（W06） |
+| 作品からの注文 | `POST /api/archive/:entryId/order` | `{ quantity, turnstileToken, rightsConsent }` → `{ orderId }`。通常の注文と同じ処理。元作品が非公開になったら、支払い前の注文は止まる | web（W07） |
+| アーカイブの審査 | `GET /api/staff/archive`・`POST /api/staff/archive/:entryId/{approve,reject,hide}` | 状態で絞る一覧（未対応の通報の件数つき）・承認・却下・非公開 | staff（S06） |
+| 通報の対応 | `GET /api/staff/archive/reports`・`POST /api/staff/archive/reports/:reportId/resolve` | 通報の一覧（作品の概要つき）・対応済み | staff（S06） |
 | Discord アイコンの取り込み開始 | `GET /api/discord/authorize` | Discord の許可画面へリダイレクト（`state` を Cookie に保存） | web（W08） |
 | Discord からの戻り | `GET /api/discord/callback?code=&state=` | アイコンを取得して保存し、`/<エディタのパス>?imageId=` へリダイレクト。失敗時は `?discordError=<code>` | web（W08） |
 | SSE | `GET /api/events/orders/:orderId`、`/api/staff/events`、`/api/monitor/events` | 下記イベント | web・staff |

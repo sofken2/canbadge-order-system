@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { archiveEntrySchema } from "../entities/archive";
 import { editorDataSchema } from "../entities/design";
 import {
   confirmationCodeInputSchema,
@@ -8,7 +9,13 @@ import {
   orderNumberSchema,
 } from "../ids";
 import { isoDateSchema, isoDateTimeSchema, quantitySchema, yenSchema } from "../primitives";
-import { acceptanceSchema, orderItemStatusSchema, orderStatusSchema } from "../status";
+import {
+  acceptanceSchema,
+  archiveStatusSchema,
+  orderItemStatusSchema,
+  orderStatusSchema,
+} from "../status";
+import { pagedSchema, pageQuerySchema } from "./common";
 
 // 来場者向け（認証なし）。本人の判定は匿名トークンの Cookie で、api が読む
 
@@ -92,3 +99,75 @@ export const discordCallbackQuerySchema = z.object({
   error: z.string().optional(),
 });
 export type DiscordCallbackQuery = z.infer<typeof discordCallbackQuerySchema>;
+
+// ---- アーカイブ（spec.md 11 章）。公開の可否はスタッフの承認で決まり、承認された作品だけが、他の来場者に見える ----
+
+/** 投稿時の同意（spec.md 11.1）。2 つとも true でなければ、投稿できない（画面でも api でも保証する）。同意の日時は、api が記録する */
+export const archiveConsentInputSchema = z.object({
+  /** 自作であること */
+  selfMade: z.literal(true),
+  /** 他の来場者が注文してよいこと */
+  allowOthersToOrder: z.literal(true),
+});
+export type ArchiveConsentInput = z.infer<typeof archiveConsentInputSchema>;
+
+/** 一覧に出す、作品 1 点。作者の匿名トークンは、含めない */
+export const archiveEntryViewSchema = z.object({
+  id: idSchema,
+  displayName: archiveEntrySchema.shape.displayName,
+  thumbnailUrl: z.string(),
+  createdAt: isoDateTimeSchema,
+});
+export type ArchiveEntryView = z.infer<typeof archiveEntryViewSchema>;
+
+/** GET /api/archive。公開中の作品を、新しい順に */
+export const archiveListQuerySchema = pageQuerySchema;
+export const archiveListResponseSchema = pagedSchema(archiveEntryViewSchema);
+export type ArchiveListResponse = z.infer<typeof archiveListResponseSchema>;
+
+/** GET /api/archive/:entryId。公開中の作品か、作者本人の作品（どの状態でも） */
+export const archiveEntryDetailViewSchema = archiveEntryViewSchema.extend({
+  imageUrl: z.string(),
+  /** 作品のデザイン。コピーして注文するとき、このまま使う（編集は、まだできない） */
+  editorData: editorDataSchema,
+  status: archiveStatusSchema,
+  /** 自分が投稿した作品か（取り下げの操作を出す） */
+  isMine: z.boolean(),
+});
+export type ArchiveEntryDetailView = z.infer<typeof archiveEntryDetailViewSchema>;
+
+/** GET /api/my/archive・POST /api/archive/:entryId/withdraw。自分が投稿した作品と、いまの状態 */
+export const myArchiveEntryViewSchema = archiveEntryViewSchema.extend({
+  status: archiveStatusSchema,
+});
+export type MyArchiveEntryView = z.infer<typeof myArchiveEntryViewSchema>;
+export const myArchiveListResponseSchema = z.object({ items: z.array(myArchiveEntryViewSchema) });
+export type MyArchiveListResponse = z.infer<typeof myArchiveListResponseSchema>;
+
+/** POST /api/archive。審査待ち（pending_review）で投稿される。アップロードした画像と、エディタのデータを渡す */
+export const createArchiveEntryRequestSchema = z.object({
+  imageId: idSchema,
+  editorData: editorDataSchema,
+  displayName: archiveEntrySchema.shape.displayName,
+  consent: archiveConsentInputSchema,
+});
+export type CreateArchiveEntryRequest = z.infer<typeof createArchiveEntryRequestSchema>;
+export const createArchiveEntryResponseSchema = z.object({ entryId: idSchema });
+export type CreateArchiveEntryResponse = z.infer<typeof createArchiveEntryResponseSchema>;
+
+/** POST /api/archive/:entryId/report */
+export const reportArchiveEntryRequestSchema = z.object({
+  reason: z.string().trim().min(1).max(500),
+});
+export type ReportArchiveEntryRequest = z.infer<typeof reportArchiveEntryRequestSchema>;
+export const reportArchiveEntryResponseSchema = z.object({ reportId: idSchema });
+export type ReportArchiveEntryResponse = z.infer<typeof reportArchiveEntryResponseSchema>;
+
+/** POST /api/archive/:entryId/order。作品をコピーして注文する。受付・上限・Turnstile は、通常の注文と同じ */
+export const orderFromArchiveRequestSchema = z.object({
+  quantity: quantitySchema,
+  turnstileToken: z.string().min(1),
+  /** 権利確認への同意（spec.md 11.4）。通常の注文と同じ */
+  rightsConsent: z.literal(true),
+});
+export type OrderFromArchiveRequest = z.infer<typeof orderFromArchiveRequestSchema>;

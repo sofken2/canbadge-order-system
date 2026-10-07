@@ -1,20 +1,28 @@
 import { posix } from "node:path";
 import {
+  type ArchiveItem,
   type Database,
   getDesign,
   getSetting,
   listOrderItems,
   listSlotDetails,
   type PrintedItem,
+  type ReportItem,
+  type StaffArchiveItem,
 } from "@canbadge/db";
 import {
+  type ArchiveEntryDetailView,
+  type ArchiveEntryView,
   formatOrderNumber,
+  type MyArchiveEntryView,
   type Order,
   type OrderStatus,
   type OrderView,
   type PrintedItemView,
   type PrintSheet,
   type PrintSheetView,
+  type ReportView,
+  type StaffArchiveEntryView,
   type StaffOrderView,
 } from "@canbadge/shared";
 
@@ -130,5 +138,61 @@ export function buildPrintedItemView(db: Database, item: PrintedItem): PrintedIt
     thumbnailUrl: thumbnailUrl(item.imagePath),
     reprintable:
       item.itemStatus === "printed" && reprintableOrderStatuses.includes(item.orderStatus),
+  };
+}
+
+// ---- アーカイブ。作者の匿名トークン（authorAnonToken）は、ここで項目を選んで、含めない ----
+
+export function archiveEntryView({ entry, design }: ArchiveItem): ArchiveEntryView {
+  return {
+    id: entry.id,
+    displayName: entry.displayName,
+    thumbnailUrl: thumbnailUrl(design.imagePath),
+    createdAt: entry.createdAt,
+  };
+}
+
+export function myArchiveEntryView(item: ArchiveItem): MyArchiveEntryView {
+  return { ...archiveEntryView(item), status: item.entry.status };
+}
+
+export function archiveEntryDetailView(item: ArchiveItem, isMine: boolean): ArchiveEntryDetailView {
+  return {
+    ...archiveEntryView(item),
+    imageUrl: imageUrl(item.design.imagePath),
+    editorData: item.design.editorData,
+    status: item.entry.status,
+    isMine,
+  };
+}
+
+export function staffArchiveEntryView(
+  { entry, design }: ArchiveItem,
+  openReportCount: number,
+): StaffArchiveEntryView {
+  return {
+    id: entry.id,
+    displayName: entry.displayName,
+    status: entry.status,
+    thumbnailUrl: thumbnailUrl(design.imagePath),
+    imageUrl: imageUrl(design.imagePath),
+    createdAt: entry.createdAt,
+    ...(entry.reviewedAt ? { reviewedAt: entry.reviewedAt } : {}),
+    openReportCount,
+  };
+}
+
+export const staffArchiveListItemView = (item: StaffArchiveItem): StaffArchiveEntryView =>
+  staffArchiveEntryView(item, item.openReportCount);
+
+export function reportView({ report, entry, design }: ReportItem): ReportView {
+  return {
+    ...report,
+    entry: {
+      displayName: entry.displayName,
+      status: entry.status,
+      thumbnailUrl: thumbnailUrl(design.imagePath),
+      imageUrl: imageUrl(design.imagePath),
+    },
   };
 }

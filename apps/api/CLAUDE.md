@@ -9,7 +9,8 @@ Hono on Bun。契約（`packages/shared`）の全エンドポイントを実装�
 | `src/index.ts` | 起動。DB を開き、SSE の配信口を作り、ポート（`API_PORT`）で待ち受ける |
 | `src/app.ts` | `createApp(deps)`。ルートの登録、失敗の形、`/api/health`（契約の外の疎通用） |
 | `src/register.ts` | 契約の `endpoints` から全ルートを登録する。入力（params・query・body）と JSON の応答を、契約のスキーマで検証する |
-| `src/handlers/` | エンドポイントごとの処理。`public.ts`（来場者）・`staff.ts`・`monitor.ts`・`sse.ts` |
+| `src/handlers/` | エンドポイントごとの処理。`public.ts`（来場者）・`staff.ts`・`monitor.ts`・`sse.ts`・`archive.ts`（アーカイブ。来場者向けとスタッフ向け） |
+| `src/order-flow.ts` | 来場者の注文の確定（回数の制限・受付・端末あたりの上限・Turnstile・注文の作成）。通常の注文と、作品からの注文が、**同じ処理を通る** |
 | `src/views.ts` | DB のエンティティから、画面に返す形（`OrderView` など）を組み立てる |
 | `src/errors.ts` | 例外を、契約の失敗の形（`{ error: { code, message } }`）と HTTP ステータスにする |
 | `src/events.ts` | 操作ログ（AuditLog）から SSE イベントを作り、購読者に配る。数秒ごとに操作ログを読む（api 自身も print-worker も、同じ操作ログを通る） |
@@ -54,6 +55,32 @@ Hono on Bun。契約（`packages/shared`）の全エンドポイントを実装�
 - **保存しないもの**：Discord のユーザー ID・名前・アクセストークン・code。使い終わったトークンは、Discord 側で失効させる。ログにも出さない（失敗の理由の種類だけを残す）。テストで、DB・データ置き場のバイト列に、残っていないことを確かめている
 - Discord の応答から URL を組み立てるので、`id`（数字）・`avatar`（16 進数）の形だけを通す（パスの書き換えを防ぐ）
 - この理由のコードは、契約（`packages/shared`）の外にある（契約のクエリは `code`・`state`・`error` だけ）。理由を、契約の列挙にするなら、契約オーナーへの提案になる
+
+## アーカイブ（A04）
+
+投稿 → 審査（承認・却下）→ 公開 → 非公開（通報への対応・作者の取り下げ）。仕様は spec.md 11 章。状態の変更は、`packages/db` の `transitionArchiveEntry` だけ（表は `packages/shared` の `archiveTransitions`）。
+
+| 誰が | エンドポイント | 内容 |
+| --- | --- | --- |
+| 来場者 | `GET /api/archive` | 公開中の作品の一覧（新しい順・`before` で続き）。サムネイル・表示名だけ |
+| 来場者 | `GET /api/archive/:entryId` | 詳細（大きい画像・編集データ）。**公開中の作品か、作者本人の作品だけ**（それ以外は 404）。`isMine` つき |
+| 来場者 | `GET /api/my/archive` | 自分が投稿した作品と、いまの状態 |
+| 来場者 | `POST /api/archive` | 投稿（審査待ち）。**同意 2 項目が true でなければ 400**（契約のスキーマと、db の両方で保証。日時は db が記録） |
+| 来場者 | `POST /api/archive/:entryId/withdraw` | 作者の取り下げ（公開中 → 非公開）。作者以外は 404（作品があることも教えない） |
+| 来場者 | `POST /api/archive/:entryId/report` | 通報（公開中の作品だけ） |
+| 来場者 | `POST /api/archive/:entryId/order` | 作品をコピーして注文。**通常の注文と同じ処理**（`order-flow.ts`） |
+| スタッフ | `GET /api/staff/archive` | 審査の一覧（状態で絞る。未対応の通報の件数・大きい画像つき） |
+| スタッフ | `POST /api/staff/archive/:entryId/{approve,reject,hide}` | 承認・却下・非公開 |
+| スタッフ | `GET /api/staff/archive/reports`・`POST .../reports/:reportId/resolve` | 通報の一覧・対応済み |
+
+- **作者の判定は、匿名トークンの Cookie。** 作者の匿名トークンは、どの応答にも含めない（`views.ts` で項目を選ぶ。契約のスキーマの検証が、余計な項目を落とす）。テストで、公開・詳細・審査の応答に、トークンが無いことを確かめている
+- **同意の記録**：`selfMade`・`allowOthersToOrder`（どちらも true のみ）と、同意した日時（`agreedAt`）を、作品に保存する
+- **作品からの注文**：作品のデザインを、**同じ画像を共有する新しいデザイン**としてコピーし、元作品への参照（`sourceArchiveEntryId`）を持たせる。編集は、まだできない（W07。決まったら拡張）。注文を作るトランザクションの中で、**元作品が公開中か**を確かめる（Turnstile の確認の間に、非公開にされても、注文は作られない。確認のあとに、もう一度、見る）
+- **非公開にしたとき**（スタッフの非公開・作者の取り下げ）：同じトランザクションで、その作品をコピーした、**支払い前（`submitted`）の注文を失効**させる（操作ログに `reason: archive_hidden`）。支払い済みの注文は、そのまま。その作品への、未対応の通報は、対応済みにする
+- **乱用対策**：投稿・通報は、IP ごとの回数の制限（画像のアップロードと同じ枠）。**1 端末が持てる審査待ちは 3 件まで**（db が、トランザクションの中で数える）。作品からの注文は、通常の注文と同じ上限・受付状態・Turnstile
+- **画像の掃除との連動**（A02）：審査待ち・公開中の作品の画像は、消さない。却下・非公開になった作品の画像は、15 分たてば消える（コピーの注文が生きている間は、同じ画像を使っているので、消えない）
+- **「保留」**：状態は足していない（契約の変更になる）。審査待ちのまま残す（審査の一覧は、状態で絞れる）
+- 画面（staff・web）は、定期的に取り直す（SSE の種類は、足していない）
 
 ## スタッフ認証（A05）
 
