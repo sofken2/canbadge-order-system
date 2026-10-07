@@ -106,10 +106,15 @@ describe("印刷シートの PDF", () => {
   });
 
   test("較正：補正なしなら、変換を掛けない。倍率とずらしがあれば、全体に掛かる", async () => {
-    const plain = await contentOf(await sheet(six));
+    // 実機で測った較正（badgeSpec の既定）ではなく、補正なしの設定で、確かめる
+    const identity = { scaleX: 1, scaleY: 1, offsetXMm: 0, offsetYMm: 0 };
+    const plain = await contentOf(await sheet(six, { ...badgeSpec, calibration: identity }));
     expect(plain).not.toMatch(/1\.02 0 0 1\.01/);
     // 補正なし：全体を包む「1 0 0 1 0 0 cm」も入れない
     expect(plain.startsWith("q\n1 0 0 1 0 0 cm")).toBe(false);
+    // 実機で測った較正が、既定として、実際に掛かっている（縦だけ 0.997）
+    const measured = await contentOf(await sheet(six));
+    expect(measured).toMatch(/1 0 0 0\.997 /);
     const adjusted: BadgeSpec = {
       ...badgeSpec,
       calibration: { scaleX: 1.02, scaleY: 1.01, offsetXMm: 1, offsetYMm: -0.5 },

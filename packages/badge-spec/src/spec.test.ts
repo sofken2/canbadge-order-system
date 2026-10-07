@@ -18,6 +18,26 @@ describe("確定した寸法", () => {
   });
 });
 
+describe("実機で測った較正", () => {
+  // 縦 250mm の目盛りが、実測 250.5〜251mm（中央 250.75）。横 150mm は、ずれなし
+  test("縦は、実測の中央から、250 ÷ 250.75 ≒ 0.997 に縮める。横は、そのまま", () => {
+    expect(badgeSpec.calibration.scaleY).toBeCloseTo(250 / 250.75, 3);
+    expect(badgeSpec.calibration.scaleX).toBe(1);
+  });
+
+  test("縮める量は、実測の幅（250.5〜251）の中に収まる（測定の精度の範囲）", () => {
+    const low = 250 / 251;
+    const high = 250 / 250.5;
+    expect(badgeSpec.calibration.scaleY).toBeGreaterThanOrEqual(low - 0.0005);
+    expect(badgeSpec.calibration.scaleY).toBeLessThanOrEqual(high + 0.0005);
+  });
+
+  test("ずらしは、測っていないので、0", () => {
+    expect(badgeSpec.calibration.offsetXMm).toBe(0);
+    expect(badgeSpec.calibration.offsetYMm).toBe(0);
+  });
+});
+
 describe("現在の設定（寸法以外は仮の値）", () => {
   test("矛盾がない", () => {
     expect(validateBadgeSpec(badgeSpec)).toEqual([]);
