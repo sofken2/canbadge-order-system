@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { type Candidate, planSheet } from "./plan";
+import { type Candidate, planSheet, REPRINT_WAIT_RATIO } from "./plan";
 
 const NOW = Date.parse("2026-11-03T12:00:00Z");
 const ago = (seconds: number) => new Date(NOW - seconds * 1000).toISOString();
@@ -7,6 +7,11 @@ const item = (id: string, quantity = 1, waitedSeconds = 0): Candidate => ({
   orderItemId: id,
   quantity,
   waitingSince: ago(waitedSeconds),
+});
+/** 再印刷のバッジ。waitedSeconds は、やり直しになってから */
+const reprint = (id: string, waitedSeconds = 0): Candidate => ({
+  ...item(id, 1, waitedSeconds),
+  reprint: true,
 });
 const plan = (candidates: Candidate[], capacity = 6, waitSeconds = 60) =>
   planSheet(candidates, { capacity, waitSeconds, nowMs: NOW });
@@ -95,5 +100,64 @@ describe("個数のあるバッジ", () => {
 
   test("枠がちょうど埋まったら、待ち時間に関係なく、すぐ印刷する（個数で数える）", () => {
     expect(plan([item("a", 3), item("b", 3)])).toMatchObject({ status: "print", used: 6 });
+  });
+});
+
+describe("再印刷と、印刷待ちのバッジを、いっしょに印刷する", () => {
+  test("再印刷の待ち時間は、ふつうの半分（60 秒なら 30 秒）", () => {
+    expect(REPRINT_WAIT_RATIO).toBe(0.5);
+    expect(plan([reprint("r", 29)]).status).toBe("waiting");
+    expect(plan([reprint("r", 30)]).status).toBe("print");
+    // ふつうのバッジは、60 秒
+    expect(plan([item("a", 1, 30)]).status).toBe("waiting");
+  });
+
+  test("再印刷が 1 個だけで、待ち時間に達していなければ、ほぼ空の用紙を、すぐには出さない", () => {
+    expect(plan([reprint("r", 5)])).toMatchObject({ status: "waiting", used: 1 });
+  });
+
+  test("再印刷が待ち時間に達したら、印刷待ちのバッジ（まだ待ち時間に達していない）も、いっしょに載る。再印刷が先", () => {
+    const result = plan([reprint("r", 31), item("a", 1, 3), item("b", 1, 1)]);
+    expect(result.status).toBe("print");
+    if (result.status === "print") {
+      expect(result.batch.map((b) => b.orderItemId)).toEqual(["r", "a", "b"]);
+      expect(result.used).toBe(3);
+    }
+  });
+
+  test("ふつうのバッジが待ち時間に達したときも、再印刷が、先頭で、いっしょに載る", () => {
+    const result = plan([reprint("r", 2), item("a", 1, 70)]);
+    expect(result.status).toBe("print");
+    if (result.status === "print")
+      expect(result.batch.map((b) => b.orderItemId)).toEqual(["r", "a"]);
+  });
+
+  test("用紙が埋まれば、再印刷も、ほかのバッジも、待たずに、すぐ印刷する（再印刷は先頭）", () => {
+    const mixed = [
+      reprint("r1"),
+      reprint("r2"),
+      item("a"),
+      item("b"),
+      item("c"),
+      item("d"),
+      item("e"),
+    ];
+    const result = plan(mixed);
+    expect(result.status).toBe("print");
+    if (result.status === "print") {
+      expect(result.batch.map((b) => b.orderItemId)).toEqual(["r1", "r2", "a", "b", "c", "d"]);
+    }
+  });
+
+  test("再印刷が、用紙より多くても、先頭から、用紙 1 枚分だけ。残りは、次のシートで、先に載る", () => {
+    const many = Array.from({ length: 8 }, (_, i) => reprint(`r${i}`));
+    const result = plan(many);
+    expect(result.status === "print" && result.batch).toHaveLength(6);
+  });
+
+  test("待った時間（報告用）は、載せるバッジの中で、いちばん長いもの", () => {
+    const result = plan([reprint("r", 10), item("a", 1, 40)]);
+    expect(result).toMatchObject({ status: "waiting" });
+    if (result.status === "waiting") expect(result.waitedSeconds).toBe(40);
   });
 });
