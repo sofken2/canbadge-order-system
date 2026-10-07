@@ -4,6 +4,7 @@ import { createAbuseGuards } from "./abuse";
 import { accessConfigFromEnv, createAccessVerifier } from "./access";
 import { createApp } from "./app";
 import { createEventHub } from "./events";
+import { cleanupImages } from "./images";
 import { createTurnstileVerifier } from "./turnstile";
 
 const port = Number(process.env.API_PORT ?? 3002);
@@ -46,6 +47,22 @@ if (allowPublicStaff) {
     "api: CF_ACCESS_TEAM_DOMAIN・CF_ACCESS_AUD が未設定です。Cloudflare 経由のスタッフ用の API は、すべて断ります（その PC の中からは使えます）",
   );
 }
+
+// 使われない画像を、起動時と 5 分ごとに消す（A02）。失敗しても、api は止めない
+const cleanImages = () => {
+  try {
+    const { deletedImages, deletedThumbnails } = cleanupImages(db, dataDir);
+    if (deletedImages > 0 || deletedThumbnails > 0) {
+      console.log(
+        `api: 使われない画像を ${deletedImages} 枚（サムネイル ${deletedThumbnails} 枚）消しました`,
+      );
+    }
+  } catch (error) {
+    console.error("api: 画像の掃除に失敗しました（次の巡回で、もう一度）", error);
+  }
+};
+cleanImages();
+setInterval(cleanImages, 5 * 60 * 1000).unref();
 
 console.log(`api: http://localhost:${port}（データ置き場: ${dataDir}）`);
 

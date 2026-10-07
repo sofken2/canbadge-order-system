@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { transitionOrder } from "@canbadge/db";
 import { encodePng, sampleImageIds } from "@canbadge/fixtures";
 import { apiErrorSchema } from "@canbadge/shared";
+import sharp from "sharp";
 import { call, createTestApp, openSse, type TestApp } from "./test-helpers";
 
 let t: TestApp;
@@ -237,7 +238,17 @@ describe("画像のアップロードと配信", () => {
     expect(await errorCode(res)).toBe("UNSUPPORTED_MEDIA_TYPE");
 
     const jpeg = new FormData();
-    jpeg.set("file", new File([new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0])], "a.jpg"));
+    jpeg.set(
+      "file",
+      new File(
+        [
+          await sharp({ create: { width: 8, height: 8, channels: 3, background: "#fff" } })
+            .jpeg()
+            .toBuffer(),
+        ],
+        "a.jpg",
+      ),
+    );
     const ok = await call(t.app, "POST", "/api/images", { form: jpeg });
     expect(ok.status).toBe(200);
     const { imageId } = (await ok.json()) as { imageId: string };

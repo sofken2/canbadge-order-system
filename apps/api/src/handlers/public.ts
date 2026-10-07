@@ -11,7 +11,7 @@ import type { Context } from "hono";
 import { assertNotLimited, enforce, visitorIp } from "../abuse";
 import { ensureAnonToken, readAnonToken } from "../anon";
 import { ApiException, notFound, validationFailed } from "../errors";
-import { findImage, saveUploadedImage } from "../images";
+import { findImage, findThumbnail, saveUploadedImage } from "../images";
 import type { HandlersFor } from "../register";
 import { buildOrderView } from "../views";
 import { subscribeSse } from "./sse";
@@ -62,12 +62,19 @@ export const publicHandlers: HandlersFor<
     return { imageId };
   },
 
-  getImage: ({ deps, params }) => {
-    // サムネイルは A02 で作る。それまでは、元の画像をそのまま返す
-    const image = findImage(deps.dataDir, params.imageId);
-    if (!image) throw notFound("画像");
-    return new Response(Bun.file(image.path), {
-      headers: { "content-type": image.contentType, "x-content-type-options": "nosniff" },
+  getImage: async ({ deps, params, query }) => {
+    const served =
+      query.size === "thumb"
+        ? await findThumbnail(deps.dataDir, params.imageId)
+        : findImage(deps.dataDir, params.imageId);
+    if (!served) throw notFound("画像");
+    return new Response(Bun.file(served.path), {
+      headers: {
+        "content-type": served.contentType,
+        "x-content-type-options": "nosniff",
+        // 画像は、作ったあとで変わらない（ID が変わる）ので、ブラウザに、しばらく覚えさせる。共有の置き場には、置かせない
+        "cache-control": "private, max-age=3600",
+      },
     });
   },
 
@@ -120,6 +127,11 @@ export const publicHandlers: HandlersFor<
       }
     }
 
+    // Turnstile の確認（await）の間に、掃除が、この画像を消していないかを、注文を作る直前に、もう一度確かめる。
+    // ここから注文を作るまでは、await がないので、掃除（同期）は割り込めない
+    if (!findImage(deps.dataDir, body.imageId)) {
+      throw validationFailed("画像が見つかりません。もう一度アップロードしてください");
+    }
     const { order } = createOrder(deps.db, {
       imagePath: `images/${body.imageId}.${image.extension}`,
       editorData: body.editorData,
