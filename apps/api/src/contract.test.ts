@@ -106,9 +106,11 @@ describe("来場者向けのエンドポイント", () => {
     expect(body).toMatchObject({ status: "cancelled" });
   });
 
-  test("Discord の取り込み（W08）は、まだ実装されていない（501）", async () => {
-    await run("discordAuthorize", {}, 501);
-    await run("discordCallback", { query: "?code=x&state=y" }, 501);
+  test("Discord の取り込み（W08）：設定がなければ、画面（/）に戻して、使えないと伝える（302）。詳しい動きは discord.test.ts", async () => {
+    const authorize = await run("discordAuthorize", {}, 302);
+    expect(authorize.response.headers.get("location")).toBe("/?discordError=unavailable");
+    const callback = await run("discordCallback", { query: "?code=x&state=y" }, 302);
+    expect(callback.response.headers.get("location")).toBe("/?discordError=unavailable");
   });
 
   test("orderEvents（SSE）", async () => {

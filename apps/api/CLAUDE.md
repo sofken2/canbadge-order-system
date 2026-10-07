@@ -16,6 +16,7 @@ Hono on Bun。契約（`packages/shared`）の全エンドポイントを実装�
 | `src/guard.ts` | スタッフ用・モニター用の API を、経路ごとに、使わせる・断る（A05）。判定は `origin.ts`、Access の JWT の検証は `access.ts` |
 | `src/turnstile.ts`・`src/abuse.ts`・`src/rate-limit.ts` | 乱用対策（A06）。Turnstile のサーバー側の検証、IP ごとの回数の制限、照会の総当たり対策 |
 | `src/origin.ts`・`src/access.ts` | 接続元の経路の判定（Cloudflare・localhost・LAN）、Cloudflare Access の JWT の署名検証（jose） |
+| `src/discord.ts` | Discord のアイコンの取り込み（W08）：OAuth2 の許可画面の URL、トークンの交換、本人のアイコンの取得、トークンの失効。Discord への通信だけ（`fetch` を差し替えられる） |
 | `src/images.ts`・`src/anon.ts` | 画像の検証・保存・サムネイル・配信・掃除（A02）、匿名トークンの Cookie |
 
 ## エンドポイントを足す・変えるとき
@@ -42,6 +43,17 @@ Hono on Bun。契約（`packages/shared`）の全エンドポイントを実装�
   - **同期で行う**：使っている画像の一覧を読んでから消すまで、`await` をはさまない。注文を作る処理も、画像の存在の最終確認から注文の作成まで `await` がないので、**消えた画像で注文が作られることはない**。消えていれば、「もう一度アップロードしてください」（400）
   - バックアップには、消す前の画像が、残る（`backup.ts` は、増えた分だけ足す。消さない）。学祭のあとの、画像データの削除（保存期間・実行委員会の方針）は、バックアップも対象にする
 - **sharp**：ネイティブの画像ライブラリ。Windows・Linux の、ビルド済みのものが、`bun install` で入る
+
+## Discord のアイコンの取り込み（W08）
+
+設定と実機での確認の手順は `infra/discord.md`。`DISCORD_CLIENT_ID`・`DISCORD_CLIENT_SECRET`・`DISCORD_REDIRECT_URI` が、3 つそろっているときだけ、取り込める（未設定なら、画面に戻して「使えません」）。
+
+- `GET /api/discord/authorize`：`state`（乱数）を作り、**この端末の Cookie**（`discord_state`・HttpOnly・SameSite=Lax・`/api/discord` のみ・10 分）に入れて、Discord の許可画面（権限は `identify` のみ）へ 302。Discord から、リンクで戻ってくるので、Strict にはしない
+- `GET /api/discord/callback`：`state` を Cookie と、**一定の時間で**照合（違えば、Discord へ何も聞かずに断る）。Cookie は、成功・失敗にかかわらず、ここで捨てる（使い切り）。code → トークン → 本人（`id`・`avatar`）→ `cdn.discordapp.com/avatars/<id>/<avatar>.png?size=1024`（動くアイコンも、静止画）→ **持ち込みの画像と同じ保存**（`saveUploadedImage`：容量・形式・読めるか・サムネイル）→ `/?imageId=<画像 ID>` へ 302
+- 失敗は、`/?discordError=<理由>` へ 302（画面が、読んで、アドレスから消して、文を出す）：`denied`（拒否）・`state`（確認できない・期限切れ・code が使えない）・`no_avatar`・`image`（画像として使えない・容量）・`rate`（画像のアップロードと同じ回数の制限）・`unavailable`（Discord に届かない・設定がない・そのほか）
+- **保存しないもの**：Discord のユーザー ID・名前・アクセストークン・code。使い終わったトークンは、Discord 側で失効させる。ログにも出さない（失敗の理由の種類だけを残す）。テストで、DB・データ置き場のバイト列に、残っていないことを確かめている
+- Discord の応答から URL を組み立てるので、`id`（数字）・`avatar`（16 進数）の形だけを通す（パスの書き換えを防ぐ）
+- この理由のコードは、契約（`packages/shared`）の外にある（契約のクエリは `code`・`state`・`error` だけ）。理由を、契約の列挙にするなら、契約オーナーへの提案になる
 
 ## スタッフ認証（A05）
 

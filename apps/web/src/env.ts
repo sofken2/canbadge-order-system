@@ -4,3 +4,9 @@
  */
 export const turnstileSiteKey: string | undefined =
   import.meta.env.TURNSTILE_SITE_KEY?.trim() || undefined;
+
+/**
+ * Discord のアイコンの取り込み（W08）のボタンを出すか。api 側の DISCORD_* の設定がそろっているときだけ、1 にする
+ * （設定がないのに出すと、押しても「使えません」になる）。値は秘密ではない
+ */
+export const discordEnabled: boolean = import.meta.env.VITE_DISCORD_ENABLED === "1";

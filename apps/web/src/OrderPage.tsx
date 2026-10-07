@@ -4,7 +4,8 @@ import { acceptanceLabels } from "@canbadge/shared";
 import { Button, Checkbox, Notice, navigate, useAction, useResource } from "@canbadge/ui";
 import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
-import { turnstileSiteKey } from "./env";
+import { discordErrorMessage, readDiscordReturn } from "./discord-return";
+import { discordEnabled, turnstileSiteKey } from "./env";
 import { TurnstileWidget } from "./TurnstileWidget";
 
 /** 作りかけのデザインの、ブラウザ内の保存名。注文が済んだら消す */
@@ -24,6 +25,16 @@ type Design = BadgeEditorExport & {
  */
 export function OrderPage() {
   const status = useResource(() => api.call("getStatus"), { refreshMs: 5000 });
+  // Discord から戻ってきたとき（W08）：取り込めたアイコンをエディタの最初の写真にし、失敗なら理由を伝える。
+  // 読んだら、アドレスから消す（再読み込みで、同じ通知や、期限切れの画像を、もう一度使わないように）
+  const [discordReturn] = useState(() => readDiscordReturn(window.location.search));
+  useEffect(() => {
+    if (discordReturn) window.history.replaceState(null, "", window.location.pathname);
+  }, [discordReturn]);
+  const discordImage =
+    discordReturn && "imageId" in discordReturn
+      ? api.url("getImage", { params: { imageId: discordReturn.imageId } })
+      : undefined;
   const [design, setDesign] = useState<Design | undefined>(undefined);
   const [step, setStep] = useState<"design" | "confirm">("design");
   const [quantity, setQuantity] = useState(1);
@@ -127,9 +138,27 @@ export function OrderPage() {
 
       {/* 確認の間も、エディタはつないだまま隠す（戻ったとき、デザインが消えないように） */}
       <div hidden={step !== "design"}>
+        {discordReturn && "error" in discordReturn && (
+          <Notice tone="error">{discordErrorMessage(discordReturn.error)}</Notice>
+        )}
+        {discordEnabled && (
+          <div>
+            <Button
+              variant="line"
+              // Discord の許可画面へ移る（ページを離れる）。戻ると、アイコンがエディタに読み込まれる
+              onClick={() => window.location.assign(api.url("discordAuthorize"))}
+            >
+              Discord のアイコンを使う
+            </Button>
+            <p className="cb-muted">
+              許可すると、アイコンが読み込まれます（いまの編集は、置き換わります）
+            </p>
+          </div>
+        )}
         <BadgeEditor
           spec={badgeSpec}
           draftKey={DRAFT_KEY}
+          {...(discordImage ? { initialImage: discordImage } : {})}
           confirmLabel="注文の確認へ進む"
           onExport={handleExport}
         />
