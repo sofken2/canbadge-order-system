@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import {
   countPendingOrders,
   countWaitingOrders,
@@ -8,10 +9,12 @@ import {
   transitionOrder,
 } from "@canbadge/db";
 import type { Context } from "hono";
+import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { assertNotLimited, enforce, visitorIp } from "../abuse";
 import { ensureAnonToken, readAnonToken } from "../anon";
+import { DiscordError, type DiscordFailure } from "../discord";
 import { ApiException, notFound, validationFailed } from "../errors";
-import { findImage, saveUploadedImage } from "../images";
+import { findImage, findThumbnail, saveUploadedImage } from "../images";
 import type { HandlersFor } from "../register";
 import { buildOrderView } from "../views";
 import { subscribeSse } from "./sse";
@@ -62,12 +65,19 @@ export const publicHandlers: HandlersFor<
     return { imageId };
   },
 
-  getImage: ({ deps, params }) => {
-    // サムネイルは A02 で作る。それまでは、元の画像をそのまま返す
-    const image = findImage(deps.dataDir, params.imageId);
-    if (!image) throw notFound("画像");
-    return new Response(Bun.file(image.path), {
-      headers: { "content-type": image.contentType, "x-content-type-options": "nosniff" },
+  getImage: async ({ deps, params, query }) => {
+    const served =
+      query.size === "thumb"
+        ? await findThumbnail(deps.dataDir, params.imageId)
+        : findImage(deps.dataDir, params.imageId);
+    if (!served) throw notFound("画像");
+    return new Response(Bun.file(served.path), {
+      headers: {
+        "content-type": served.contentType,
+        "x-content-type-options": "nosniff",
+        // 画像は、作ったあとで変わらない（ID が変わる）ので、ブラウザに、しばらく覚えさせる。共有の置き場には、置かせない
+        "cache-control": "private, max-age=3600",
+      },
     });
   },
 
@@ -120,6 +130,11 @@ export const publicHandlers: HandlersFor<
       }
     }
 
+    // Turnstile の確認（await）の間に、掃除が、この画像を消していないかを、注文を作る直前に、もう一度確かめる。
+    // ここから注文を作るまでは、await がないので、掃除（同期）は割り込めない
+    if (!findImage(deps.dataDir, body.imageId)) {
+      throw validationFailed("画像が見つかりません。もう一度アップロードしてください");
+    }
     const { order } = createOrder(deps.db, {
       imagePath: `images/${body.imageId}.${image.extension}`,
       editorData: body.editorData,
@@ -177,9 +192,69 @@ export const publicHandlers: HandlersFor<
     return buildOrderView(deps.db, cancelled);
   },
 
-  // Discord アイコンの取り込みは W08 で実装する
-  discordAuthorize: ({ c }) => notImplemented(c),
-  discordCallback: ({ c }) => notImplemented(c),
+  discordAuthorize: ({ c, deps }) => {
+    if (!deps.discord) {
+      console.warn(
+        "api: DISCORD_CLIENT_ID・DISCORD_CLIENT_SECRET・DISCORD_REDIRECT_URI が未設定です",
+      );
+      return backToEditor(c, { error: "unavailable" });
+    }
+    // 戻り先の確認用。この端末にだけ Cookie で持たせ、戻ってきたとき照合する（他人が用意した戻りを、受け付けない）
+    const state = randomState();
+    setCookie(c, DISCORD_STATE_COOKIE, state, {
+      httpOnly: true,
+      // Discord から、リンクで戻ってくる（外のサイトからの GET）ので、Lax。Strict だと Cookie が付かない
+      sameSite: "Lax",
+      path: "/api/discord",
+      maxAge: 10 * 60,
+      secure: c.req.header("x-forwarded-proto") === "https",
+    });
+    return c.redirect(deps.discord.authorizeUrl(state), 302);
+  },
+
+  discordCallback: async ({ c, deps, query }) => {
+    const expected = getCookie(c, DISCORD_STATE_COOKIE);
+    // state は、使い切り（成功・失敗にかかわらず、ここで捨てる）
+    deleteCookie(c, DISCORD_STATE_COOKIE, { path: "/api/discord" });
+
+    if (query.error) {
+      return backToEditor(c, { error: query.error === "access_denied" ? "denied" : "unavailable" });
+    }
+    if (!deps.discord) return backToEditor(c, { error: "unavailable" });
+    if (!expected || !query.state || !sameText(expected, query.state) || !query.code) {
+      return backToEditor(c, { error: "state" });
+    }
+
+    try {
+      enforce(deps.abuse.uploads, visitorIp(c, deps.remoteAddressOf?.(c)), () => "");
+    } catch {
+      return backToEditor(c, { error: "rate" });
+    }
+
+    try {
+      const bytes = await deps.discord.fetchAvatar(query.code);
+      // 持ち込みの画像と、同じ検証・保存を通す（形式・容量・読めるか・サムネイル）
+      const imageId = await saveUploadedImage(
+        deps.dataDir,
+        new File([bytes as Uint8Array<ArrayBuffer>], "discord-avatar.png", { type: "image/png" }),
+        getSetting(deps.db.orm).imageMaxBytes,
+      );
+      return backToEditor(c, { imageId });
+    } catch (error) {
+      // 理由は、ログにだけ残す。Discord の ID・トークン・code は、含まれない
+      const reason: DiscordFailure =
+        error instanceof DiscordError
+          ? error.reason
+          : error instanceof ApiException
+            ? "image"
+            : "unavailable";
+      console.warn(
+        `api: Discord のアイコンを取り込めませんでした（${reason}）`,
+        error instanceof Error ? error.message : "",
+      );
+      return backToEditor(c, { error: reason });
+    }
+  },
 
   orderEvents: ({ c, deps, params }) =>
     subscribeSse(
@@ -189,10 +264,25 @@ export const publicHandlers: HandlersFor<
     ),
 };
 
-function notImplemented(c: Context): Response {
-  const error = new ApiException(
-    "INTERNAL",
-    "Discord アイコンの取り込みは、まだ実装されていません（W08）",
-  );
-  return c.json({ error: { code: error.code, message: error.message } }, 501);
+const DISCORD_STATE_COOKIE = "discord_state";
+
+/** 戻り先（注文画面）。成功なら imageId、失敗なら discordError を付ける。画面が、読み取ってから、URL から消す */
+function backToEditor(
+  c: Context,
+  result: { imageId: string } | { error: DiscordFailure },
+): Response {
+  const query = "imageId" in result ? `imageId=${result.imageId}` : `discordError=${result.error}`;
+  return c.redirect(`/?${query}`, 302);
+}
+
+const randomState = (): string =>
+  Array.from(crypto.getRandomValues(new Uint8Array(24)), (b) =>
+    b.toString(16).padStart(2, "0"),
+  ).join("");
+
+/** 長さが違っても、同じ時間で比べる（Cookie の state を、探られないように） */
+function sameText(a: string, b: string): boolean {
+  const left = new TextEncoder().encode(a);
+  const right = new TextEncoder().encode(b);
+  return left.length === right.length && timingSafeEqual(left, right);
 }

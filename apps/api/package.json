@@ -19,6 +19,7 @@
     "@canbadge/shared": "workspace:*",
     "hono": "^4.13.12",
     "jose": "^6.2.12",
+    "sharp": "^0.35.5",
     "zod": "^4.6.5"
   }
 }

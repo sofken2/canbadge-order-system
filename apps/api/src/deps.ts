@@ -3,6 +3,7 @@ import type { SseEvent } from "@canbadge/shared";
 import type { Context } from "hono";
 import type { AbuseGuards } from "./abuse";
 import type { AccessVerifier } from "./access";
+import type { DiscordClient } from "./discord";
 import type { TurnstileVerifier } from "./turnstile";
 
 /** 操作ログから作った SSE イベントの配信口（events.ts） */
@@ -31,6 +32,8 @@ export type Deps = {
   allowPublicStaff: boolean;
   /** Cloudflare Access の JWT の検証器。CF_ACCESS_* が未設定なら undefined（Cloudflare 経由のスタッフ用は、すべて断る） */
   access?: AccessVerifier | undefined;
+  /** Discord のアイコンの取り込み（W08）。DISCORD_* が未設定なら undefined（取り込みは「使えません」で戻す） */
+  discord?: DiscordClient | undefined;
   /** Turnstile の検証器。TURNSTILE_SECRET_KEY が未設定なら undefined（開発用。注文の確認を、検証しない） */
   turnstile?: TurnstileVerifier | undefined;
   /** 来場者向けの API の、回数の制限（A06） */

@@ -16,6 +16,7 @@ SQLite（bun:sqlite）+ Drizzle。状態変更の唯一の入口。
 | `src/audit.ts` | 操作ログ。`listAuditLogsSince` で、前回以降の行を読む |
 | `src/queries.ts` | 読み取りだけの関数（1 件の取得） |
 | `src/listings.ts` | 画面向けの一覧と集計（注文の検索・印刷履歴・印刷済みバッジ・売上）。新しい順で、続きは `before` で取る |
+| `src/images.ts` | `listImagePathsInUse`：いまも使う画像のパス。api の画像の掃除（A02）が、これに含まれない画像だけを消す |
 | `src/rows.ts` | DB の行を、契約のエンティティにする（null は省略に、zod で検証） |
 | `src/backup.ts` | バックアップ（`VACUUM INTO` で整合性のある DB のコピー＋画像の差分コピー）と復旧。CLI は `backup-cli.ts`・`restore-cli.ts`（`bun run backup`・`bun run restore`）。手順は `infra/backup.md` |
 | `src/clock.ts` | 手で進められる時計（テスト・サンプルデータで時刻を固定する） |
