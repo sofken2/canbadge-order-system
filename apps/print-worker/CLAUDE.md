@@ -10,7 +10,9 @@
 | `src/queue.ts` | 印刷キュー（P02）。`runQueueOnce`（1 回の巡回）と `startQueueLoop`（止めるとき、動いている巡回の終わりを待つ）。載せられないバッジを外す記録（`SkipRegistry`） |
 | `src/plan.ts` | 次のシートの組み立て。どのバッジを何個載せるか、いま印刷するか待つかを決める純粋な計算 |
 | `src/recovery.ts` | 起動時に、印刷中のまま残っているシートを知らせる（自動では、印刷し直さない） |
-| `src/driver.ts` | 印刷ドライバー（`PrintDriver`）。開発用は PDF を `data/print-out/` に複製する。本番用（SumatraPDF）は P03 |
+| `src/driver.ts` | 印刷ドライバー（`PrintDriver`）の型と、環境変数からの選択（`createDriver`）。開発用は PDF を `data/print-out/` に複製する |
+| `src/driver-sumatra.ts` | 本番用ドライバー（P03）。SumatraPDF を、拡大縮小なしで呼ぶ。引数の組み立て・場所の検索・プリンターの一覧・起動時の確認 |
+| `src/printers-cli.ts` | `bun run printers`：Windows のプリンター名の一覧（`PRINTER_NAME` に書く名前を調べる） |
 | `src/layout.ts` | 用紙の上の配置（面付け）。mm・用紙の左上が原点。`layoutSlots`（位置の計算）・`calibrate`（較正の変換）。画面を持たない純粋な計算 |
 | `src/sheet-pdf.ts` | `renderSheetPdf(spec, badges, { dataDir, … })`。バッジの画像を、実寸で円に切り取って並べ、円の下に注文番号を印字した PDF（1 ページ） |
 | `src/calibration-pdf.ts` | `renderCalibrationPdf(spec, { applyCalibration })`。実機で測る、較正用ページ（P03 で使う） |
@@ -40,7 +42,18 @@
 - **載せられないバッジは、外して、ほかのバッジの印刷を止めない。** 画像がない・PNG/JPEG でない・壊れている・個数が 1 枚に載る数を超える、のどれか。載せる前に、画像を実際に読んで確かめる。外したバッジは**印刷待ちのまま**で、操作ログ（`print.skip`）とログ出力に、理由を残す。同じバッジは、15 分たつまで、確かめ直さない（画像が直されたら、そのあと、載る）
 - 止めるとき（SIGINT・SIGTERM）は、動いている巡回が終わるのを待ってから、DB を閉じる
 
-環境変数：`PRINT_DRIVER`（既定 dev）、`PRINT_POLL_MS`（巡回の間隔）、`PRINT_WAIT_OVERRIDE_SECONDS`（印刷待ちの最大時間を、設定の代わりに上書きする。開発用）。
+## 本番用ドライバー（P03）
+
+- `PRINT_DRIVER=sumatra`、`PRINTER_NAME`（Windows のプリンター名。`bun run printers` で調べる）、`SUMATRA_PATH`（省略すると、`%LOCALAPPDATA%\SumatraPDF`・Program Files を探す）。**Windows だけ**
+- 呼び出し：`SumatraPDF.exe -print-to "<プリンター名>" -print-settings "noscale,color,paper=A4" -silent "<PDF>"`。**`noscale` が、実寸で印刷するための、いちばん大事な指定**（拡大縮小しない）。`-silent` は、エラーの画面を出さない（無人で動くため）。用紙は、badge-spec の用紙の大きさから決まる
+- 引数は配列で渡す（シェルを通さない）。プリンター名のスペース・引用符・記号は、そのまま 1 つの引数になる
+- **成功は「印刷のジョブを、プリンターに送れた（終了コード 0）」こと。用紙が実際に出たかは、わからない。** 失敗（終了コードが 0 でない・60 秒たっても終わらない・起動できない）は、例外になり、キューは `driver-failed` を返す
+- **失敗しても、自動では再試行しない**（用紙がもう出ていたら二重になるため）。印刷係が、スタッフ画面の「印刷確認」で、用紙を見て、OK か再印刷を選ぶ
+- 起動時に、プリンターが Windows に登録されているかを確かめ、なければ、登録されているプリンターの一覧つきで、ログに出す（止めはしない。プリンターが、あとで使えるようになることもある）
+- **印刷の品質・用紙の種類・フチなし／あり・両面などは、Windows のプリンターの「印刷設定」の既定値で決まる**（`infra/processing-pc.md` の「プリンターの設定」）
+- `bun run calibration --print`：較正用ページを書き出して、**実際に印刷する**（用紙が 1 枚出る）。実機の最初の確認に使う
+
+環境変数：`PRINT_DRIVER`（`dev` か `sumatra`。既定 dev）、`PRINT_POLL_MS`（巡回の間隔）、`PRINT_WAIT_OVERRIDE_SECONDS`（印刷待ちの最大時間を、設定の代わりに上書きする。開発用）。
 
 ## ルール
 
