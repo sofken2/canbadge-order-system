@@ -1,0 +1,111 @@
+/* Hallmark · macrostructure: Review queue (app screen · tabs + large-image cards) · genre: modern-minimal · theme: Coral (design.md)
+ * tone: utilitarian — the image is the evidence, so it is large; one primary action, spaced from the text
+ * tokens only — no inline colours or font stacks · pre-emit critique: P4 H4 E4 S4 R4 V3
+ */
+
+.cb-arc__list {
+  list-style: none;
+  margin: var(--space-lg) 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-md);
+}
+
+.cb-arc__card {
+  display: grid;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  border: 1px solid var(--color-rule-strong);
+  border-radius: var(--radius-card);
+  background: var(--color-card);
+}
+
+/* 現在地の印は、色だけにしない（左の線に加えて、文字の「長く待っています」も出す） */
+.cb-arc__card[data-long] {
+  border-left: 4px solid var(--color-accent);
+}
+
+/* 画像は大きく。権利面の判断（他人のキャラクターか・写真か）が、小さくて、できなくならないように */
+.cb-arc__image {
+  display: block;
+  width: 100%;
+  max-width: 20rem;
+  aspect-ratio: 1;
+  object-fit: contain;
+  background: var(--color-paper-2);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-input);
+}
+
+.cb-arc__body {
+  display: grid;
+  gap: var(--space-sm);
+  align-content: start;
+  min-width: 0;
+}
+
+.cb-arc__body p {
+  margin: 0;
+}
+
+.cb-arc__name {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.cb-arc__status {
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+.cb-arc__flag {
+  color: var(--color-danger);
+}
+
+.cb-arc__reports {
+  font-weight: 700;
+  color: var(--color-danger);
+}
+
+.cb-arc__reason {
+  padding: var(--space-sm) var(--space-md);
+  border-left: 3px solid var(--color-rule-strong);
+  background: var(--color-paper-2);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+/* 押し間違えないよう、ボタンは、文字と離して、大きく置く */
+.cb-arc__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  margin-top: var(--space-sm);
+}
+
+.cb-arc__actions .cb-button {
+  min-height: 3.5rem;
+  flex: 1 1 10rem;
+}
+
+/* 広い画面では、画像を左、操作を右に */
+@media (min-width: 40rem) {
+  .cb-arc__card {
+    grid-template-columns: 20rem minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+/* タブが 4 つあるので、スマホでは 2 × 2 に並べる（共通の Switch は、2 つの切り替え向け）。広い画面では、1 列に並べる */
+.cb-arc .cb-switch {
+  grid-auto-flow: row;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (min-width: 40rem) {
+  .cb-arc .cb-switch {
+    grid-auto-flow: column;
+    grid-template-columns: none;
+  }
+}

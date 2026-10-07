@@ -114,6 +114,7 @@ bun run dev          # web・staff・api・print-worker を起動する
 | スタッフ：組み立て・受け渡し | http://localhost:3001/assemble |
 | 呼び出しモニター | http://localhost:3001/monitor |
 | スタッフ：設定（営業開始・受付状態・印刷の一時停止） | http://localhost:3001/settings |
+| スタッフ：アーカイブの審査（承認・却下・非公開・通報） | http://localhost:3001/archive |
 
 画面は、すべて**仮のもの**（見た目は作っていない）。注文から呼び出しまでの流れは、次のとおり。
 

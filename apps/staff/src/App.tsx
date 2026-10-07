@@ -1,4 +1,5 @@
 import { navigate, usePath } from "@canbadge/ui";
+import { ArchivePage } from "./ArchivePage";
 import { AssemblePage } from "./AssemblePage";
 import { MonitorPage } from "./MonitorPage";
 import { PrintPage } from "./PrintPage";
@@ -12,6 +13,7 @@ const pages = [
   { path: "/print", label: "印刷確認", element: <PrintPage /> },
   { path: "/assemble", label: "組み立て・受け渡し", element: <AssemblePage /> },
   { path: "/monitor", label: "呼び出しモニター", element: <MonitorPage /> },
+  { path: "/archive", label: "アーカイブ審査", element: <ArchivePage /> },
   { path: "/settings", label: "設定", element: <SettingsPage /> },
 ] as const;
 
