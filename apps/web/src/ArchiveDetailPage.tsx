@@ -10,6 +10,7 @@ import {
   useResource,
 } from "@canbadge/ui";
 import { useState } from "react";
+import { ArchiveOrderPanel } from "./ArchiveOrderPanel";
 import { api } from "./api";
 import "./archive.css";
 import { myEntryStatus } from "./archive-post-logic";
@@ -72,7 +73,7 @@ function ReportForm({ entryId }: { entryId: string }) {
 
 /**
  * 作品の詳細（W05）。大きい画像（仕上がりのプレビュー）と、作者の表示名。
- * 公開中の作品には、通報の入口がある。「この作品で注文する」は、W07 で入れる
+ * 公開中の作品には、「この作品で注文する」（W07）と、通報の入口がある
  */
 export function ArchiveDetailPage({ entryId }: { entryId: string }) {
   const entry = useResource(() => api.call("getArchiveEntry", { params: { entryId } }), {
@@ -124,6 +125,11 @@ export function ArchiveDetailPage({ entryId }: { entryId: string }) {
               </a>
               から、取り下げられます。
             </Notice>
+          )}
+
+          {/* 公開中の作品だけ、注文できる（自分の作品も、注文できる） */}
+          {data.status === "public" && (
+            <ArchiveOrderPanel entryId={data.id} entryStatus={data.status} />
           )}
 
           {data.status === "public" && !data.isMine && (

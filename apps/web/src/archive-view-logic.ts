@@ -49,3 +49,13 @@ export function orderBlockedReason(input: {
   if (!input.accepting) return input.busyMessage ?? "現在、注文を受け付けていません。";
   return undefined;
 }
+
+/**
+ * 作品からの注文が失敗したときの文。作品が、注文している間に取り下げられた（見つからない）ときは、
+ * 理由が分かる文にする。それ以外は、api の文（日本語で、そのまま出せる）を使う
+ */
+export function orderErrorMessage(message: string): string {
+  return message.includes("見つかりません")
+    ? "この作品は、いま、注文できません。取り下げられたかもしれません。みんなの作品に戻って、ほかの作品を、見てみてください。"
+    : message;
+}
