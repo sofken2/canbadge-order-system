@@ -120,9 +120,11 @@
       "version": "0.0.0",
       "dependencies": {
         "@canbadge/api-client": "workspace:*",
+        "@canbadge/badge-spec": "workspace:*",
         "@canbadge/db": "workspace:*",
         "@canbadge/fixtures": "workspace:*",
         "@canbadge/shared": "workspace:*",
+        "zod": "^4.6.5",
       },
       "devDependencies": {
         "@canbadge/config": "workspace:*",

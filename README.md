@@ -65,7 +65,7 @@
 | `packages/badge-spec` | 寸法・解像度・面付けの設定値 | `shared` | T08、Q01 |
 | `packages/ui` | デザイントークンと共通 UI 部品（`design.md` に従う）。いまは、読み込み・操作・画面遷移の React の小さな部品だけ | `shared` | T10 |
 | `packages/api-client` | 型付きの API クライアント。契約の `endpoints` から作り、web・staff が `/api` を呼ぶのに使う | `shared` | T09 |
-| `packages/e2e` | 通し確認。api と print-worker を実際に起動し、注文から受け渡しまでを通す（`bun run test` に含まれる） | `shared` | T09 |
+| `packages/e2e` | 通し確認と負荷テスト。api と print-worker を実際に起動して、注文から受け渡しまでを通す（`bun run test` に含まれる）。負荷テスト（`bun run load`・Q04）は、模擬の来場者とスタッフを動かして、処理能力と詰まる所を測る（`packages/e2e/CLAUDE.md`） | `shared` | T09・Q04 |
 | `packages/editor` | キャンバスエディタ | `web` | W01 |
 | `packages/scanner` | カメラでの QR 読み取り | `staff` | S01 |
 | `infra/` | Caddy・cloudflared 設定、Windows 起動スクリプト、手順書 | `infra` | I01〜I04 |
