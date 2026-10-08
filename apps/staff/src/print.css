@@ -273,3 +273,76 @@
   outline: 2px solid var(--color-focus);
   outline-offset: 2px;
 }
+
+/* ---- 印刷待ち ---- */
+
+.cb-queue {
+  display: grid;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-rule-strong);
+  border-radius: var(--radius-card);
+  background: var(--color-card);
+}
+
+/* 印刷係が動く場面（シートの確認・再開）は、太い枠で目立たせる。色だけでなく、文でも伝える */
+.cb-queue[data-action] {
+  border-width: 3px;
+  border-color: var(--color-accent-deep);
+  background: var(--color-accent-tint);
+}
+
+.cb-queue__headline {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+
+.cb-queue__detail {
+  margin: 0;
+}
+
+.cb-queue__list {
+  list-style: none;
+  margin: var(--space-xs) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-xs);
+}
+
+.cb-queue__item {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  padding-top: var(--space-xs);
+  border-top: 1px solid var(--color-rule);
+}
+
+.cb-queue__thumb {
+  width: 2.5rem;
+  height: 2.5rem;
+  object-fit: cover;
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-input);
+}
+
+.cb-queue__number {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.cb-queue__tag {
+  padding: 0.1rem 0.5rem;
+  border: 1px solid var(--color-ink);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.cb-queue__wait {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
