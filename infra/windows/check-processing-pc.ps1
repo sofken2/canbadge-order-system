@@ -27,14 +27,30 @@ function Report([string]$level, [string]$name, [string]$detail = "", [string]$fi
 }
 function Section([string]$title) { Write-Host ""; Write-Host "■ $title" -ForegroundColor Cyan }
 
+# リダイレクトを追わずに、応答を 1 つ読む。Windows PowerShell 5.1 の Invoke-WebRequest は、-MaximumRedirection 0 のとき、
+# 302 の応答（Access のログインへの誘導など）を、取り出せないので、.NET の HttpWebRequest を使う
 function Get-Http([string]$url, [int]$timeoutSec = 8) {
+  $res = $null
   try {
-    $r = Invoke-WebRequest -UseBasicParsing -Uri $url -TimeoutSec $timeoutSec -MaximumRedirection 0 -ErrorAction Stop
-    return @{ Status = [int]$r.StatusCode; Body = $r.Content; Headers = $r.Headers }
+    $req = [System.Net.HttpWebRequest]::Create($url)
+    $req.AllowAutoRedirect = $false
+    $req.Timeout = $timeoutSec * 1000
+    $req.UserAgent = "canbadge-check"
+    $res = $req.GetResponse()
+  } catch [System.Net.WebException] {
+    # 4xx・5xx は、例外として届くが、応答は取り出せる
+    $res = $_.Exception.Response
+    if (-not $res) { return $null }
   } catch {
-    $resp = $_.Exception.Response
-    if ($resp) { return @{ Status = [int]$resp.StatusCode; Body = ""; Headers = $resp.Headers; Location = $resp.Headers["Location"] } }
     return $null
+  }
+  try {
+    $reader = New-Object System.IO.StreamReader($res.GetResponseStream())
+    $body = $reader.ReadToEnd()
+    $reader.Close()
+    return @{ Status = [int]$res.StatusCode; Body = $body; Headers = $res.Headers; Location = $res.Headers["Location"] }
+  } finally {
+    $res.Close()
   }
 }
 
