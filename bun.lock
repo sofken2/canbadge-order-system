@@ -46,6 +46,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@canbadge/api-client": "workspace:*",
+        "@canbadge/badge-spec": "workspace:*",
         "@canbadge/scanner": "workspace:*",
         "@canbadge/shared": "workspace:*",
         "@canbadge/ui": "workspace:*",

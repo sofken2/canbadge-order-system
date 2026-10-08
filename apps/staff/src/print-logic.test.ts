@@ -115,3 +115,130 @@ describe("結果のメッセージ", () => {
     );
   });
 });
+
+// ---- 印刷待ちの見える化 ----
+import type { StaffOrderView } from "@canbadge/shared";
+import {
+  formatSeconds,
+  queueBadgeCount,
+  queueState,
+  secondsUntilPrint,
+  toQueueEntries,
+  waitedSeconds,
+} from "./print-logic";
+
+const QID = "01HZX3V5Q8N4M6T2B9C7D1E0FA";
+const orderOf = (
+  number: number,
+  overrides: Partial<StaffOrderView> = {},
+  items: StaffOrderView["items"] = [
+    { id: QID, quantity: 1, status: "queued", printCount: 0, thumbnailUrl: "/t" },
+  ],
+): StaffOrderView => ({
+  id: QID,
+  businessDate: "2026-11-03",
+  orderNumber: number,
+  orderNumberText: String(number).padStart(3, "0"),
+  status: "paid",
+  totalAmount: 300,
+  createdAt: "2026-11-03T01:00:00.000Z",
+  paidAt: "2026-11-03T01:00:00.000Z",
+  items,
+  ...overrides,
+});
+const T0 = Date.parse("2026-11-03T01:00:00.000Z");
+
+describe("印刷待ちの一覧", () => {
+  test("支払い済みで、印刷待ちの明細がある注文だけ。古い順（待たせている順）", () => {
+    const entries = toQueueEntries([
+      orderOf(2, { paidAt: "2026-11-03T01:00:30.000Z" }),
+      orderOf(1, { paidAt: "2026-11-03T01:00:00.000Z" }),
+      orderOf(3, { status: "printed" }),
+      orderOf(4, {}, [
+        { id: QID, quantity: 1, status: "printing", printCount: 0, thumbnailUrl: "/t" },
+      ]),
+    ]);
+    expect(entries.map((e) => e.orderNumberText)).toEqual(["001", "002"]);
+    expect(queueBadgeCount(entries)).toBe(2);
+  });
+
+  test("印刷したことのある明細を含む注文は、再印刷として扱う。個数は、印刷待ちの明細の合計", () => {
+    const [entry] = toQueueEntries([
+      orderOf(1, {}, [
+        { id: QID, quantity: 2, status: "queued", printCount: 1, thumbnailUrl: "/t" },
+        { id: QID, quantity: 1, status: "printed", printCount: 1, thumbnailUrl: "/t" },
+      ]),
+    ]);
+    expect(entry?.reprint).toBe(true);
+    expect(entry?.badges).toBe(2);
+  });
+});
+
+describe("あと何秒で、印刷されるか", () => {
+  test("最も古い印刷待ちが、待ち時間に達するまで。達していれば 0", () => {
+    const entries = toQueueEntries([
+      orderOf(1),
+      orderOf(2, { paidAt: "2026-11-03T01:00:50.000Z" }),
+    ]);
+    expect(secondsUntilPrint(entries, 120, T0 + 30_000)).toBe(90);
+    expect(secondsUntilPrint(entries, 120, T0 + 120_000)).toBe(0);
+    expect(secondsUntilPrint(entries, 120, T0 + 500_000)).toBe(0);
+  });
+
+  test("再印刷だけのときは、起点が分からないので undefined", () => {
+    const entries = toQueueEntries([
+      orderOf(1, {}, [
+        { id: QID, quantity: 1, status: "queued", printCount: 1, thumbnailUrl: "/t" },
+      ]),
+    ]);
+    expect(secondsUntilPrint(entries, 120, T0)).toBeUndefined();
+    expect(secondsUntilPrint([], 120, T0)).toBeUndefined();
+  });
+
+  test("秒の表示と、待ち時間", () => {
+    expect(formatSeconds(5)).toBe("5 秒");
+    expect(formatSeconds(60)).toBe("1 分");
+    expect(formatSeconds(65)).toBe("1 分 5 秒");
+    expect(waitedSeconds("2026-11-03T01:00:00.000Z", T0 + 75_000)).toBe(75);
+    expect(waitedSeconds(undefined, T0)).toBeUndefined();
+    expect(waitedSeconds("ふつうの文字", T0)).toBeUndefined();
+  });
+});
+
+describe("印刷待ちの説明", () => {
+  const base = { badges: 2, capacity: 6, paused: false, printing: false, secondsLeft: 45 };
+
+  test("待ち時間で印刷されるとき：あと何個で 1 枚分か、あと何秒で、いまある分を印刷するか", () => {
+    const state = queueState(base);
+    expect(state.headline).toBe("印刷待ち 2 個");
+    expect(state.detail).toContain("あと 4 個で用紙 1 枚分");
+    expect(state.detail).toContain("あと 45 秒で、いまある分を印刷します");
+    expect(state.needsAction).toBe(false);
+  });
+
+  test("用紙 1 枚分たまっているとき", () => {
+    expect(queueState({ ...base, badges: 6 }).detail).toContain(
+      "用紙 1 枚分（6 個）たまっています",
+    );
+  });
+
+  test("印刷中のシートがあるときは、確認が済むまで、次は印刷されないと伝える（印刷係が動く場面）", () => {
+    const state = queueState({ ...base, printing: true });
+    expect(state.detail).toContain("確認（OK）が済むまで、次のシートは、印刷されません");
+    expect(state.needsAction).toBe(true);
+  });
+
+  test("止めているときは、再開を促す。何もないときは、その旨", () => {
+    expect(queueState({ ...base, paused: true }).detail).toContain("印刷を再開する");
+    expect(queueState({ ...base, paused: true }).needsAction).toBe(true);
+    expect(queueState({ ...base, badges: 0 }).headline).toBe("印刷待ちは、ありません");
+    expect(queueState({ ...base, badges: 0, printing: true }).detail).toContain("確認が済むと");
+  });
+
+  test("再印刷だけのとき・待ち時間に達したとき", () => {
+    expect(queueState({ ...base, secondsLeft: undefined }).detail).toContain(
+      "再印刷のバッジが、先に",
+    );
+    expect(queueState({ ...base, secondsLeft: 0 }).detail).toContain("まもなく");
+  });
+});
