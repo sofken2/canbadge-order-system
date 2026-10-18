@@ -5,6 +5,7 @@ export * from "./filter-params";
 export * from "./fonts";
 export type { Placement, Point } from "./gesture";
 export * from "./image-size";
+export { LazyBadgePreview3D } from "./LazyBadgePreview3D";
 export { IMAGE_ID } from "./layers";
 export * from "./model";
 export * from "./OutputPreview";

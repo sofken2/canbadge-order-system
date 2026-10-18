@@ -47,17 +47,39 @@ p {
   margin: 0 0 var(--space-md);
 }
 
+/* 文中のリンク。ブラウザの青ではなく、文字の色に、珊瑚の下線で示す */
+a {
+  color: var(--color-ink);
+  text-decoration-color: var(--color-accent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+
+a:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
 /* ---------- ページの枠 ---------- */
 
+/* 左右と下の余白は、iPhone の切り欠き・ホームバー（safe-area）より狭くしない */
 .cb-page {
   max-width: var(--page-width);
   margin-inline: auto;
-  padding: var(--space-lg) clamp(1.25rem, 4vw, 2rem) var(--space-2xl);
+  padding-block: var(--space-lg) calc(var(--space-2xl) + env(safe-area-inset-bottom, 0px));
+  padding-inline: max(var(--gutter), env(safe-area-inset-left, 0px))
+    max(var(--gutter), env(safe-area-inset-right, 0px));
 }
 
 .cb-muted {
   color: var(--color-muted);
   font-size: var(--text-sm);
+}
+
+/* ボタンのすぐ下の補足。ボタンにくっつけない */
+.cb-button + .cb-muted {
+  margin-top: var(--space-xs);
 }
 
 .cb-number {
@@ -86,17 +108,44 @@ p {
   font: 600 var(--text-base) / 1 var(--font-body);
   white-space: nowrap;
   cursor: pointer;
+  /* タップしたときの、端末の青い四角は出さない。押した感じは :active で出す */
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
   transition:
     background-color var(--dur-micro) var(--ease-out),
     transform var(--dur-micro) var(--ease-out);
 }
 
-.cb-button:hover {
-  background: var(--color-accent-deep);
+/* ホバーは、マウスのある端末だけ。スマホでは、タップのあと、ホバーの色が残ってしまう */
+@media (hover: hover) {
+  .cb-button:hover {
+    background: var(--color-accent-deep);
+  }
+
+  .cb-button--line:hover {
+    background: var(--color-paper-2);
+  }
+
+  .cb-button--ink:hover {
+    background: var(--color-ink-2);
+  }
+
+  .cb-tab:hover {
+    color: var(--color-ink);
+  }
 }
 
 .cb-button:active {
   transform: translateY(1px);
+  background: var(--color-accent-deep);
+}
+
+.cb-button--line:active {
+  background: var(--color-paper-2);
+}
+
+.cb-button--ink:active {
+  background: var(--color-ink-2);
 }
 
 .cb-button:focus-visible {
@@ -116,17 +165,9 @@ p {
   border-color: var(--color-rule-strong);
 }
 
-.cb-button--line:hover {
-  background: var(--color-paper-2);
-}
-
 .cb-button--ink {
   background: var(--color-ink);
   color: var(--color-paper);
-}
-
-.cb-button--ink:hover {
-  background: var(--color-ink-2);
 }
 
 .cb-button--large {
@@ -136,6 +177,11 @@ p {
 
 .cb-button--block {
   width: 100%;
+}
+
+/* 幅いっぱいのボタンを縦に並べたとき、くっつけない（押し間違いを防ぐ） */
+.cb-button--block + .cb-button--block {
+  margin-top: var(--space-sm);
 }
 
 /* ---------- 入力欄 ---------- */
@@ -299,7 +345,7 @@ p {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-lg);
-  padding: 0 clamp(1.25rem, 4vw, 2rem);
+  padding: 0 var(--gutter);
   border-bottom: 1px solid var(--color-rule);
 }
 
@@ -312,10 +358,6 @@ p {
   font-weight: 600;
   text-decoration: none;
   white-space: nowrap;
-}
-
-.cb-tab:hover {
-  color: var(--color-ink);
 }
 
 .cb-tab:focus-visible {
@@ -465,7 +507,8 @@ p {
 /* ---- 確認ダイアログ（ConfirmDialog。標準の <dialog>） ---- */
 
 .cb-confirm {
-  width: min(32rem, calc(100vw - 2 * var(--space-md)));
+  /* 100vw はスクロールバーの幅まで含むので使わない。ダイアログの % は、画面の幅に対して */
+  width: min(32rem, calc(100% - 2 * var(--space-md)));
   max-height: calc(100dvh - 2 * var(--space-md));
   padding: var(--space-lg);
   border: 2px solid var(--color-ink);
