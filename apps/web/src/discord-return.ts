@@ -15,6 +15,19 @@ export function readDiscordReturn(search: string): DiscordReturn | undefined {
   return imageId.success ? { imageId: imageId.data } : undefined;
 }
 
+/**
+ * api は、注文画面を `/` と決めて戻す。`/` ははじめの画面になったので、戻りのアドレスなら、注文画面（/order）に移す。
+ * 画面を描く前に呼ぶ（api の戻り先を変えずに済ませるため）
+ */
+export function moveDiscordReturnToOrder(
+  location: Pick<Location, "pathname" | "search">,
+  history: Pick<History, "replaceState">,
+): void {
+  if (location.pathname === "/" && readDiscordReturn(location.search)) {
+    history.replaceState(null, "", `/order${location.search}`);
+  }
+}
+
 // 「何が起きたか → どうするか」の順で書く。Discord の仕組みの細部（state・トークン）は、見せない
 const messages: Record<string, string> = {
   denied: "Discord での許可が、キャンセルされました。もう一度試すか、手元の画像を選んでください。",

@@ -1,7 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import { badgeSpec } from "@canbadge/badge-spec";
 import { editorDataSchema } from "@canbadge/shared";
-import { coverWidthMm, effectiveDpi, fitWithin, MAX_SOURCE_SIDE } from "./image-size";
+import {
+  containWidthMm,
+  coverWidthMm,
+  effectiveDpi,
+  fitWithin,
+  MAX_SOURCE_SIDE,
+} from "./image-size";
 import { createEmptyState, parseEditorState } from "./model";
 
 describe("編集データ", () => {
@@ -59,6 +65,12 @@ describe("写真の大きさ", () => {
     expect(coverWidthMm(70, 0.75)).toBe(70);
     expect(coverWidthMm(70, 1)).toBe(70);
     expect(coverWidthMm(70, 1.5)).toBe(105);
+  });
+
+  test("収める幅は、正方形の一辺に、縦長なら縦横比を掛けた幅（切れない）", () => {
+    expect(containWidthMm(60, 1)).toBe(60);
+    expect(containWidthMm(60, 0.5)).toBe(30);
+    expect(containWidthMm(60, 2)).toBe(60);
   });
 
   test("実効解像度：70mm に 827px なら、約 300dpi", () => {

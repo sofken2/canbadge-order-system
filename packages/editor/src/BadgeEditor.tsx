@@ -17,8 +17,9 @@ import {
   type Placement,
   type Point,
 } from "./gesture";
-import { coverWidthMm, effectiveDpi } from "./image-size";
+import { containWidthMm, coverWidthMm, effectiveDpi } from "./image-size";
 import { LayerNodes } from "./LayerNodes";
+import { LazyBadgePreview3D } from "./LazyBadgePreview3D";
 import {
   addDecorLayer,
   addStroke,
@@ -86,6 +87,11 @@ export type BadgeEditorProps = {
    */
   initialImage?: Blob | string;
   /**
+   * 指定すると、写真を、この一辺（mm）の正方形に収めて置く（切れない）。指定しなければ、印刷範囲を覆うように置く。
+   * Discord のアイコンは、70mm いっぱいに伸ばすと端が切れるので、これで小さめに置く
+   */
+  imageFitMm?: number;
+  /**
    * 途中保存の名前。指定すると、作りかけのデザインと写真を、この端末のブラウザ（IndexedDB）に自動で残し、
    * 次に開いたとき、続きから再開する（24 時間まで）。initialData / initialImage があるときは、そちらを使う。
    * 注文が済んだら、呼ぶ側が clearDraft(draftKey) で消す
@@ -124,11 +130,14 @@ const extentOf = (layer: MovableLayer) => extentOfLayer(layer, measureTextEm);
 const MAX_REDO = 50;
 /** 「はじめからやり直す」を、もう一度押すまでの猶予（ms）。押しまちがいで、作りかけを消さないため */
 const RESET_CONFIRM_MS = 4000;
+/** 3D のプレビュー用の PNG の一辺（px）。軽くするため、印刷の出力より小さくする */
+const PREVIEW3D_PX = 768;
 
 export function BadgeEditor({
   spec,
   initialData,
   initialImage,
+  imageFitMm,
   draftKey,
   confirmLabel = "これで決定",
   onExport,
@@ -217,10 +226,13 @@ export function BadgeEditor({
     (aspect: number): Placement => ({
       x: 0,
       y: 0,
-      widthMm: coverWidthMm(diameter, aspect),
+      widthMm:
+        imageFitMm === undefined
+          ? coverWidthMm(diameter, aspect)
+          : containWidthMm(imageFitMm, aspect),
       rotationDeg: 0,
     }),
-    [diameter],
+    [diameter, imageFitMm],
   );
 
   const accept = useCallback(
@@ -413,6 +425,11 @@ export function BadgeEditor({
       applyRotation(placement, aboutOf(placement, layer), degrees),
     );
   };
+  /** 選んでいるものを、バッジの真ん中に置く（大きさと回転は、そのまま） */
+  const centerActive = () => {
+    if (activeId === undefined) return;
+    transform(activeId, (placement) => ({ ...placement, x: 0, y: 0 }));
+  };
   const resetActive = () => {
     if (activeId === undefined || !active) return;
     transform(activeId, (placement, layer) =>
@@ -559,21 +576,63 @@ export function BadgeEditor({
     setSelectedId(IMAGE_ID);
   };
 
-  const confirm = async () => {
+  /** 一辺 outputPx の PNG を作る。ガイド線と選択の枠は、印刷に入れないので、作る間だけ隠す */
+  const renderPng = async (outputPx: number) => {
     const stage = stageRef.current;
-    if (!stage || !loaded || !imageLayer) return;
-    setBusy(true);
-    setMessage(undefined);
-    // ガイド線と選択の枠は、印刷に入れない。出力の間だけ隠す
+    if (!stage) throw new Error("画像を作れませんでした");
     const guides = guidesRef.current;
     guides?.visible(false);
     try {
-      const outputPx = mmToPx(diameter, spec.dpi);
       const png = await stage.toBlob({
         pixelRatio: outputPx / displayPx,
         mimeType: "image/png",
       });
       if (!(png instanceof Blob)) throw new Error("画像を作れませんでした");
+      return png;
+    } finally {
+      guides?.visible(true);
+    }
+  };
+
+  // ---- 3D のプレビュー ----
+
+  const [preview3d, setPreview3d] = useState<string | undefined>(undefined);
+  const [preview3dBusy, setPreview3dBusy] = useState(false);
+  const preview3dRef = useRef<string | undefined>(undefined);
+
+  const setPreviewUrl = (url: string | undefined) => {
+    if (preview3dRef.current) URL.revokeObjectURL(preview3dRef.current);
+    preview3dRef.current = url;
+    setPreview3d(url);
+  };
+  // 部品を閉じるとき、作った一時的なアドレスを手放す
+  useEffect(
+    () => () => {
+      if (preview3dRef.current) URL.revokeObjectURL(preview3dRef.current);
+    },
+    [],
+  );
+
+  // 押したときに、今のデザインから 1 枚だけ作る（編集のたびには作らない）。デザインを変えたら、押しなおして更新する
+  const showPreview3d = async () => {
+    if (!loaded || !imageLayer) return;
+    setPreview3dBusy(true);
+    setMessage(undefined);
+    try {
+      setPreviewUrl(URL.createObjectURL(await renderPng(PREVIEW3D_PX)));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "画像を作れませんでした");
+    } finally {
+      setPreview3dBusy(false);
+    }
+  };
+
+  const confirm = async () => {
+    if (!loaded || !imageLayer) return;
+    setBusy(true);
+    setMessage(undefined);
+    try {
+      const png = await renderPng(mmToPx(diameter, spec.dpi));
       const base = createEmptyState(spec);
       onExport({
         png,
@@ -586,7 +645,6 @@ export function BadgeEditor({
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "画像を作れませんでした");
     } finally {
-      guides?.visible(true);
       setBusy(false);
     }
   };
@@ -625,7 +683,8 @@ export function BadgeEditor({
       <div
         ref={frameRef}
         className="cb-editor__frame"
-        style={{ maxWidth: MAX_DISPLAY_PX, height: displayPx }}
+        // 幅の上限は CSS（画面の高さでも抑える）。高さは、決まった幅に合わせる
+        style={{ height: displayPx }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerEnd}
@@ -665,7 +724,13 @@ export function BadgeEditor({
                 strokeWidth={lineWidth * 0.6}
                 opacity={0.6}
               />
-              <Circle radius={cutRadius} stroke={colors.cut} strokeWidth={lineWidth} />
+              {/* バッジの縁（内径）。薄い線にして、縁ぎりぎりの絵を隠さない */}
+              <Circle
+                radius={cutRadius}
+                stroke={colors.safe}
+                strokeWidth={lineWidth * 0.6}
+                opacity={0.7}
+              />
               <Circle
                 radius={safeRadius}
                 stroke={colors.safe}
@@ -740,6 +805,9 @@ export function BadgeEditor({
         </Button>
         <Button variant="line" onClick={() => rotateBy(ROTATE_STEP_DEG)} disabled={disabledTools}>
           右に回す
+        </Button>
+        <Button variant="line" onClick={centerActive} disabled={disabledTools}>
+          中央揃え
         </Button>
         <Button variant="line" onClick={resetActive} disabled={disabledTools}>
           位置を戻す
@@ -851,6 +919,29 @@ export function BadgeEditor({
             }
           />
         )}
+      </div>
+
+      {/* 3D の完成予想。重いので、押したときだけ作って表示する */}
+      <div className="cb-editor__preview3d-area">
+        {preview3d && <LazyBadgePreview3D src={preview3d} spec={spec} />}
+        <div className="cb-editor__preview3d-actions">
+          <Button
+            variant="line"
+            onClick={() => void showPreview3d()}
+            disabled={!canExport || preview3dBusy}
+          >
+            {preview3dBusy
+              ? "作っています…"
+              : preview3d
+                ? "3D を今のデザインに更新"
+                : "3D で完成予想を見る"}
+          </Button>
+          {preview3d && (
+            <Button variant="line" onClick={() => setPreviewUrl(undefined)}>
+              閉じる
+            </Button>
+          )}
+        </div>
       </div>
 
       <Button size="large" block onClick={() => void confirm()} disabled={!canExport}>

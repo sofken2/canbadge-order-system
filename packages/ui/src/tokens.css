@@ -48,6 +48,8 @@
   --size-control: 3rem;
   --size-control-lg: 3.75rem;
   --page-width: 40rem;
+  /* 画面の左右の余白。スマホで 16〜20px（design.md） */
+  --gutter: clamp(1rem, 5vw, 2rem);
 
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --dur-micro: 120ms;

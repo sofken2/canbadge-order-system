@@ -28,6 +28,14 @@ export function coverWidthMm(printDiameterMm: number, aspect: number): number {
 }
 
 /**
+ * 一辺 boxMm の正方形の中に、写真の全体を収める幅（余白が出るぶん、cover と違って切れない）。
+ * Discord のアイコンのように、端まで絵がある画像を、切らずに見せたいときに使う
+ */
+export function containWidthMm(boxMm: number, aspect: number): number {
+  return boxMm * Math.min(1, aspect);
+}
+
+/**
  * 印刷の解像度（dpi）に対する、写真の実効解像度。表示幅 widthMm の中に、元の写真の何画素が入るか。
  * 印刷で粗く見える写真かどうかの判断に使う（目安は 150dpi 以上）
  */

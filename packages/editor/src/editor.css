@@ -1,13 +1,18 @@
 /* エディタの見た目。色・余白・角丸は @canbadge/ui の tokens.css の変数だけを使う（design.md）。 */
 
+/* 列は minmax(0, 1fr)。1fr だと、キャンバスの幅が列を押し広げ、スマホで右にはみ出す */
 .cb-editor {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-md);
 }
 
 /* 編集画面。指のドラッグ・ピンチをページのスクロールにせず、こちらで受けるので touch-action を止める */
 .cb-editor__frame {
   width: 100%;
+  min-width: 0;
+  /* 横向きや、背の低いスマホでも、下の道具が見える大きさに抑える。svh は、アドレスバーの出入りで変わらない */
+  max-width: min(30rem, 58svh);
   margin-inline: auto;
   /* 枠線は、キャンバスと座標がずれないよう、border ではなく outline で内側に描く */
   outline: 1px solid var(--color-rule);
@@ -40,7 +45,8 @@
 .cb-editor__key {
   flex: none;
   width: 1.5rem;
-  border-top: 2px solid var(--color-accent);
+  border-top: 1px solid var(--color-paper);
+  opacity: 0.7;
 }
 
 .cb-editor__key--safe {
@@ -59,27 +65,60 @@
   margin-inline: auto;
 }
 
+/* 3D のプレビュー。縦のスクロールは画面に任せ、横のドラッグで回す */
+.cb-editor__preview3d {
+  width: 100%;
+  max-width: 20rem;
+  aspect-ratio: 1;
+  margin-inline: auto;
+  touch-action: pan-y;
+  cursor: grab;
+}
+
+.cb-editor__preview3d-area {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.cb-editor__preview3d-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.cb-editor__preview3d-actions .cb-button {
+  flex: 1 1 auto;
+}
+
 .cb-editor__preview-edge {
   fill: none;
   stroke: var(--color-rule-strong);
   stroke-width: 0.4;
 }
 
+/* 動かす道具。スマホでは 3 列の格子にそろえ、ばらばらに折り返さない。広い画面では 4 列 */
 .cb-editor__tools {
   margin: 0;
   padding: 0;
   border: 0;
   min-width: 0;
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-xs);
 }
 
-/* ファイル選択の入力は、見えなくするが、キーボードの操作と読み上げからは外さない */
 .cb-editor__tools .cb-button {
-  min-height: 2.5rem;
-  padding: 0.45rem 0.9rem;
-  font-size: var(--text-sm);
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: 0.45rem var(--space-xs);
+  /* 320px 幅でも「位置を戻す」が 1 行に収まる大きさ */
+  font-size: clamp(var(--text-xs), 3.8vw, var(--text-sm));
+}
+
+@media (min-width: 30rem) {
+  .cb-editor__tools {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 .cb-editor__choose {
@@ -108,24 +147,33 @@
 
 /* ---- 道具の切り替え ---- */
 
+/* 道具の切り替え。スマホでは 3 列 × 2 段（「フィルター」だけが、次の段に落ちない）。広い画面では 1 段 */
 .cb-editor__tabs {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-2xs);
   border-bottom: 1px solid var(--color-rule);
   padding-bottom: var(--space-xs);
 }
 
+@media (min-width: 30rem) {
+  .cb-editor__tabs {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
 .cb-editor__tab {
-  min-height: 2.5rem;
-  padding: 0.4rem 0.45rem;
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: 0.4rem 0.25rem;
   border: 1px solid transparent;
   border-radius: var(--radius-pill);
   background: transparent;
   color: var(--color-muted);
-  font: 600 var(--text-xs) / 1 var(--font-body);
+  font: 600 var(--text-sm) / 1 var(--font-body);
   white-space: nowrap;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .cb-editor__tab[aria-selected="true"] {
@@ -289,7 +337,7 @@
 }
 
 .cb-editor__pen-actions .cb-button {
-  min-height: 2.5rem;
+  min-height: 2.75rem;
   padding: 0.45rem 0.9rem;
   font-size: var(--text-sm);
 }
