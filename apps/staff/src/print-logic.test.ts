@@ -132,7 +132,7 @@ const orderOf = (
   number: number,
   overrides: Partial<StaffOrderView> = {},
   items: StaffOrderView["items"] = [
-    { id: QID, quantity: 1, status: "queued", printCount: 0, thumbnailUrl: "/t" },
+    { id: QID, quantity: 1, kiraQuantity: 0, status: "queued", printCount: 0, thumbnailUrl: "/t" },
   ],
 ): StaffOrderView => ({
   id: QID,
@@ -155,7 +155,14 @@ describe("印刷待ちの一覧", () => {
       orderOf(1, { paidAt: "2026-11-03T01:00:00.000Z" }),
       orderOf(3, { status: "printed" }),
       orderOf(4, {}, [
-        { id: QID, quantity: 1, status: "printing", printCount: 0, thumbnailUrl: "/t" },
+        {
+          id: QID,
+          quantity: 1,
+          kiraQuantity: 0,
+          status: "printing",
+          printCount: 0,
+          thumbnailUrl: "/t",
+        },
       ]),
     ]);
     expect(entries.map((e) => e.orderNumberText)).toEqual(["001", "002"]);
@@ -165,8 +172,22 @@ describe("印刷待ちの一覧", () => {
   test("印刷したことのある明細を含む注文は、再印刷として扱う。個数は、印刷待ちの明細の合計", () => {
     const [entry] = toQueueEntries([
       orderOf(1, {}, [
-        { id: QID, quantity: 2, status: "queued", printCount: 1, thumbnailUrl: "/t" },
-        { id: QID, quantity: 1, status: "printed", printCount: 1, thumbnailUrl: "/t" },
+        {
+          id: QID,
+          quantity: 2,
+          kiraQuantity: 0,
+          status: "queued",
+          printCount: 1,
+          thumbnailUrl: "/t",
+        },
+        {
+          id: QID,
+          quantity: 1,
+          kiraQuantity: 0,
+          status: "printed",
+          printCount: 1,
+          thumbnailUrl: "/t",
+        },
       ]),
     ]);
     expect(entry?.reprint).toBe(true);
@@ -188,7 +209,14 @@ describe("あと何秒で、印刷されるか", () => {
   test("再印刷だけのときは、起点が分からないので undefined", () => {
     const entries = toQueueEntries([
       orderOf(1, {}, [
-        { id: QID, quantity: 1, status: "queued", printCount: 1, thumbnailUrl: "/t" },
+        {
+          id: QID,
+          quantity: 1,
+          kiraQuantity: 0,
+          status: "queued",
+          printCount: 1,
+          thumbnailUrl: "/t",
+        },
       ]),
     ]);
     expect(secondsUntilPrint(entries, 120, T0)).toBeUndefined();
