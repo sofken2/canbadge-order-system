@@ -58,7 +58,7 @@ const tinyPng = () => {
 describe("来場者向けのエンドポイント", () => {
   test("getStatus", async () => {
     const { body } = await run("getStatus", {});
-    expect(body).toMatchObject({ acceptance: "open", price: 300, maxQuantityPerOrder: 1 });
+    expect(body).toMatchObject({ acceptance: "open", price: 200, maxQuantityPerOrder: 1 });
   });
 
   test("uploadImage → getImage", async () => {
@@ -196,6 +196,7 @@ describe("スタッフ向けのエンドポイント", () => {
     const updated = await run("updateSettings", {
       json: {
         price: 350,
+        kiraFilmPrice: current.kiraFilmPrice,
         maxQuantityPerOrder: current.maxQuantityPerOrder,
         maxPendingPerDevice: current.maxPendingPerDevice,
         printMaxWaitSeconds: current.printMaxWaitSeconds,

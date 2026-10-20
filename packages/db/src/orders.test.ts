@@ -29,7 +29,7 @@ describe("注文の作成", () => {
     const { order, items, design } = placeOrder(db, 1, TOKEN);
     expect(order.status).toBe("submitted");
     expect(order.businessDate).toBe("2026-11-03");
-    expect(order.totalAmount).toBe(300);
+    expect(order.totalAmount).toBe(200);
     expect(confirmationCodeSchema.safeParse(order.confirmationCode).success).toBe(true);
     expect(order.anonToken).toBe(TOKEN);
     expect(items).toHaveLength(1);
@@ -62,6 +62,7 @@ describe("注文の作成", () => {
       actor: "staff",
       values: {
         price: 250,
+        kiraFilmPrice: 100,
         maxQuantityPerOrder: 3,
         maxPendingPerDevice: 2,
         printMaxWaitSeconds: 120,
@@ -72,6 +73,27 @@ describe("注文の作成", () => {
     const { order, items } = placeOrder(db, 3);
     expect(order.totalAmount).toBe(750);
     expect(items[0]?.quantity).toBe(3);
+  });
+
+  test("キラフィルムは、貼る個数ぶんだけ加算する（個数を超える指定は断る）", () => {
+    const { db } = setup();
+    updateSetting(db, {
+      actor: "staff",
+      values: {
+        price: 200,
+        kiraFilmPrice: 100,
+        maxQuantityPerOrder: 3,
+        maxPendingPerDevice: 5,
+        printMaxWaitSeconds: 120,
+        orderNumberDigits: 3,
+        imageMaxBytes: 1000,
+      },
+    });
+    const { order, items } = placeOrder(db, 3, undefined, 2);
+    expect(order.totalAmount).toBe(3 * 200 + 2 * 100);
+    expect(items[0]?.kiraQuantity).toBe(2);
+    expect(placeOrder(db, 2).order.totalAmount).toBe(400);
+    expect(codeOf(() => placeOrder(db, 2, undefined, 3))).toBe("VALIDATION_FAILED");
   });
 
   test("個数が上限を超えたら断る", () => {
@@ -310,6 +332,7 @@ describe("1 端末あたりの支払い待ちの上限（A06）", () => {
       actor: "staff",
       values: {
         price: 300,
+        kiraFilmPrice: 100,
         maxQuantityPerOrder: 1,
         maxPendingPerDevice: 1,
         printMaxWaitSeconds: 60,

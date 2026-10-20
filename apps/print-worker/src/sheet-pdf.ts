@@ -20,7 +20,13 @@ export type SheetBadge = {
   imagePath: string;
   /** 用紙に印字する注文番号（ゼロ埋め済み。例: 012）。ASCII の文字だけ */
   orderNumberText: string;
+  /** キラフィルムを貼るバッジ。注文番号の横に「KIRA」と印字して、組み立てで貼り忘れないようにする */
+  kira?: boolean;
 };
+
+/** キラ加工のバッジに印字する注文番号の文字列 */
+export const labelText = (badge: SheetBadge): string =>
+  badge.kira ? `${badge.orderNumberText} KIRA` : badge.orderNumberText;
 
 export type SheetOptions = {
   /** データ置き場（画像の置き場所の起点） */
@@ -146,7 +152,7 @@ export async function renderSheetPdf(
     const baselineMm = slot.label.topMm + slot.label.heightMm * 0.78;
     drawCenteredTextMm(
       canvas,
-      badge.orderNumberText,
+      labelText(badge),
       { centerXMm: slot.label.centerXMm, yMm: baselineMm },
       { font: bold, sizePt: fontSizePt },
     );

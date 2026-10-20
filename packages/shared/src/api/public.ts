@@ -25,6 +25,8 @@ export const statusResponseSchema = z.object({
   /** acceptance が busy のとき、注文ボタンの代わりに見せる案内文 */
   busyMessage: z.string().nullable(),
   price: yenSchema,
+  /** キラフィルムを貼る 1 個あたりの加算額 */
+  kiraFilmPrice: yenSchema,
   /** 1 のとき、画面は個数の選択を出さない */
   maxQuantityPerOrder: quantitySchema,
   waitingCount: z.int().nonnegative(),
@@ -41,6 +43,8 @@ export const createOrderRequestSchema = z.object({
   editorData: editorDataSchema,
   /** 原則 1。上限は Setting.maxQuantityPerOrder */
   quantity: quantitySchema,
+  /** キラフィルムを貼る個数（0〜quantity）。省略すると 0。超えていれば db が VALIDATION_FAILED で断る */
+  kiraQuantity: z.int().nonnegative().default(0),
   turnstileToken: z.string().min(1),
   /** 持ち込み画像の権利確認への同意（spec.md 11.4）。同意しないと注文できない */
   rightsConsent: z.literal(true),
@@ -54,6 +58,7 @@ export type CreateOrderResponse = z.infer<typeof createOrderResponseSchema>;
 export const orderItemViewSchema = z.object({
   id: idSchema,
   quantity: quantitySchema,
+  kiraQuantity: z.int().nonnegative(),
   status: orderItemStatusSchema,
   imageUrl: z.string(),
   thumbnailUrl: z.string(),
@@ -166,6 +171,7 @@ export type ReportArchiveEntryResponse = z.infer<typeof reportArchiveEntryRespon
 /** POST /api/archive/:entryId/order。作品をコピーして注文する。受付・上限・Turnstile は、通常の注文と同じ */
 export const orderFromArchiveRequestSchema = z.object({
   quantity: quantitySchema,
+  kiraQuantity: z.int().nonnegative().default(0),
   turnstileToken: z.string().min(1),
   /** 権利確認への同意（spec.md 11.4）。通常の注文と同じ */
   rightsConsent: z.literal(true),

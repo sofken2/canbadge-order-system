@@ -260,6 +260,7 @@ describe("画像のアップロードと配信", () => {
     await call(t.app, "PUT", "/api/staff/settings", {
       json: {
         price: 300,
+        kiraFilmPrice: 100,
         maxQuantityPerOrder: 1,
         maxPendingPerDevice: 2,
         printMaxWaitSeconds: 120,

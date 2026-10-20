@@ -28,11 +28,17 @@ export function setupClosed(startIso = "2026-11-03T09:00:00+09:00") {
 }
 
 /** 注文する。token を省くと、注文ごとに別の端末（匿名トークン）になる */
-export function placeOrder(db: Database, quantity = 1, token: string = uniqueToken()) {
+export function placeOrder(
+  db: Database,
+  quantity = 1,
+  token: string = uniqueToken(),
+  kiraQuantity = 0,
+) {
   return createOrder(db, {
     imagePath: "images/sample.png",
     editorData: { version: 1 },
     quantity,
+    kiraQuantity,
     anonToken: token,
   });
 }

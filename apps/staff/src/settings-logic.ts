@@ -67,6 +67,7 @@ export function closeImpact(submittedCount: number): Impact {
 /** 画面で編集する値を、入力欄の文字として持つ（途中の入力を、そのまま持てるように）。容量は MB で見せる */
 export type SettingsForm = {
   price: string;
+  kiraFilmPrice: string;
   maxQuantityPerOrder: string;
   maxPendingPerDevice: string;
   printMaxWaitSeconds: string;
@@ -81,6 +82,7 @@ const MB = 1024 * 1024;
 export function formFromSetting(setting: Setting): SettingsForm {
   return {
     price: String(setting.price),
+    kiraFilmPrice: String(setting.kiraFilmPrice),
     maxQuantityPerOrder: String(setting.maxQuantityPerOrder),
     maxPendingPerDevice: String(setting.maxPendingPerDevice),
     printMaxWaitSeconds: String(setting.printMaxWaitSeconds),
@@ -98,6 +100,7 @@ export function parseInteger(raw: string): number | undefined {
 
 const FIELD_LABELS: Record<FormField, string> = {
   price: "価格",
+  kiraFilmPrice: "キラフィルムの加算額",
   maxQuantityPerOrder: "1 注文の個数の上限",
   maxPendingPerDevice: "1 台あたりの支払い待ちの上限",
   printMaxWaitSeconds: "印刷を待つ最大の秒数",
@@ -132,6 +135,7 @@ export function parseSettingsForm(form: SettingsForm): ParsedForm {
 
   const result = updateSettingRequestSchema.safeParse({
     price: numbers.price,
+    kiraFilmPrice: numbers.kiraFilmPrice,
     maxQuantityPerOrder: numbers.maxQuantityPerOrder,
     maxPendingPerDevice: numbers.maxPendingPerDevice,
     printMaxWaitSeconds: numbers.printMaxWaitSeconds,

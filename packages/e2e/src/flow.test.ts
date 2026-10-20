@@ -298,9 +298,9 @@ describe("売上", () => {
     const sales = await client.call("getSales");
     expect(sales.total).toMatchObject({
       paidCount: 2,
-      paidAmount: 600,
+      paidAmount: 400,
       refundedCount: 0,
-      netAmount: 600,
+      netAmount: 400,
     });
   });
 

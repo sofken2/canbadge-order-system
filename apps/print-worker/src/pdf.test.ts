@@ -37,7 +37,10 @@ async function imageCount(bytes: Uint8Array): Promise<number> {
 }
 
 const hex = (text: string) => Buffer.from(text, "latin1").toString("hex").toUpperCase();
-const sheet = (badges: { imagePath: string; orderNumberText: string }[], spec = badgeSpec) =>
+const sheet = (
+  badges: { imagePath: string; orderNumberText: string; kira?: boolean }[],
+  spec = badgeSpec,
+) =>
   renderSheetPdf(spec, badges, {
     dataDir,
     sheetLabel: "SHEET TEST",
@@ -79,6 +82,20 @@ describe("印刷シートの PDF", () => {
     for (const text of ["001", "002", "003", "004", "005", "006"]) {
       expect(content.toUpperCase()).toContain(`<${hex(text)}>`);
     }
+  });
+
+  test("キラフィルムのバッジだけ、注文番号の横に KIRA と印字される", async () => {
+    const content = (
+      await contentOf(
+        await sheet([
+          { imagePath: "images/a.png", orderNumberText: "007", kira: true },
+          { imagePath: "images/a.png", orderNumberText: "008" },
+        ]),
+      )
+    ).toUpperCase();
+    expect(content).toContain(`<${hex("007 KIRA")}>`);
+    expect(content).toContain(`<${hex("008")}>`);
+    expect(content).not.toContain(`<${hex("008 KIRA")}>`);
   });
 
   test("シートの名前と印刷日時が、用紙の上に印字される", async () => {

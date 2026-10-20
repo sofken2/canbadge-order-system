@@ -187,11 +187,12 @@ export async function runQueueOnce(db: Database, options: QueueOptions): Promise
       pdfPath,
       await renderSheetPdf(
         badgeSpec,
-        // 個数のあるバッジは、その数だけ、同じものを並べる
+        // 個数のあるバッジは、その数だけ、同じものを並べる。キラ加工の個数ぶんは、先頭から印字する
         batch.flatMap((item) =>
-          Array.from({ length: item.quantity }, () => ({
+          Array.from({ length: item.quantity }, (_, index) => ({
             imagePath: item.imagePath,
             orderNumberText: formatOrderNumber(item.orderNumber, setting.orderNumberDigits),
+            kira: index < item.kiraQuantity,
           })),
         ),
         {

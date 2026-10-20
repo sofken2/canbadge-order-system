@@ -50,6 +50,7 @@ export function buildOrderView(db: Database, order: Order): OrderView {
     return {
       id: item.id,
       quantity: item.quantity,
+      kiraQuantity: item.kiraQuantity,
       status: item.status,
       imageUrl: imageUrl(path),
       thumbnailUrl: thumbnailUrl(path),
@@ -76,6 +77,7 @@ export function buildStaffOrderView(db: Database, order: Order): StaffOrderView 
   const items = listOrderItems(db.orm, order.id).map((item) => ({
     id: item.id,
     quantity: item.quantity,
+    kiraQuantity: item.kiraQuantity,
     status: item.status,
     printCount: item.printCount,
     thumbnailUrl: thumbnailUrl(getDesign(db.orm, item.designId)?.imagePath ?? ""),

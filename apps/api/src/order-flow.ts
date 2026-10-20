@@ -25,7 +25,7 @@ export type OrderSource = {
 export async function placeOrder(
   c: Context,
   deps: Deps,
-  request: { quantity: number; turnstileToken: string },
+  request: { quantity: number; kiraQuantity: number; turnstileToken: string },
   resolveSource: () => OrderSource,
 ): Promise<{ orderId: string }> {
   const ip = visitorIp(c, deps.remoteAddressOf?.(c));
@@ -83,6 +83,7 @@ export async function placeOrder(
     imagePath: source.imagePath,
     editorData: source.editorData,
     quantity: request.quantity,
+    kiraQuantity: request.kiraQuantity,
     anonToken: token,
     ...(source.sourceArchiveEntryId ? { sourceArchiveEntryId: source.sourceArchiveEntryId } : {}),
   });

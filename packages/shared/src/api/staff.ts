@@ -36,6 +36,8 @@ export const staffOrderViewSchema = z.object({
     z.object({
       id: idSchema,
       quantity: quantitySchema,
+      /** うち、キラフィルムを貼る個数。組み立てで貼り忘れないよう見せる */
+      kiraQuantity: z.int().nonnegative(),
       status: orderItemStatusSchema,
       printCount: z.int().nonnegative(),
       thumbnailUrl: z.string(),
@@ -162,6 +164,7 @@ export type SetAcceptanceRequest = z.infer<typeof setAcceptanceRequestSchema>;
  */
 export const updateSettingRequestSchema = settingSchema.pick({
   price: true,
+  kiraFilmPrice: true,
   maxQuantityPerOrder: true,
   maxPendingPerDevice: true,
   printMaxWaitSeconds: true,

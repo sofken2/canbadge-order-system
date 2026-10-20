@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { api } from "./api";
 import { orderBlockedReason, orderErrorMessage } from "./archive-view-logic";
 import { DEV_TURNSTILE_TOKEN, turnstileSiteKey } from "./env";
+import { KiraFilmPicker, orderTotal } from "./KiraFilmPicker";
 import { QuantityPicker } from "./QuantityPicker";
 import { TurnstileWidget } from "./TurnstileWidget";
 
@@ -20,6 +21,9 @@ export function ArchiveOrderPanel({
 }) {
   const status = useResource(() => api.call("getStatus"), { refreshMs: 5000 });
   const [quantity, setQuantity] = useState(1);
+  const [kiraSelected, setKiraSelected] = useState(0);
+  // 個数を減らしたとき、キラの個数が個数を超えないようにする
+  const kiraQuantity = Math.min(kiraSelected, quantity);
   const [consent, setConsent] = useState(false);
   const [token, setToken] = useState<string | undefined>(undefined);
   /** 注文を試すたびに増やす。Turnstile のトークンは 1 回しか使えないので、作り直す */
@@ -35,6 +39,7 @@ export function ArchiveOrderPanel({
         params: { entryId },
         body: {
           quantity,
+          kiraQuantity,
           turnstileToken: turnstileSiteKey ? (token ?? "") : DEV_TURNSTILE_TOKEN,
           rightsConsent: true,
         },
@@ -61,7 +66,7 @@ export function ArchiveOrderPanel({
   const needsToken = turnstileSiteKey !== undefined;
   const canSubmit =
     !!setting && !blocked && consent && (!needsToken || token !== undefined) && !submit.running;
-  const total = (setting?.price ?? 0) * quantity;
+  const total = orderTotal(setting, quantity, kiraQuantity);
 
   return (
     <section className="cb-arcorder" aria-label="この作品で注文する">
@@ -81,13 +86,20 @@ export function ArchiveOrderPanel({
           }}
         >
           <QuantityPicker value={quantity} max={maxQuantity} onChange={setQuantity} />
+          <KiraFilmPicker
+            value={kiraQuantity}
+            quantity={quantity}
+            price={setting.kiraFilmPrice}
+            onChange={setKiraSelected}
+          />
           <dl className="cb-summary cb-gap-top">
             <dt>金額</dt>
             <dd>
               <strong>{total}円</strong>
-              {quantity > 1 && (
+              {(quantity > 1 || kiraQuantity > 0) && (
                 <span className="cb-muted">
-                  （{setting.price}円 × {quantity}）
+                  （{setting.price}円 × {quantity}
+                  {kiraQuantity > 0 && ` + キラ ${setting.kiraFilmPrice}円 × ${kiraQuantity}`}）
                 </span>
               )}
             </dd>

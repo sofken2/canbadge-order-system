@@ -23,6 +23,7 @@ describe("API の呼び出し", () => {
         acceptance: "open",
         busyMessage: null,
         price: 300,
+        kiraFilmPrice: 100,
         maxQuantityPerOrder: 1,
         waitingCount: 2,
       }),

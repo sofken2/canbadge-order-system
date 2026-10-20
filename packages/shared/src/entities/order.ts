@@ -20,7 +20,7 @@ export const orderSchema = z.object({
   /** 来場者本人の判定用。画面には返さない */
   anonToken: anonTokenSchema,
   status: orderStatusSchema,
-  /** 価格 × 個数。円の整数 */
+  /** 価格 × 個数 + キラフィルムの加算額 × キラの個数。円の整数 */
   totalAmount: yenSchema,
   createdAt: isoDateTimeSchema,
   paidAt: isoDateTimeSchema.optional(),
@@ -38,6 +38,8 @@ export const orderItemSchema = z.object({
   orderId: orderIdSchema,
   designId: idSchema,
   quantity: quantitySchema,
+  /** quantity のうち、キラフィルムを貼る個数（0〜quantity）。個数単位で選べる */
+  kiraQuantity: z.int().nonnegative(),
   status: orderItemStatusSchema,
   /** 印刷された回数。1 以上で queued なら再印刷待ちで、次のシートに優先して載る */
   printCount: z.int().nonnegative(),
