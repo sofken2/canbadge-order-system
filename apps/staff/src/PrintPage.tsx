@@ -17,6 +17,7 @@ import {
   splitReprintable,
   toggled,
 } from "./print-logic";
+import { QueuePanel } from "./QueuePanel";
 import "./print.css";
 
 type Tab = "check" | "items" | "sheets";
@@ -427,6 +428,9 @@ export function PrintPage() {
         </Button>
       </div>
       {toggle.error && <Notice tone="error">{toggle.error}</Notice>}
+
+      {/* 印刷待ち：支払い済みで、まだ印刷されていないバッジ。どのタブにいても、見える */}
+      <QueuePanel paused={paused} waitSeconds={settings.data?.printMaxWaitSeconds ?? 120} />
 
       <div className="cb-switch" role="tablist" aria-label="印刷の作業">
         {(

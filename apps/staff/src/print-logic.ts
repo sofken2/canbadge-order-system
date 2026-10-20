@@ -1,4 +1,9 @@
-import { type OrderStatus, orderStatusLabels, type PrintSlotResult } from "@canbadge/shared";
+import {
+  type OrderStatus,
+  orderStatusLabels,
+  type PrintSlotResult,
+  type StaffOrderView,
+} from "@canbadge/shared";
 
 // 印刷確認画面の、画面から切り離した判定と計算（テストできるように）。
 
@@ -85,4 +90,141 @@ export function reprintResultMessage(result: {
   return skipped > 0
     ? `${done} 個を、印刷待ちに戻しました（すでに印刷待ちの ${skipped} 個は、そのままです）`
     : `${done} 個を、印刷待ちに戻しました。印刷待ちのバッジと一緒に、次のシートで印刷します（少し待つことがあります）`;
+}
+
+// ---- 印刷待ち（支払い済みで、まだ印刷されていないバッジ）の見える化 ----
+// print-worker の決まり（P02）に合わせる：用紙 1 枚分たまるか、最も古いバッジが待ち時間に達したら、印刷する。
+// 再印刷は先に出る。同時に印刷するのは 1 枚だけで、いまのシートの確認（OK）が済むまで、次のシートは出ない。
+
+/** 印刷待ちの 1 注文。支払い済みの注文の、印刷待ち（queued）の明細を、まとめたもの */
+export type QueueEntry = {
+  orderId: string;
+  orderNumberText: string;
+  thumbnailUrl: string | undefined;
+  /** 印刷待ちの個数 */
+  badges: number;
+  /** 再印刷（先に印刷される）。印刷したことのある明細を含む */
+  reprint: boolean;
+  /** 支払いの時刻。待ち時間の起点 */
+  paidAt: string | undefined;
+};
+
+/** 支払い済みの注文から、印刷待ちの一覧を作る。待たせている順（古いものから） */
+export function toQueueEntries(orders: readonly StaffOrderView[]): QueueEntry[] {
+  const entries: QueueEntry[] = [];
+  for (const order of orders) {
+    if (order.status !== "paid") continue;
+    const queued = order.items.filter((item) => item.status === "queued");
+    if (queued.length === 0) continue;
+    entries.push({
+      orderId: order.id,
+      orderNumberText: order.orderNumberText,
+      thumbnailUrl: queued[0]?.thumbnailUrl,
+      badges: queued.reduce((sum, item) => sum + item.quantity, 0),
+      reprint: queued.some((item) => item.printCount > 0),
+      paidAt: order.paidAt,
+    });
+  }
+  return entries.sort((a, b) => Date.parse(a.paidAt ?? "") - Date.parse(b.paidAt ?? ""));
+}
+
+export const queueBadgeCount = (entries: readonly QueueEntry[]): number =>
+  entries.reduce((sum, entry) => sum + entry.badges, 0);
+
+/**
+ * 最も古い（再印刷でない）バッジが、待ち時間に達するまでの秒数。0 以上。
+ * 再印刷だけのときは、待ち時間の起点が、画面からは分からないので undefined
+ */
+export function secondsUntilPrint(
+  entries: readonly QueueEntry[],
+  waitSeconds: number,
+  now: number,
+): number | undefined {
+  const firsts = entries.filter((entry) => !entry.reprint && entry.paidAt !== undefined);
+  if (firsts.length === 0) return undefined;
+  const oldest = Math.min(...firsts.map((entry) => Date.parse(entry.paidAt ?? "")));
+  if (Number.isNaN(oldest)) return undefined;
+  return Math.max(0, Math.ceil((oldest + waitSeconds * 1000 - now) / 1000));
+}
+
+/** 「1 分 5 秒」のように読みやすく（秒の単位まで） */
+export function formatSeconds(totalSeconds: number): string {
+  const seconds = Math.max(0, Math.floor(totalSeconds));
+  if (seconds < 60) return `${seconds} 秒`;
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  return rest === 0 ? `${minutes} 分` : `${minutes} 分 ${rest} 秒`;
+}
+
+/** 支払いから、いままでの待ち時間。時刻が読めなければ、空 */
+export function waitedSeconds(paidAt: string | undefined, now: number): number | undefined {
+  if (!paidAt) return undefined;
+  const at = Date.parse(paidAt);
+  return Number.isNaN(at) ? undefined : Math.max(0, Math.floor((now - at) / 1000));
+}
+
+export type QueueState = {
+  headline: string;
+  /** 次に何が起きるか。印刷係が、待つ・押す・確認する、のどれかが、分かるように書く */
+  detail: string;
+  /** 印刷係が、いま、動かなくてはならないとき（シートの確認・再開） */
+  needsAction: boolean;
+};
+
+export function queueState(input: {
+  badges: number;
+  capacity: number;
+  paused: boolean;
+  /** 印刷中（確認待ち）のシートがあるか */
+  printing: boolean;
+  secondsLeft: number | undefined;
+}): QueueState {
+  const { badges, capacity } = input;
+  if (input.paused) {
+    return {
+      headline: `印刷待ち ${badges} 個（印刷を止めています）`,
+      detail: "「印刷を再開する」を押すと、印刷待ちのバッジが、印刷されます。",
+      needsAction: true,
+    };
+  }
+  if (badges === 0) {
+    return {
+      headline: "印刷待ちは、ありません",
+      detail: input.printing
+        ? "印刷中のシートの確認が済むと、次の印刷に進めます。"
+        : "支払いが済んだ注文が、ここに出ます。",
+      needsAction: false,
+    };
+  }
+  if (input.printing) {
+    return {
+      headline: `印刷待ち ${badges} 個`,
+      detail:
+        "印刷中のシートの確認（OK）が済むまで、次のシートは、印刷されません。「確認」タブで、用紙と見比べて、確認してください。",
+      needsAction: true,
+    };
+  }
+  if (badges >= capacity) {
+    return {
+      headline: `印刷待ち ${badges} 個`,
+      detail: `用紙 1 枚分（${capacity} 個）たまっています。まもなく印刷されます。`,
+      needsAction: false,
+    };
+  }
+  const missing = capacity - badges;
+  if (input.secondsLeft === undefined) {
+    return {
+      headline: `印刷待ち ${badges} 個`,
+      detail: "再印刷のバッジが、先に印刷されます。少し待つことがあります。",
+      needsAction: false,
+    };
+  }
+  return {
+    headline: `印刷待ち ${badges} 個`,
+    detail:
+      input.secondsLeft === 0
+        ? "まもなく、いまある分を印刷します。"
+        : `あと ${missing} 個で用紙 1 枚分です。たまらなくても、あと ${formatSeconds(input.secondsLeft)}で、いまある分を印刷します。`,
+    needsAction: false,
+  };
 }

@@ -84,8 +84,15 @@
   margin: var(--space-lg) 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  /* スマホでも 2 列。minmax(8.5rem, …) だけだと、320px 幅で 1 列になり、写真が画面いっぱいに大きくなる */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-md);
+}
+
+@media (min-width: 40rem) {
+  .cb-gallery {
+    grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  }
 }
 
 .cb-gallery__item {

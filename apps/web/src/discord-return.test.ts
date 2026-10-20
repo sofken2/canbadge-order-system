@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { discordErrorMessage, readDiscordReturn } from "./discord-return";
+import { discordErrorMessage, moveDiscordReturnToOrder, readDiscordReturn } from "./discord-return";
 
 const ID = "01HZX3V5Q8N4M6T2B9C7D1E0FA";
 
@@ -42,5 +42,31 @@ describe("失敗の文", () => {
     for (const code of ["denied", "state", "no_avatar", "image", "rate", "unavailable"]) {
       expect(discordErrorMessage(code)).not.toMatch(/トークン|token|OAuth|secret/i);
     }
+  });
+});
+
+describe("Discord からの戻りを、注文画面に移す", () => {
+  const run = (pathname: string, search: string) => {
+    const calls: string[] = [];
+    moveDiscordReturnToOrder(
+      { pathname, search },
+      {
+        replaceState: (_data, _title, url) => {
+          calls.push(String(url));
+        },
+      },
+    );
+    return calls;
+  };
+
+  test("/ に戻りが付いていれば、/order に移す（付いたものは、そのまま）", () => {
+    expect(run("/", `?imageId=${ID}`)).toEqual([`/order?imageId=${ID}`]);
+    expect(run("/", "?discordError=denied")).toEqual(["/order?discordError=denied"]);
+  });
+
+  test("ふつうの / や、ほかの画面は、触らない", () => {
+    expect(run("/", "")).toEqual([]);
+    expect(run("/", "?imageId=bad")).toEqual([]);
+    expect(run("/archive", `?imageId=${ID}`)).toEqual([]);
   });
 });

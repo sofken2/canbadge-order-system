@@ -83,7 +83,7 @@ export function MyArchivePage() {
       <Button block size="large" onClick={() => navigate("/archive/post")}>
         作品を、投稿する
       </Button>
-      <Button variant="line" block onClick={() => navigate("/")}>
+      <Button variant="line" block onClick={() => navigate("/order")}>
         バッジを注文する
       </Button>
     </main>

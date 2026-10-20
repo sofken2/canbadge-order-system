@@ -1,5 +1,10 @@
 import { badgeSpec } from "@canbadge/badge-spec";
-import { BadgeEditor, type BadgeEditorExport, clearDraft, OutputPreview } from "@canbadge/editor";
+import {
+  BadgeEditor,
+  type BadgeEditorExport,
+  clearDraft,
+  LazyBadgePreview3D,
+} from "@canbadge/editor";
 import { acceptanceLabels } from "@canbadge/shared";
 import { Button, Checkbox, Notice, navigate, useAction, useResource } from "@canbadge/ui";
 import { useEffect, useRef, useState } from "react";
@@ -22,6 +27,8 @@ import { TurnstileWidget } from "./TurnstileWidget";
 
 /** 作りかけのデザインの、ブラウザ内の保存名。注文が済んだら消す */
 const DRAFT_KEY = "order-design";
+/** Discord のアイコンを置く大きさ（mm）。印刷円の 70mm いっぱいに伸ばすと端が切れるので、内径 58mm より少し大きいくらいに収める */
+const DISCORD_ICON_FIT_MM = 60;
 type Design = BadgeEditorExport & {
   /** 仕上がりのプレビューに使う、PNG の一時的なアドレス */
   previewUrl: string;
@@ -144,52 +151,6 @@ export function OrderPage() {
   return (
     <main className="cb-page">
       <h1>オリジナル缶バッジを、つくろう</h1>
-      <p className="cb-muted">
-        もう注文した方（スマホを変えた・画面を閉じてしまった方）は、
-        <a
-          href="/lookup"
-          onClick={(event) => {
-            event.preventDefault();
-            navigate("/lookup");
-          }}
-        >
-          注文番号と確認コードで、注文を開く
-        </a>
-        。
-      </p>
-      <p className="cb-muted">
-        他のお客さんが公開してくれた作品を、
-        <a
-          href="/archive"
-          onClick={(event) => {
-            event.preventDefault();
-            navigate("/archive");
-          }}
-        >
-          みんなの作品
-        </a>
-        で見られます。注文はせずに、作品だけを投稿したい方は、
-        <a
-          href="/archive/post"
-          onClick={(event) => {
-            event.preventDefault();
-            navigate("/archive/post");
-          }}
-        >
-          作品だけ投稿する
-        </a>
-        。投稿した作品は、
-        <a
-          href="/archive/mine"
-          onClick={(event) => {
-            event.preventDefault();
-            navigate("/archive/mine");
-          }}
-        >
-          自分の投稿
-        </a>
-        から、取り下げられます。
-      </p>
       {status.error && <Notice tone="error">{status.error}</Notice>}
       {setting && (
         <p className="cb-muted">
@@ -226,16 +187,66 @@ export function OrderPage() {
         <BadgeEditor
           spec={badgeSpec}
           draftKey={DRAFT_KEY}
-          {...(discordImage ? { initialImage: discordImage } : {})}
+          {...(discordImage ? { initialImage: discordImage, imageFitMm: DISCORD_ICON_FIT_MM } : {})}
           confirmLabel="注文の確認へ進む"
           onExport={handleExport}
         />
+
+        {/* ほかの入口の案内。スマホで、エディタが画面の上のほうに来るよう、エディタのあとに置く */}
+        <div className="cb-gap-top">
+          <p className="cb-muted">
+            もう注文した方（スマホを変えた・画面を閉じてしまった方）は、
+            <a
+              href="/lookup"
+              onClick={(event) => {
+                event.preventDefault();
+                navigate("/lookup");
+              }}
+            >
+              注文番号と確認コードで、注文を開く
+            </a>
+            。
+          </p>
+          <p className="cb-muted">
+            他のお客さんが公開してくれた作品を、
+            <a
+              href="/archive"
+              onClick={(event) => {
+                event.preventDefault();
+                navigate("/archive");
+              }}
+            >
+              みんなの作品
+            </a>
+            で見られます。注文はせずに、作品だけを投稿したい方は、
+            <a
+              href="/archive/post"
+              onClick={(event) => {
+                event.preventDefault();
+                navigate("/archive/post");
+              }}
+            >
+              作品だけ投稿する
+            </a>
+            。投稿した作品は、
+            <a
+              href="/archive/mine"
+              onClick={(event) => {
+                event.preventDefault();
+                navigate("/archive/mine");
+              }}
+            >
+              自分の投稿
+            </a>
+            から、取り下げられます。
+          </p>
+        </div>
       </div>
 
       {step === "confirm" && design && (
         <section aria-label="注文の確認">
           <h2>注文の確認</h2>
-          <OutputPreview src={design.previewUrl} spec={badgeSpec} />
+          <LazyBadgePreview3D src={design.previewUrl} spec={badgeSpec} />
 
           <QuantityPicker value={quantity} max={maxQuantity} onChange={setQuantity} />
           {setting && (
