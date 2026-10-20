@@ -29,6 +29,8 @@ const createOrderInputSchema = z.object({
   imagePath: relativePathSchema,
   editorData: editorDataSchema,
   quantity: quantitySchema,
+  /** キラフィルムを貼る個数（0〜quantity）。省略すると 0 */
+  kiraQuantity: z.int().nonnegative().default(0),
   anonToken: anonTokenSchema,
   sourceArchiveEntryId: z.string().optional(),
 });
@@ -67,6 +69,9 @@ export function createOrder(db: Database, input: CreateOrderInput): CreatedOrder
     }
     if (data.quantity > setting.maxQuantityPerOrder) {
       throw validationFailed(`1 回の注文は ${setting.maxQuantityPerOrder} 個までです`);
+    }
+    if (data.kiraQuantity > data.quantity) {
+      throw validationFailed("キラフィルムの個数が、注文の個数を超えています");
     }
 
     // 1 端末（匿名トークン）あたりの、支払い待ちの注文の上限。同じトランザクションで数えるので、
@@ -122,7 +127,7 @@ export function createOrder(db: Database, input: CreateOrderInput): CreatedOrder
         confirmationCode: generateConfirmationCode(),
         anonToken: data.anonToken,
         status: "submitted",
-        totalAmount: setting.price * data.quantity,
+        totalAmount: setting.price * data.quantity + setting.kiraFilmPrice * data.kiraQuantity,
         createdAt: ctx.at,
       })
       .returning()
@@ -135,6 +140,7 @@ export function createOrder(db: Database, input: CreateOrderInput): CreatedOrder
         orderId,
         designId,
         quantity: data.quantity,
+        kiraQuantity: data.kiraQuantity,
         status: "queued",
         printCount: 0,
       })

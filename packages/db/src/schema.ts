@@ -77,6 +77,7 @@ export const orderItems = sqliteTable(
       .notNull()
       .references(() => designs.id),
     quantity: integer("quantity").notNull(),
+    kiraQuantity: integer("kira_quantity").notNull().default(0),
     status: text("status", { enum: values(orderItemStatusSchema.options) }).notNull(),
     printCount: integer("print_count").notNull().default(0),
   },
@@ -120,6 +121,8 @@ export const settings = sqliteTable(
     acceptance: text("acceptance", { enum: values(acceptanceSchema.options) }).notNull(),
     busyMessage: text("busy_message"),
     price: integer("price").notNull(),
+    // 既存の DB に列を足すので、既定値が要る（学祭前の設定値の確定は Q01）
+    kiraFilmPrice: integer("kira_film_price").notNull().default(100),
     maxQuantityPerOrder: integer("max_quantity_per_order").notNull(),
     maxPendingPerDevice: integer("max_pending_per_device").notNull(),
     printMaxWaitSeconds: integer("print_max_wait_seconds").notNull(),

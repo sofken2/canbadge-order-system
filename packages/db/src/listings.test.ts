@@ -207,15 +207,15 @@ describe("売上の集計", () => {
 
     const sales = salesSummary(db, "2026-11-03");
     expect(sales.hourly).toEqual([
-      { hour: 9, paidCount: 2, paidAmount: 600 },
-      { hour: 10, paidCount: 1, paidAmount: 300 },
+      { hour: 9, paidCount: 2, paidAmount: 400 },
+      { hour: 10, paidCount: 1, paidAmount: 200 },
     ]);
     expect(sales.total).toEqual({
       paidCount: 3,
-      paidAmount: 900,
+      paidAmount: 600,
       refundedCount: 1,
-      refundedAmount: 300,
-      netAmount: 600,
+      refundedAmount: 200,
+      netAmount: 400,
     });
   });
 

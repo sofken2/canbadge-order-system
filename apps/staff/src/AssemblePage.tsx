@@ -53,6 +53,7 @@ function AssembleCard({ order, onChanged }: { order: StaffOrderView; onChanged: 
     onChanged();
   });
   const quantity = order.items.reduce((sum, item) => sum + item.quantity, 0);
+  const kiraQuantity = order.items.reduce((sum, item) => sum + item.kiraQuantity, 0);
   const thumbnail = order.items[0]?.thumbnailUrl;
 
   return (
@@ -60,6 +61,12 @@ function AssembleCard({ order, onChanged }: { order: StaffOrderView; onChanged: 
       <div className="cb-asm__card-head">
         <p className="cb-number cb-number--medium">{order.orderNumberText}</p>
         <p className="cb-muted">{quantity} 個</p>
+        {/* 貼り忘れると、お金をもらった分の品がそろわない。個数と並べて、はっきり見せる */}
+        {kiraQuantity > 0 && (
+          <p>
+            <strong>キラフィルム {kiraQuantity} 個</strong>
+          </p>
+        )}
         {thumbnail && <img src={thumbnail} alt="" className="cb-asm__thumb" />}
       </div>
       <Button

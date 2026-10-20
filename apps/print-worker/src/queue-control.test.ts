@@ -48,6 +48,7 @@ beforeEach(() => {
     actor: "staff",
     values: {
       price: 300,
+      kiraFilmPrice: 100,
       maxQuantityPerOrder: 3,
       maxPendingPerDevice: 5,
       printMaxWaitSeconds: 60,

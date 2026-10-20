@@ -125,6 +125,7 @@ describe("印刷の一時停止と設定の更新", () => {
     const { db } = setup();
     const values = {
       price: 400,
+      kiraFilmPrice: 100,
       maxQuantityPerOrder: 2,
       maxPendingPerDevice: 3,
       printMaxWaitSeconds: 60,

@@ -14,6 +14,8 @@ export const settingSchema = z.object({
   busyMessage: z.string().max(100).nullable(),
   /** 1 個あたりの価格（円） */
   price: yenSchema,
+  /** キラフィルムを追加で貼るときの、1 個あたりの加算額（円） */
+  kiraFilmPrice: yenSchema,
   /** 1 注文あたりの個数の上限。原則 1。1 のとき画面は個数の選択を出さない */
   maxQuantityPerOrder: quantitySchema,
   /** 1 端末あたりの、支払い待ち注文の上限 */

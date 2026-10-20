@@ -158,6 +158,7 @@ export function RegisterPage() {
   const amount = order ? (received ?? order.totalAmount) : 0;
   const { change, short } = order ? changeFor(order.totalAmount, amount) : { change: 0, short: 0 };
   const quantity = order?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0;
+  const kiraQuantity = order?.items.reduce((sum, item) => sum + item.kiraQuantity, 0) ?? 0;
 
   return (
     <main className="cb-page cb-register">
@@ -266,6 +267,12 @@ export function RegisterPage() {
           <dl className="cb-summary">
             <dt>個数</dt>
             <dd>{quantity} 個</dd>
+            {kiraQuantity > 0 && (
+              <>
+                <dt>キラフィルム</dt>
+                <dd>{kiraQuantity} 個</dd>
+              </>
+            )}
             <dt>金額</dt>
             <dd>
               <strong>{yen(order.totalAmount)}</strong>

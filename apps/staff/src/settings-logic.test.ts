@@ -17,6 +17,7 @@ const setting: Setting = {
   acceptance: "open",
   busyMessage: null,
   price: 300,
+  kiraFilmPrice: 100,
   maxQuantityPerOrder: 1,
   maxPendingPerDevice: 2,
   printMaxWaitSeconds: 60,
@@ -82,6 +83,7 @@ describe("設定の入力", () => {
   test("保存済みの値から、入力欄の文字を作る（容量は MB）", () => {
     expect(formFromSetting(setting)).toEqual({
       price: "300",
+      kiraFilmPrice: "100",
       maxQuantityPerOrder: "1",
       maxPendingPerDevice: "2",
       printMaxWaitSeconds: "60",

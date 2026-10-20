@@ -39,6 +39,7 @@ export const publicHandlers: HandlersFor<
       acceptance: setting.acceptance,
       busyMessage: setting.busyMessage,
       price: setting.price,
+      kiraFilmPrice: setting.kiraFilmPrice,
       maxQuantityPerOrder: setting.maxQuantityPerOrder,
       waitingCount: countWaitingOrders(deps.db),
     };

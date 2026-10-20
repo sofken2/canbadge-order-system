@@ -16,6 +16,7 @@ import {
 import { discordErrorMessage, readDiscordReturn } from "./discord-return";
 import { DEV_TURNSTILE_TOKEN, discordEnabled, turnstileSiteKey } from "./env";
 import { setFlash } from "./flash";
+import { KiraFilmPicker, orderTotal } from "./KiraFilmPicker";
 import { QuantityPicker } from "./QuantityPicker";
 import { TurnstileWidget } from "./TurnstileWidget";
 
@@ -45,6 +46,9 @@ export function OrderPage() {
   const [design, setDesign] = useState<Design | undefined>(undefined);
   const [step, setStep] = useState<"design" | "confirm">("design");
   const [quantity, setQuantity] = useState(1);
+  const [kiraSelected, setKiraSelected] = useState(0);
+  // 個数を減らしたとき、キラの個数が個数を超えないようにする
+  const kiraQuantity = Math.min(kiraSelected, quantity);
   const [consent, setConsent] = useState(false);
   // 注文と同時に、みんなの作品として公開する（任意）。公開しなくても、注文できる
   const [publish, setPublish] = useState(false);
@@ -81,6 +85,7 @@ export function OrderPage() {
           imageId,
           editorData: design.editorData,
           quantity,
+          kiraQuantity,
           turnstileToken: turnstileSiteKey ? (token ?? "") : DEV_TURNSTILE_TOKEN,
           rightsConsent: true,
         },
@@ -134,7 +139,7 @@ export function OrderPage() {
     window.scrollTo({ top: 0 });
   };
 
-  const total = (setting?.price ?? 0) * quantity;
+  const total = orderTotal(setting, quantity, kiraQuantity);
 
   return (
     <main className="cb-page">
@@ -188,7 +193,8 @@ export function OrderPage() {
       {status.error && <Notice tone="error">{status.error}</Notice>}
       {setting && (
         <p className="cb-muted">
-          受付：{acceptanceLabels[setting.acceptance]} ／ {setting.price}円 / 1個 ／ いま
+          受付：{acceptanceLabels[setting.acceptance]} ／ {setting.price}円 / 1個（キラフィルム +
+          {setting.kiraFilmPrice}円）／ いま
           {setting.waitingCount}件待ち
         </p>
       )}
@@ -232,14 +238,23 @@ export function OrderPage() {
           <OutputPreview src={design.previewUrl} spec={badgeSpec} />
 
           <QuantityPicker value={quantity} max={maxQuantity} onChange={setQuantity} />
+          {setting && (
+            <KiraFilmPicker
+              value={kiraQuantity}
+              quantity={quantity}
+              price={setting.kiraFilmPrice}
+              onChange={setKiraSelected}
+            />
+          )}
 
           <dl className="cb-summary cb-gap-top">
             <dt>金額</dt>
             <dd>
               <strong>{total}円</strong>
-              {quantity > 1 && (
+              {(quantity > 1 || kiraQuantity > 0) && setting && (
                 <span className="cb-muted">
-                  （{setting?.price}円 × {quantity}）
+                  （{setting.price}円 × {quantity}
+                  {kiraQuantity > 0 && ` + キラ ${setting.kiraFilmPrice}円 × ${kiraQuantity}`}）
                 </span>
               )}
             </dd>
