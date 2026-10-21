@@ -33,12 +33,14 @@ export function placeOrder(
   quantity = 1,
   token: string = uniqueToken(),
   kiraQuantity = 0,
+  magnetQuantity = 0,
 ) {
   return createOrder(db, {
     imagePath: "images/sample.png",
     editorData: { version: 1 },
     quantity,
     kiraQuantity,
+    magnetQuantity,
     anonToken: token,
   });
 }

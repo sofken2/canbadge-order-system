@@ -40,6 +40,8 @@ export const orderItemSchema = z.object({
   quantity: quantitySchema,
   /** quantity のうち、キラフィルムを貼る個数（0〜quantity）。個数単位で選べる */
   kiraQuantity: z.int().nonnegative(),
+  /** quantity のうち、マグネット加工をする個数（0〜quantity）。キラフィルムとは、独立に選べる */
+  magnetQuantity: z.int().nonnegative(),
   status: orderItemStatusSchema,
   /** 印刷された回数。1 以上で queued なら再印刷待ちで、次のシートに優先して載る */
   printCount: z.int().nonnegative(),

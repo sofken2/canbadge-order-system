@@ -54,6 +54,7 @@ function AssembleCard({ order, onChanged }: { order: StaffOrderView; onChanged: 
   });
   const quantity = order.items.reduce((sum, item) => sum + item.quantity, 0);
   const kiraQuantity = order.items.reduce((sum, item) => sum + item.kiraQuantity, 0);
+  const magnetQuantity = order.items.reduce((sum, item) => sum + item.magnetQuantity, 0);
   const thumbnail = order.items[0]?.thumbnailUrl;
 
   return (
@@ -65,6 +66,11 @@ function AssembleCard({ order, onChanged }: { order: StaffOrderView; onChanged: 
         {kiraQuantity > 0 && (
           <p>
             <strong>キラフィルム {kiraQuantity} 個</strong>
+          </p>
+        )}
+        {magnetQuantity > 0 && (
+          <p>
+            <strong>マグネット加工 {magnetQuantity} 個</strong>
           </p>
         )}
         {thumbnail && <img src={thumbnail} alt="" className="cb-asm__thumb" />}

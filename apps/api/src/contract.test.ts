@@ -197,6 +197,10 @@ describe("スタッフ向けのエンドポイント", () => {
       json: {
         price: 350,
         kiraFilmPrice: current.kiraFilmPrice,
+        magnetPrice: current.magnetPrice,
+        badgeStock: current.badgeStock,
+        kiraFilmStock: current.kiraFilmStock,
+        magnetStock: current.magnetStock,
         maxQuantityPerOrder: current.maxQuantityPerOrder,
         maxPendingPerDevice: current.maxPendingPerDevice,
         printMaxWaitSeconds: current.printMaxWaitSeconds,

@@ -27,6 +27,11 @@ export const defaultSetting: Omit<Setting, "updatedAt"> = {
   busyMessage: null,
   price: 200,
   kiraFilmPrice: 100,
+  magnetPrice: 100,
+  // 在庫の総数は仮の値。Q01（設定値の確定）で、用意した数に直す
+  badgeStock: 300,
+  kiraFilmStock: 100,
+  magnetStock: 100,
   maxQuantityPerOrder: 1,
   maxPendingPerDevice: 2,
   printMaxWaitSeconds: 120,

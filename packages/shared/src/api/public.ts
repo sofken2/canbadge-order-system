@@ -8,7 +8,13 @@ import {
   orderIdSchema,
   orderNumberSchema,
 } from "../ids";
-import { isoDateSchema, isoDateTimeSchema, quantitySchema, yenSchema } from "../primitives";
+import {
+  isoDateSchema,
+  isoDateTimeSchema,
+  quantitySchema,
+  stockSchema,
+  yenSchema,
+} from "../primitives";
 import {
   acceptanceSchema,
   archiveStatusSchema,
@@ -27,6 +33,12 @@ export const statusResponseSchema = z.object({
   price: yenSchema,
   /** キラフィルムを貼る 1 個あたりの加算額 */
   kiraFilmPrice: yenSchema,
+  /** マグネット加工を追加する 1 個あたりの加算額 */
+  magnetPrice: yenSchema,
+  /** 在庫の残り（総数から、使われている数を引いた数）。0 なら、画面は売り切れにする */
+  badgeRemaining: stockSchema,
+  kiraFilmRemaining: stockSchema,
+  magnetRemaining: stockSchema,
   /** 1 のとき、画面は個数の選択を出さない */
   maxQuantityPerOrder: quantitySchema,
   waitingCount: z.int().nonnegative(),
@@ -45,6 +57,8 @@ export const createOrderRequestSchema = z.object({
   quantity: quantitySchema,
   /** キラフィルムを貼る個数（0〜quantity）。省略すると 0。超えていれば db が VALIDATION_FAILED で断る */
   kiraQuantity: z.int().nonnegative().default(0),
+  /** マグネット加工をする個数（0〜quantity）。省略すると 0。キラフィルムとは独立 */
+  magnetQuantity: z.int().nonnegative().default(0),
   turnstileToken: z.string().min(1),
   /** 持ち込み画像の権利確認への同意（spec.md 11.4）。同意しないと注文できない */
   rightsConsent: z.literal(true),
@@ -59,6 +73,7 @@ export const orderItemViewSchema = z.object({
   id: idSchema,
   quantity: quantitySchema,
   kiraQuantity: z.int().nonnegative(),
+  magnetQuantity: z.int().nonnegative(),
   status: orderItemStatusSchema,
   imageUrl: z.string(),
   thumbnailUrl: z.string(),
@@ -172,6 +187,8 @@ export type ReportArchiveEntryResponse = z.infer<typeof reportArchiveEntryRespon
 export const orderFromArchiveRequestSchema = z.object({
   quantity: quantitySchema,
   kiraQuantity: z.int().nonnegative().default(0),
+  /** マグネット加工をする個数（0〜quantity）。省略すると 0。キラフィルムとは独立 */
+  magnetQuantity: z.int().nonnegative().default(0),
   turnstileToken: z.string().min(1),
   /** 権利確認への同意（spec.md 11.4）。通常の注文と同じ */
   rightsConsent: z.literal(true),

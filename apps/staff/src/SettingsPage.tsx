@@ -312,6 +312,8 @@ function ValuesTab({
   });
 
   const changed = formChanged(form, setting);
+  // 在庫の残りは、注文が入るたびに変わる。総数の欄の下に、いまの残りを見せる
+  const remaining = useResource(() => api.call("getStatus"), { refreshMs: 5000 }).data;
   const field = (name: FormField, label: string, hint: string, suffix?: string) => (
     <div className="cb-settings__field">
       <TextField
@@ -341,6 +343,30 @@ function ValuesTab({
         "キラフィルムの加算額（1 個）",
         "キラフィルムを貼る個数ぶんだけ、価格に足されます",
         "円",
+      )}
+      {field(
+        "magnetPrice",
+        "マグネット加工の加算額（1 個）",
+        "マグネット加工をする個数ぶんだけ、価格に足されます",
+        "円",
+      )}
+      {field(
+        "badgeStock",
+        "バッジの在庫（総数）",
+        `いまの残り：${remaining?.badgeRemaining ?? "…"} 個。失効・取り消し以外の注文が、使った数を引いた数です`,
+        "個",
+      )}
+      {field(
+        "kiraFilmStock",
+        "キラフィルムの在庫（総数）",
+        `いまの残り：${remaining?.kiraFilmRemaining ?? "…"} 個`,
+        "個",
+      )}
+      {field(
+        "magnetStock",
+        "マグネットの在庫（総数）",
+        `いまの残り：${remaining?.magnetRemaining ?? "…"} 個`,
+        "個",
       )}
       {field(
         "maxQuantityPerOrder",
