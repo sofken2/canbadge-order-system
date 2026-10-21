@@ -293,6 +293,8 @@ export type PrintableItem = {
   quantity: number;
   /** quantity のうち、キラ加工の個数。用紙の注文番号の横に、その旨を印字する */
   kiraQuantity: number;
+  /** quantity のうち、マグネット加工の個数。用紙の注文番号の横に、その旨を印字する */
+  magnetQuantity: number;
   /** バッジのデザイン画像。データ置き場からの相対パス（例: images/<ID>.png）。印刷の PDF に載せる */
   imagePath: string;
 };
@@ -310,6 +312,7 @@ export function listPrintableItems(db: Database): PrintableItem[] {
       printCount: orderItems.printCount,
       quantity: orderItems.quantity,
       kiraQuantity: orderItems.kiraQuantity,
+      magnetQuantity: orderItems.magnetQuantity,
       waitingSince: orders.paidAt,
       imagePath: designs.imagePath,
     })

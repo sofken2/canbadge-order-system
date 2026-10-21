@@ -3,9 +3,10 @@ import { confirmationCodeSchema } from "@canbadge/shared";
 import { listAuditLogsSince } from "./audit";
 import { DbError } from "./errors";
 import { applyOrderTransition, countPendingOrders, createOrder, transitionOrder } from "./orders";
-import { getOrder, getOrderByNumber, listOrderItems } from "./queries";
+import { getOrder, getOrderByNumber, getSetting, listOrderItems } from "./queries";
 import { openBusinessDay, setAcceptance, updateSetting } from "./settings";
 import { checkPrintSheet, createPrintSheet } from "./sheets";
+import { getStockRemaining } from "./stock";
 import { payOrder, placeOrder, setup, setupClosed, TOKEN } from "./test-helpers";
 import { write } from "./transaction";
 
@@ -63,6 +64,10 @@ describe("注文の作成", () => {
       values: {
         price: 250,
         kiraFilmPrice: 100,
+        magnetPrice: 100,
+        badgeStock: 300,
+        kiraFilmStock: 100,
+        magnetStock: 100,
         maxQuantityPerOrder: 3,
         maxPendingPerDevice: 2,
         printMaxWaitSeconds: 120,
@@ -82,6 +87,10 @@ describe("注文の作成", () => {
       values: {
         price: 200,
         kiraFilmPrice: 100,
+        magnetPrice: 100,
+        badgeStock: 300,
+        kiraFilmStock: 100,
+        magnetStock: 100,
         maxQuantityPerOrder: 3,
         maxPendingPerDevice: 5,
         printMaxWaitSeconds: 120,
@@ -94,6 +103,70 @@ describe("注文の作成", () => {
     expect(items[0]?.kiraQuantity).toBe(2);
     expect(placeOrder(db, 2).order.totalAmount).toBe(400);
     expect(codeOf(() => placeOrder(db, 2, undefined, 3))).toBe("VALIDATION_FAILED");
+  });
+
+  test("マグネット加工は、キラフィルムとは別に、個数ぶんだけ加算する", () => {
+    const { db } = setup();
+    updateSetting(db, {
+      actor: "staff",
+      values: {
+        price: 200,
+        kiraFilmPrice: 100,
+        magnetPrice: 150,
+        badgeStock: 100,
+        kiraFilmStock: 100,
+        magnetStock: 100,
+        maxQuantityPerOrder: 3,
+        maxPendingPerDevice: 5,
+        printMaxWaitSeconds: 120,
+        orderNumberDigits: 3,
+        imageMaxBytes: 1000,
+      },
+    });
+    const { order, items } = placeOrder(db, 3, undefined, 1, 2);
+    expect(order.totalAmount).toBe(3 * 200 + 1 * 100 + 2 * 150);
+    expect(items[0]).toMatchObject({ kiraQuantity: 1, magnetQuantity: 2 });
+    expect(codeOf(() => placeOrder(db, 2, undefined, 0, 3))).toBe("VALIDATION_FAILED");
+  });
+
+  test("在庫の残りを超える注文は断り、失効・取り消しの注文の分は、残りに戻る", () => {
+    const { db } = setup();
+    updateSetting(db, {
+      actor: "staff",
+      values: {
+        price: 200,
+        kiraFilmPrice: 100,
+        magnetPrice: 100,
+        badgeStock: 3,
+        kiraFilmStock: 1,
+        magnetStock: 1,
+        maxQuantityPerOrder: 3,
+        maxPendingPerDevice: 5,
+        printMaxWaitSeconds: 120,
+        orderNumberDigits: 3,
+        imageMaxBytes: 1000,
+      },
+    });
+    const first = placeOrder(db, 2, undefined, 1, 1);
+    expect(getStockRemaining(db.orm, getSetting(db.orm))).toEqual({
+      badge: 1,
+      kiraFilm: 0,
+      magnet: 0,
+    });
+    // バッジ・キラ・マグネットの、どれが足りなくても、断る
+    expect(codeOf(() => placeOrder(db, 2))).toBe("CONFLICT");
+    expect(codeOf(() => placeOrder(db, 1, undefined, 1, 0))).toBe("CONFLICT");
+    expect(codeOf(() => placeOrder(db, 1, undefined, 0, 1))).toBe("CONFLICT");
+    expect(placeOrder(db, 1).order.totalAmount).toBe(200);
+    expect(getStockRemaining(db.orm, getSetting(db.orm)).badge).toBe(0);
+
+    // 支払い前に取り消した注文の分は、在庫に戻る
+    transitionOrder(db, { orderId: first.order.id, to: "cancelled", actor: "visitor" });
+    expect(getStockRemaining(db.orm, getSetting(db.orm))).toEqual({
+      badge: 2,
+      kiraFilm: 1,
+      magnet: 1,
+    });
   });
 
   test("個数が上限を超えたら断る", () => {
@@ -333,6 +406,10 @@ describe("1 端末あたりの支払い待ちの上限（A06）", () => {
       values: {
         price: 300,
         kiraFilmPrice: 100,
+        magnetPrice: 100,
+        badgeStock: 300,
+        kiraFilmStock: 100,
+        magnetStock: 100,
         maxQuantityPerOrder: 1,
         maxPendingPerDevice: 1,
         printMaxWaitSeconds: 60,

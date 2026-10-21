@@ -159,6 +159,7 @@ export function RegisterPage() {
   const { change, short } = order ? changeFor(order.totalAmount, amount) : { change: 0, short: 0 };
   const quantity = order?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0;
   const kiraQuantity = order?.items.reduce((sum, item) => sum + item.kiraQuantity, 0) ?? 0;
+  const magnetQuantity = order?.items.reduce((sum, item) => sum + item.magnetQuantity, 0) ?? 0;
 
   return (
     <main className="cb-page cb-register">
@@ -271,6 +272,12 @@ export function RegisterPage() {
               <>
                 <dt>キラフィルム</dt>
                 <dd>{kiraQuantity} 個</dd>
+              </>
+            )}
+            {magnetQuantity > 0 && (
+              <>
+                <dt>マグネット加工</dt>
+                <dd>{magnetQuantity} 個</dd>
               </>
             )}
             <dt>金額</dt>

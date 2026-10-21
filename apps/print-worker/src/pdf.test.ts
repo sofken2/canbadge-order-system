@@ -38,7 +38,7 @@ async function imageCount(bytes: Uint8Array): Promise<number> {
 
 const hex = (text: string) => Buffer.from(text, "latin1").toString("hex").toUpperCase();
 const sheet = (
-  badges: { imagePath: string; orderNumberText: string; kira?: boolean }[],
+  badges: { imagePath: string; orderNumberText: string; kira?: boolean; magnet?: boolean }[],
   spec = badgeSpec,
 ) =>
   renderSheetPdf(spec, badges, {
@@ -96,6 +96,19 @@ describe("印刷シートの PDF", () => {
     expect(content).toContain(`<${hex("007 KIRA")}>`);
     expect(content).toContain(`<${hex("008")}>`);
     expect(content).not.toContain(`<${hex("008 KIRA")}>`);
+  });
+
+  test("マグネット加工は MAGNET、キラと両方なら KIRA MAGNET と印字される", async () => {
+    const content = (
+      await contentOf(
+        await sheet([
+          { imagePath: "images/a.png", orderNumberText: "009", magnet: true },
+          { imagePath: "images/a.png", orderNumberText: "010", kira: true, magnet: true },
+        ]),
+      )
+    ).toUpperCase();
+    expect(content).toContain(`<${hex("009 MAGNET")}>`);
+    expect(content).toContain(`<${hex("010 KIRA MAGNET")}>`);
   });
 
   test("シートの名前と印刷日時が、用紙の上に印字される", async () => {

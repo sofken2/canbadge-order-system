@@ -49,6 +49,10 @@ beforeEach(() => {
     values: {
       price: 300,
       kiraFilmPrice: 100,
+      magnetPrice: 100,
+      badgeStock: 300,
+      kiraFilmStock: 100,
+      magnetStock: 100,
       maxQuantityPerOrder: 3,
       maxPendingPerDevice: 5,
       printMaxWaitSeconds: 60,

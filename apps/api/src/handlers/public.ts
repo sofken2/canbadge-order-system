@@ -4,6 +4,7 @@ import {
   getOrder,
   getOrderByNumber,
   getSetting,
+  getStockRemaining,
   transitionOrder,
 } from "@canbadge/db";
 import type { Context } from "hono";
@@ -35,11 +36,16 @@ export const publicHandlers: HandlersFor<
 > = {
   getStatus: ({ deps }) => {
     const setting = getSetting(deps.db.orm);
+    const remaining = getStockRemaining(deps.db.orm, setting);
     return {
       acceptance: setting.acceptance,
       busyMessage: setting.busyMessage,
       price: setting.price,
       kiraFilmPrice: setting.kiraFilmPrice,
+      magnetPrice: setting.magnetPrice,
+      badgeRemaining: remaining.badge,
+      kiraFilmRemaining: remaining.kiraFilm,
+      magnetRemaining: remaining.magnet,
       maxQuantityPerOrder: setting.maxQuantityPerOrder,
       waitingCount: countWaitingOrders(deps.db),
     };

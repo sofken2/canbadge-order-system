@@ -1,5 +1,11 @@
 import { z } from "zod";
-import { isoDateSchema, isoDateTimeSchema, quantitySchema, yenSchema } from "../primitives";
+import {
+  isoDateSchema,
+  isoDateTimeSchema,
+  quantitySchema,
+  stockSchema,
+  yenSchema,
+} from "../primitives";
 import { acceptanceSchema } from "../status";
 
 /**
@@ -16,6 +22,15 @@ export const settingSchema = z.object({
   price: yenSchema,
   /** キラフィルムを追加で貼るときの、1 個あたりの加算額（円） */
   kiraFilmPrice: yenSchema,
+  /** マグネット加工を追加するときの、1 個あたりの加算額（円） */
+  magnetPrice: yenSchema,
+  /**
+   * 在庫の総数（学祭を通した、売れる上限）。残りは、失効・取り消し以外の注文が使った数を引いて、db が数える。
+   * 残りを直接持たないので、注文が入っている間に総数を直しても、数えまちがいにならない
+   */
+  badgeStock: stockSchema,
+  kiraFilmStock: stockSchema,
+  magnetStock: stockSchema,
   /** 1 注文あたりの個数の上限。原則 1。1 のとき画面は個数の選択を出さない */
   maxQuantityPerOrder: quantitySchema,
   /** 1 端末あたりの、支払い待ち注文の上限 */
