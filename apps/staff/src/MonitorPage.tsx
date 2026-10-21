@@ -5,6 +5,10 @@ import { siteUrl } from "./env";
 import { densityFor, newlyReady, sortReady } from "./monitor-logic";
 import "./monitor.css";
 
+/** 処理PC の中のアドレスか。呼び出しモニターの API は、ここからしか使えない */
+const isLocalHost = (hostname: string): boolean =>
+  hostname === "localhost" || hostname === "127.0.0.1" || hostname.endsWith(".localhost");
+
 /** 新しくできあがった番号を、目立たせておく時間 */
 const HIGHLIGHT_MS = 8000;
 
@@ -74,11 +78,18 @@ export function MonitorPage() {
           // 来場者には見せない、スタッフ向けの注意（QR が出ていないことに、気づけるように）
           <p className="cb-monitor__missing">サイトの URL（VITE_SITE_URL）が、未設定です</p>
         )}
-        {ready.error && (
-          <p className="cb-monitor__offline" role="status">
-            通信が途切れています。番号が、古い可能性があります
-          </p>
-        )}
+        {ready.error &&
+          (isLocalHost(window.location.hostname) ? (
+            <p className="cb-monitor__offline" role="status">
+              通信が途切れています。番号が、古い可能性があります
+            </p>
+          ) : (
+            // 呼び出しモニターの API は、処理PC の中だけ（spec 4 章）。公開のアドレスでは、回線ではなく、経路が理由で断られる
+            <p className="cb-monitor__offline" role="status">
+              このモニターは、処理PC
+              の中で開いてください（http://staff.localhost:8080/monitor）。公開のアドレスからは、番号を取得できません
+            </p>
+          ))}
       </aside>
     </main>
   );
