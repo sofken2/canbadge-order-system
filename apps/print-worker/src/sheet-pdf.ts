@@ -22,11 +22,15 @@ export type SheetBadge = {
   orderNumberText: string;
   /** キラフィルムを貼るバッジ。注文番号の横に「KIRA」と印字して、組み立てで貼り忘れないようにする */
   kira?: boolean;
+  /** マグネット加工をするバッジ。同じく「MAGNET」と印字する。キラと両方あれば、並べて印字する */
+  magnet?: boolean;
 };
 
-/** キラ加工のバッジに印字する注文番号の文字列 */
+/** 追加加工のあるバッジに印字する、注文番号と加工の文字列（例: 007 KIRA MAGNET） */
 export const labelText = (badge: SheetBadge): string =>
-  badge.kira ? `${badge.orderNumberText} KIRA` : badge.orderNumberText;
+  [badge.orderNumberText, badge.kira ? "KIRA" : "", badge.magnet ? "MAGNET" : ""]
+    .filter((part) => part !== "")
+    .join(" ");
 
 export type SheetOptions = {
   /** データ置き場（画像の置き場所の起点） */
@@ -150,11 +154,18 @@ export async function renderSheetPdf(
     // 注文番号（円の真下の枠の中で、上下中央）と、用紙の何番目か（小さく、枠の左端）
     const fontSizePt = mmToPt(slot.label.heightMm) * 0.78;
     const baselineMm = slot.label.topMm + slot.label.heightMm * 0.78;
+    const text = labelText(badge);
+    // 加工の文字が付いて長くなっても、円の幅（左端の位置の数字を避けた分）に収める
+    const maxWidthPt = mmToPt(slot.diameterMm - 14);
+    const labelSizePt = Math.min(
+      fontSizePt,
+      (fontSizePt * maxWidthPt) / bold.widthOfTextAtSize(text, fontSizePt),
+    );
     drawCenteredTextMm(
       canvas,
-      labelText(badge),
+      text,
       { centerXMm: slot.label.centerXMm, yMm: baselineMm },
-      { font: bold, sizePt: fontSizePt },
+      { font: bold, sizePt: labelSizePt },
     );
     drawTextMm(
       canvas,

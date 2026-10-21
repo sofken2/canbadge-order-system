@@ -12,6 +12,9 @@ export const yenSchema = z.int().nonnegative();
 /** 1 以上の個数 */
 export const quantitySchema = z.int().positive();
 
+/** 在庫の個数。0 以上の整数（0 は売り切れ） */
+export const stockSchema = z.int().nonnegative();
+
 /**
  * データ置き場（DATA_DIR）からの相対パス。区切りは / だけ。
  * 絶対パスや .. を含むパスは、データ置き場の外を指せてしまうので受け付けない

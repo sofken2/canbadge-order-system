@@ -18,4 +18,5 @@ export * from "./rows";
 export * as schema from "./schema";
 export * from "./settings";
 export * from "./sheets";
+export * from "./stock";
 export * from "./transaction";

@@ -21,6 +21,7 @@ import { generateConfirmationCode } from "./generate";
 import { getSetting, listOrderItems, requireOrder } from "./queries";
 import { toDesign, toOrder, toOrderItem } from "./rows";
 import { archiveEntries, designs, orderItems, orders } from "./schema";
+import { getStockRemaining } from "./stock";
 import { type Ctx, idAt, write } from "./transaction";
 import { findTransition } from "./transition";
 
@@ -31,6 +32,8 @@ const createOrderInputSchema = z.object({
   quantity: quantitySchema,
   /** キラフィルムを貼る個数（0〜quantity）。省略すると 0 */
   kiraQuantity: z.int().nonnegative().default(0),
+  /** マグネット加工をする個数（0〜quantity）。キラフィルムとは独立。省略すると 0 */
+  magnetQuantity: z.int().nonnegative().default(0),
   anonToken: anonTokenSchema,
   sourceArchiveEntryId: z.string().optional(),
 });
@@ -72,6 +75,24 @@ export function createOrder(db: Database, input: CreateOrderInput): CreatedOrder
     }
     if (data.kiraQuantity > data.quantity) {
       throw validationFailed("キラフィルムの個数が、注文の個数を超えています");
+    }
+    if (data.magnetQuantity > data.quantity) {
+      throw validationFailed("マグネット加工の個数が、注文の個数を超えています");
+    }
+
+    // 在庫。数えるのも、注文を作るのも、同じトランザクションなので、同時に出されても、超えて売らない
+    const remaining = getStockRemaining(ctx.tx, setting);
+    if (data.quantity > remaining.badge) {
+      throw new DbError("CONFLICT", `バッジの在庫が足りません（残り ${remaining.badge} 個）`);
+    }
+    if (data.kiraQuantity > remaining.kiraFilm) {
+      throw new DbError(
+        "CONFLICT",
+        `キラフィルムの在庫が足りません（残り ${remaining.kiraFilm} 個）`,
+      );
+    }
+    if (data.magnetQuantity > remaining.magnet) {
+      throw new DbError("CONFLICT", `マグネットの在庫が足りません（残り ${remaining.magnet} 個）`);
     }
 
     // 1 端末（匿名トークン）あたりの、支払い待ちの注文の上限。同じトランザクションで数えるので、
@@ -127,7 +148,10 @@ export function createOrder(db: Database, input: CreateOrderInput): CreatedOrder
         confirmationCode: generateConfirmationCode(),
         anonToken: data.anonToken,
         status: "submitted",
-        totalAmount: setting.price * data.quantity + setting.kiraFilmPrice * data.kiraQuantity,
+        totalAmount:
+          setting.price * data.quantity +
+          setting.kiraFilmPrice * data.kiraQuantity +
+          setting.magnetPrice * data.magnetQuantity,
         createdAt: ctx.at,
       })
       .returning()
@@ -141,6 +165,7 @@ export function createOrder(db: Database, input: CreateOrderInput): CreatedOrder
         designId,
         quantity: data.quantity,
         kiraQuantity: data.kiraQuantity,
+        magnetQuantity: data.magnetQuantity,
         status: "queued",
         printCount: 0,
       })

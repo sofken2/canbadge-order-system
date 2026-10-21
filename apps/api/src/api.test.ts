@@ -261,6 +261,10 @@ describe("画像のアップロードと配信", () => {
       json: {
         price: 300,
         kiraFilmPrice: 100,
+        magnetPrice: 100,
+        badgeStock: 300,
+        kiraFilmStock: 100,
+        magnetStock: 100,
         maxQuantityPerOrder: 1,
         maxPendingPerDevice: 2,
         printMaxWaitSeconds: 120,

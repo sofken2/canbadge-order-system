@@ -68,6 +68,10 @@ export function closeImpact(submittedCount: number): Impact {
 export type SettingsForm = {
   price: string;
   kiraFilmPrice: string;
+  magnetPrice: string;
+  badgeStock: string;
+  kiraFilmStock: string;
+  magnetStock: string;
   maxQuantityPerOrder: string;
   maxPendingPerDevice: string;
   printMaxWaitSeconds: string;
@@ -83,6 +87,10 @@ export function formFromSetting(setting: Setting): SettingsForm {
   return {
     price: String(setting.price),
     kiraFilmPrice: String(setting.kiraFilmPrice),
+    magnetPrice: String(setting.magnetPrice),
+    badgeStock: String(setting.badgeStock),
+    kiraFilmStock: String(setting.kiraFilmStock),
+    magnetStock: String(setting.magnetStock),
     maxQuantityPerOrder: String(setting.maxQuantityPerOrder),
     maxPendingPerDevice: String(setting.maxPendingPerDevice),
     printMaxWaitSeconds: String(setting.printMaxWaitSeconds),
@@ -101,6 +109,10 @@ export function parseInteger(raw: string): number | undefined {
 const FIELD_LABELS: Record<FormField, string> = {
   price: "価格",
   kiraFilmPrice: "キラフィルムの加算額",
+  magnetPrice: "マグネットの加算額",
+  badgeStock: "バッジの在庫（総数）",
+  kiraFilmStock: "キラフィルムの在庫（総数）",
+  magnetStock: "マグネットの在庫（総数）",
   maxQuantityPerOrder: "1 注文の個数の上限",
   maxPendingPerDevice: "1 台あたりの支払い待ちの上限",
   printMaxWaitSeconds: "印刷を待つ最大の秒数",
@@ -136,6 +148,10 @@ export function parseSettingsForm(form: SettingsForm): ParsedForm {
   const result = updateSettingRequestSchema.safeParse({
     price: numbers.price,
     kiraFilmPrice: numbers.kiraFilmPrice,
+    magnetPrice: numbers.magnetPrice,
+    badgeStock: numbers.badgeStock,
+    kiraFilmStock: numbers.kiraFilmStock,
+    magnetStock: numbers.magnetStock,
     maxQuantityPerOrder: numbers.maxQuantityPerOrder,
     maxPendingPerDevice: numbers.maxPendingPerDevice,
     printMaxWaitSeconds: numbers.printMaxWaitSeconds,

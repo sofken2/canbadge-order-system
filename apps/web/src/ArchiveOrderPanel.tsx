@@ -1,10 +1,10 @@
 import type { ArchiveStatus } from "@canbadge/shared";
 import { Button, Checkbox, Notice, navigate, useAction, useResource } from "@canbadge/ui";
 import { useRef, useState } from "react";
+import { AddonPicker, orderTotal, totalBreakdown } from "./AddonPicker";
 import { api } from "./api";
 import { orderBlockedReason, orderErrorMessage } from "./archive-view-logic";
 import { DEV_TURNSTILE_TOKEN, turnstileSiteKey } from "./env";
-import { KiraFilmPicker, orderTotal } from "./KiraFilmPicker";
 import { QuantityPicker } from "./QuantityPicker";
 import { TurnstileWidget } from "./TurnstileWidget";
 
@@ -22,8 +22,14 @@ export function ArchiveOrderPanel({
   const status = useResource(() => api.call("getStatus"), { refreshMs: 5000 });
   const [quantity, setQuantity] = useState(1);
   const [kiraSelected, setKiraSelected] = useState(0);
-  // 個数を減らしたとき、キラの個数が個数を超えないようにする
-  const kiraQuantity = Math.min(kiraSelected, quantity);
+  const [magnetSelected, setMagnetSelected] = useState(0);
+  // 個数や在庫の残りが減ったとき、加工の個数が、その数を超えないようにする
+  const kiraQuantity = Math.min(kiraSelected, quantity, status.data?.kiraFilmRemaining ?? quantity);
+  const magnetQuantity = Math.min(
+    magnetSelected,
+    quantity,
+    status.data?.magnetRemaining ?? quantity,
+  );
   const [consent, setConsent] = useState(false);
   const [token, setToken] = useState<string | undefined>(undefined);
   /** 注文を試すたびに増やす。Turnstile のトークンは 1 回しか使えないので、作り直す */
@@ -40,6 +46,7 @@ export function ArchiveOrderPanel({
         body: {
           quantity,
           kiraQuantity,
+          magnetQuantity,
           turnstileToken: turnstileSiteKey ? (token ?? "") : DEV_TURNSTILE_TOKEN,
           rightsConsent: true,
         },
@@ -62,11 +69,21 @@ export function ArchiveOrderPanel({
         entryStatus,
       })
     : undefined;
-  const maxQuantity = setting?.maxQuantityPerOrder ?? 1;
+  // 1 回に注文できる個数は、設定の上限と、バッジの在庫の残りの小さいほう
+  const maxQuantity = Math.max(
+    1,
+    Math.min(setting?.maxQuantityPerOrder ?? 1, setting?.badgeRemaining ?? 1),
+  );
+  const soldOut = !!setting && setting.badgeRemaining <= 0;
   const needsToken = turnstileSiteKey !== undefined;
   const canSubmit =
-    !!setting && !blocked && consent && (!needsToken || token !== undefined) && !submit.running;
-  const total = orderTotal(setting, quantity, kiraQuantity);
+    !!setting &&
+    !blocked &&
+    !soldOut &&
+    consent &&
+    (!needsToken || token !== undefined) &&
+    !submit.running;
+  const total = orderTotal(setting, quantity, kiraQuantity, magnetQuantity);
 
   return (
     <section className="cb-arcorder" aria-label="この作品で注文する">
@@ -77,6 +94,9 @@ export function ArchiveOrderPanel({
 
       {status.error && <Notice tone="error">{status.error}</Notice>}
       {blocked && <Notice tone="error">{blocked}</Notice>}
+      {soldOut && (
+        <Notice tone="error">バッジの在庫がなくなりました。ご注文を受け付けられません。</Notice>
+      )}
 
       {setting && !blocked && (
         <form
@@ -86,20 +106,29 @@ export function ArchiveOrderPanel({
           }}
         >
           <QuantityPicker value={quantity} max={maxQuantity} onChange={setQuantity} />
-          <KiraFilmPicker
+          <AddonPicker
+            name="キラフィルム"
             value={kiraQuantity}
             quantity={quantity}
             price={setting.kiraFilmPrice}
+            remaining={setting.kiraFilmRemaining}
             onChange={setKiraSelected}
+          />
+          <AddonPicker
+            name="マグネット加工"
+            value={magnetQuantity}
+            quantity={quantity}
+            price={setting.magnetPrice}
+            remaining={setting.magnetRemaining}
+            onChange={setMagnetSelected}
           />
           <dl className="cb-summary cb-gap-top">
             <dt>金額</dt>
             <dd>
               <strong>{total}円</strong>
-              {(quantity > 1 || kiraQuantity > 0) && (
+              {(quantity > 1 || kiraQuantity > 0 || magnetQuantity > 0) && (
                 <span className="cb-muted">
-                  （{setting.price}円 × {quantity}
-                  {kiraQuantity > 0 && ` + キラ ${setting.kiraFilmPrice}円 × ${kiraQuantity}`}）
+                  （{totalBreakdown(setting, quantity, kiraQuantity, magnetQuantity)}）
                 </span>
               )}
             </dd>
