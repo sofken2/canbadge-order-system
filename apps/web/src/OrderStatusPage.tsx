@@ -14,6 +14,10 @@ import {
   stepState,
 } from "./order-status";
 import "./order-status.css";
+import { useDelayedFlag } from "./use-delayed";
+
+/** 取り直しの失敗が、これだけ続いたら、「つながっていない」と見せる（ms）。一瞬の失敗は、見せない */
+const OFFLINE_NOTICE_DELAY_MS = 10_000;
 
 /** できあがりを知らせる、振動の長さ（ms）。短く、2 回 */
 const READY_VIBRATION = [200, 100, 200];
@@ -51,6 +55,8 @@ export function OrderStatusPage({ orderId }: { orderId: string }) {
 
   const data = order.data;
   const status = data?.status;
+  // いまの状態が出ているときの、取り直しの失敗は、再接続で自然に直ることが多い。続くときだけ知らせる
+  const showRefreshError = useDelayedFlag(!!order.error && !!data, OFFLINE_NOTICE_DELAY_MS);
 
   // できあがりになった瞬間に、振動で知らせる（最初の表示や、できあがりのままの更新では、鳴らさない）
   const previous = useRef<typeof status>(undefined);
@@ -119,7 +125,11 @@ export function OrderStatusPage({ orderId }: { orderId: string }) {
       {/* 後で、待合画面の動くキャラクター（GIF・アニメ）を入れる場所。全体の見た目は、ここでは変えない */}
 
       {flash && <Notice tone={flash.tone}>{flash.text}</Notice>}
-      {order.error && <Notice tone="error">{order.error}</Notice>}
+      {showRefreshError && (
+        <Notice tone="info">
+          最新の状態を取得できていません。つながりしだい、自動で更新します（いまの表示は、前に取得したものです）
+        </Notice>
+      )}
 
       {showsQr(data.status) && (
         <section className="cb-ticket__qr" aria-label="注文の QR コード">
@@ -161,6 +171,13 @@ export function OrderStatusPage({ orderId }: { orderId: string }) {
         {data.items.map((item) => (
           <div key={item.id} className="cb-ticket__item">
             <OutputPreview src={item.thumbnailUrl} spec={badgeSpec} />
+            {(item.kiraQuantity > 0 || item.magnetQuantity > 0) && (
+              <p className="cb-muted">
+                {item.kiraQuantity > 0 && `キラフィルム ${item.kiraQuantity} 個`}
+                {item.kiraQuantity > 0 && item.magnetQuantity > 0 && " ／ "}
+                {item.magnetQuantity > 0 && `マグネット加工 ${item.magnetQuantity} 個`}
+              </p>
+            )}
           </div>
         ))}
         <p className="cb-ticket__amount">
