@@ -85,6 +85,22 @@ describe("API の呼び出し", () => {
     });
   });
 
+  test("keepalive を指定したときだけ、fetch に keepalive を渡す（画面を離れるときの送信）", async () => {
+    const { impl, calls } = fakeFetch(() =>
+      json({ error: { code: "NOT_FOUND", message: "注文が見つかりません" } }, 404),
+    );
+    const client = createApiClient({ fetch: impl });
+    await client
+      .call("payOrder", { params: { orderId: ID } }, { keepalive: true })
+      .catch(() => undefined);
+    await client.call("payOrder", { params: { orderId: ID } }).catch(() => undefined);
+    expect(calls[0]).toMatchObject({
+      url: `/api/staff/orders/${ID}/pay`,
+      init: { method: "POST", keepalive: true },
+    });
+    expect(calls[1]?.init.keepalive).toBeUndefined();
+  });
+
   test("契約に合わない応答は、例外にする（契約と実装のずれに気づける）", async () => {
     const { impl } = fakeFetch(() => json({ acceptance: "unknown" }));
     await expect(createApiClient({ fetch: impl }).call("getStatus")).rejects.toThrow();
