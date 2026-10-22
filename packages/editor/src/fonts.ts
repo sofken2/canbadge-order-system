@@ -7,11 +7,22 @@ export type EditorFont = {
   family: string;
   /** 読み込んでいる太さ。400 以外は、Konva の fontStyle を bold にして使う（無い太さを、擬似的に太らせない） */
   weight: 400 | 700;
+  /** Google Fonts にない書体は、assets/fonts に置いて、ここから読む */
+  url?: URL;
 };
 
 export const EDITOR_FONTS: readonly EditorFont[] = [
   { id: "maru", label: "まるごしっく", family: "Zen Maru Gothic", weight: 700 },
-  { id: "pop", label: "ポップ・極太", family: "Dela Gothic One", weight: 400 },
+  // チェックポイントフォント（よく飛ばない鳥・商用可）。規約は assets/fonts/checkpoint-readme.txt。
+  // 字形・著作権表示を変えての再配布が禁止なので、字を間引かず、woff2 に詰め直しただけで置いている。
+  // id は前の書体（Dela Gothic One）のまま。途中保存のデザインが、この書体で開き直されるようにするため
+  {
+    id: "pop",
+    label: "ポップ・極太",
+    family: "CheckPoint Font",
+    weight: 400,
+    url: new URL("./assets/fonts/checkpoint.woff2", import.meta.url),
+  },
   { id: "hand", label: "てがき風", family: "Hachi Maru Pop", weight: 400 },
   { id: "mincho", label: "明朝", family: "Shippori Mincho", weight: 700 },
 ];
@@ -23,7 +34,7 @@ export function findFont(id: string): EditorFont {
 }
 
 export const FONT_STYLESHEET_URL =
-  "https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Hachi+Maru+Pop&family=Shippori+Mincho:wght@700&family=Zen+Maru+Gothic:wght@700&display=swap";
+  "https://fonts.googleapis.com/css2?family=Hachi+Maru+Pop&family=Shippori+Mincho:wght@700&family=Zen+Maru+Gothic:wght@700&display=swap";
 
 /** キャンバスの font（`bold 20px "Zen Maru Gothic", sans-serif` の形）。sizePx は描く大きさ */
 export function canvasFont(font: EditorFont, sizePx: number): string {
@@ -36,6 +47,16 @@ let stylesheetAdded = false;
 export function ensureFontStylesheet(): void {
   if (stylesheetAdded || typeof document === "undefined") return;
   stylesheetAdded = true;
+  // 登録するだけで、ファイル（約 1.2MB）は、その書体で描くとき（document.fonts.load）に初めて読まれる
+  for (const font of EDITOR_FONTS) {
+    if (!font.url) continue;
+    document.fonts.add(
+      new FontFace(font.family, `url("${font.url.href}") format("woff2")`, {
+        weight: String(font.weight),
+        display: "swap",
+      }),
+    );
+  }
   if (document.querySelector(`link[href="${FONT_STYLESHEET_URL}"]`)) return;
   const link = document.createElement("link");
   link.rel = "stylesheet";

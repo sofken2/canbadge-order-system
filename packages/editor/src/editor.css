@@ -7,6 +7,11 @@
   gap: var(--space-md);
 }
 
+/* 途中保存を読み終えるまで（数十 ms）は隠す。場所は取ったままにして、読み終えたら一度に出す */
+.cb-editor[data-ready="false"] {
+  visibility: hidden;
+}
+
 /* 編集画面。指のドラッグ・ピンチをページのスクロールにせず、こちらで受けるので touch-action を止める */
 .cb-editor__frame {
   width: 100%;
@@ -28,33 +33,57 @@
   z-index: 1;
 }
 
+/*
+ * 線の見かた。キャンバスのすぐ下に、1 行で、最初から見せる（折りたたまない）。
+ * 見本は、キャンバスと同じく、暗い地に淡い白の線（縁は実線・文字の内側は点線・印刷の端は細く薄い線）
+ */
+/* 線の見かた。折り返さず 1 行に。狭い画面では、文字がエディタの幅に合わせて縮む */
 .cb-editor__legend {
-  display: grid;
-  gap: var(--space-2xs);
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: center;
+  gap: var(--space-xs);
   margin: 0;
   padding: 0;
   list-style: none;
+  color: var(--color-muted);
+  font-size: clamp(0.625rem, 3.5cqi, var(--text-xs));
+  white-space: nowrap;
 }
 
 .cb-editor__legend li {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
+  gap: var(--space-2xs);
+  min-width: 0;
 }
 
 .cb-editor__key {
+  position: relative;
   flex: none;
-  width: 1.5rem;
-  border-top: 1px solid var(--color-paper);
-  opacity: 0.7;
+  /* 短いと、破線（欠けずに見える範囲）が実線に見えて、3 本の見分けがつかない。破線が 3 つ見える幅にする */
+  width: 2.25rem;
+  height: 0.75rem;
+  border-radius: var(--radius-pill);
+  background: var(--color-ink-2);
 }
 
-.cb-editor__key--safe {
-  border-top: 2px dashed var(--color-ink);
+.cb-editor__key::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0.3rem;
+  top: 50%;
+  border-top: 1.5px solid var(--color-paper);
+  transform: translateY(-50%);
 }
 
-.cb-editor__key--print {
-  border-top: 1px solid var(--color-muted);
+.cb-editor__key--safe::after {
+  border-top: 2px dashed var(--color-paper);
+}
+
+/* 印刷の端は点線。実線の縁と並べても、見分けられるようにする（キャンバスの線も点線） */
+.cb-editor__key--print::after {
+  border-top: 2px dotted var(--color-paper);
 }
 
 /* 出力のプレビュー（バッジの表に見える部分） */
@@ -96,33 +125,284 @@
   stroke-width: 0.4;
 }
 
-/* 動かす道具。スマホでは 3 列の格子にそろえ、ばらばらに折り返さない。広い画面では 4 列 */
+/*
+ * キャンバス側（キャンバス・動かす道具・お知らせ・線の見かた）と、操作のパネル側（道具の切り替え・中身・決定）。
+ * 狭い画面では縦に続け、広い画面に置くときは、呼ぶ側が左右に並べる
+ */
+.cb-editor__stage,
+.cb-editor__controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-md);
+  min-width: 0;
+}
+
+/* 道具の切り替えの段組みを、画面ではなく、この欄の幅で決める（狭い欄に置いたとき、はみ出さない） */
+.cb-editor__controls {
+  container-type: inline-size;
+}
+
+/* キャンバス側も、線の見かたの文字の大きさを、この欄の幅で決める */
+.cb-editor__stage {
+  container-type: inline-size;
+}
+
+/*
+ * 動かす道具。キャンバスの直接操作（ドラッグ・ホイール・ピンチ）の補いなので、文字のボタンを並べず、
+ * キャンバスのすぐ下に、小さなアイコンを 1 列にまとめる。種類ごとに、少し間をあける
+ */
 .cb-editor__tools {
   margin: 0;
   padding: 0;
   border: 0;
   min-width: 0;
+  /* 1 行に並べる。幅が足りないときは、ボタンが等しく縮む（折り返さない） */
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-2xs);
+}
+
+.cb-editor__tools-gap {
+  flex: 0 1 var(--space-xs);
+}
+
+.cb-editor__icon {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 1 2.75rem;
+  min-width: 0;
+  aspect-ratio: 1;
+  height: auto;
+  padding: 0;
+  border: 1px solid var(--color-rule-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-card);
+  color: var(--color-ink);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color var(--dur-micro) var(--ease-out),
+    transform var(--dur-micro) var(--ease-out);
+}
+
+@media (hover: hover) {
+  .cb-editor__icon:hover:not(:disabled) {
+    background: var(--color-paper-2);
+  }
+}
+
+.cb-editor__icon:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.cb-editor__icon:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.cb-editor__icon:disabled {
+  color: var(--color-rule-strong);
+  border-color: var(--color-rule);
+  cursor: default;
+}
+
+/* キャンバスの上の案内。キャンバスを直接動かせることを、最初に伝える（触ったら消える） */
+.cb-editor__hint {
+  position: absolute;
+  left: 50%;
+  bottom: var(--space-sm);
+  transform: translateX(-50%);
+  margin: 0;
+  padding: var(--space-2xs) var(--space-sm);
+  border-radius: var(--radius-pill);
+  background: var(--color-card);
+  color: var(--color-ink);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.cb-editor__hint-coarse {
+  display: none;
+}
+
+@media (pointer: coarse) {
+  .cb-editor__hint-fine {
+    display: none;
+  }
+
+  .cb-editor__hint-coarse {
+    display: inline;
+  }
+}
+
+/*
+ * 白い部分が出るときの札。キャンバスの上端に重ねるので、出ても消えても、まわりは動かない。
+ * その場で直せるボタンを添える
+ */
+/* 写真を替える入口。キャンバスの左上に重ねる（中の file 入力は、ラベルを押すと開く） */
+.cb-editor__change {
+  position: absolute;
+  top: var(--space-xs);
+  left: var(--space-xs);
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  /* キャンバスを隠さないよう、小さく */
+  min-height: calc(var(--size-control) - var(--space-md));
+  padding: var(--space-2xs) var(--space-sm) var(--space-2xs) var(--space-xs);
+  border: 1px solid var(--color-rule-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-card);
+  color: var(--color-ink);
+  font: 600 var(--text-xs) / 1 var(--font-body);
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--dur-micro) var(--ease-out);
+}
+
+@media (hover: hover) {
+  .cb-editor__change:hover {
+    background: var(--color-paper-2);
+  }
+}
+
+.cb-editor__change svg {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.cb-editor__change:focus-within {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.cb-editor__change:active {
+  background: var(--color-rule);
+}
+
+/* PC の大きさ・回転のスライダー。指の端末では出さない（2 本の指で、拡大と回転ができる） */
+.cb-editor__sliders {
+  display: none;
+}
+
+/* 2 本を 1 行に並べ、半分ずつで横幅いっぱいを使う。名前はアイコン（読み上げには、隠した文字で） */
+@media (hover: hover) and (pointer: fine) {
+  .cb-editor__sliders {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-lg);
+  }
+}
+
+.cb-editor__slider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-width: 0;
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+}
+
+.cb-editor__slider svg {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+}
+
+/* 幅は、欄の残りを全部（.cb-editor__range の width: 100% を、flex の伸び縮みで使う） */
+.cb-editor__slider input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.cb-editor__slider output {
+  min-width: 2.5em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* お知らせは、キャンバスのすぐ下にまとめる（操作のパネルを、下へ押しやらない） */
+.cb-editor__notices {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-xs);
 }
 
-.cb-editor__tools .cb-button {
-  min-width: 0;
-  min-height: 2.75rem;
-  padding: 0.45rem var(--space-xs);
-  /* 320px 幅でも「位置を戻す」が 1 行に収まる大きさ */
-  font-size: clamp(var(--text-xs), 3.8vw, var(--text-sm));
-}
-
-@media (min-width: 30rem) {
-  .cb-editor__tools {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
+.cb-editor__notices:empty {
+  display: none;
 }
 
 .cb-editor__choose {
   position: relative;
+  /* 全幅にせず、内容の幅にする（決定のボタンと、重さを張り合わない） */
+  justify-self: start;
+}
+
+/* はじめに戻す。全部を消す操作なので、ほかの道具と同じ重さのボタンにせず、控えめな文字にする */
+/* はじめに戻す。キャンバスの右上のゴミ箱。左上の「画像を変える」と同じ高さの、小さな丸 */
+.cb-editor__reset {
+  position: absolute;
+  top: var(--space-xs);
+  right: var(--space-xs);
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2xs);
+  min-width: calc(var(--size-control) - var(--space-md));
+  min-height: calc(var(--size-control) - var(--space-md));
+  padding: 0 var(--space-xs);
+  border: 1px solid var(--color-rule-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-card);
+  color: var(--color-ink);
+  font: 600 var(--text-xs) / 1 var(--font-body);
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--dur-micro) var(--ease-out);
+}
+
+.cb-editor__reset svg {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+/* 1 回押したあと。もう一度押すと消えることを、危ない色で伝える */
+.cb-editor__reset[data-confirming="true"] {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+/* 「もう一度押すと、全部消えます」は、ゴミ箱の真下に出す（横に広げると、左上の「画像を変える」に重なる） */
+.cb-editor__reset span {
+  position: absolute;
+  top: calc(100% + var(--space-2xs));
+  right: 0;
+  padding: var(--space-2xs) var(--space-sm);
+  border-radius: var(--radius-pill);
+  background: var(--color-card);
+  color: var(--color-danger);
+  pointer-events: none;
+}
+
+@media (hover: hover) {
+  .cb-editor__reset:hover {
+    background: var(--color-paper-2);
+  }
+}
+
+.cb-editor__reset:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.cb-editor__reset:active {
+  background: var(--color-rule);
 }
 
 .cb-editor__file {
@@ -139,38 +419,29 @@
   outline-offset: 3px;
 }
 
-.cb-editor__help summary {
-  cursor: pointer;
-  color: var(--color-muted);
-  font-size: var(--text-sm);
-}
-
 /* ---- 道具の切り替え ---- */
 
-/* 道具の切り替え。スマホでは 3 列 × 2 段（「フィルター」だけが、次の段に落ちない）。広い画面では 1 段 */
+/* 道具の切り替え。狭い欄では 3 列 × 2 段（「フィルター」だけが、次の段に落ちない）。広い欄では 1 段 */
+/* 道具のタブ。数に関係なく 1 段に、幅いっぱいを等分して並べる */
 .cb-editor__tabs {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   gap: var(--space-2xs);
   border-bottom: 1px solid var(--color-rule);
-  padding-bottom: var(--space-xs);
-}
-
-@media (min-width: 30rem) {
-  .cb-editor__tabs {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-  }
+  padding-bottom: var(--space-2xs);
 }
 
 .cb-editor__tab {
   min-width: 0;
   min-height: 2.75rem;
-  padding: 0.4rem 0.25rem;
+  padding: 0.4rem 0;
   border: 1px solid transparent;
   border-radius: var(--radius-pill);
   background: transparent;
   color: var(--color-muted);
-  font: 600 var(--text-sm) / 1 var(--font-body);
+  /* 狭い画面でも、いちばん長い「スタンプ」が 1 列に収まるよう、エディタの幅に合わせて縮める */
+  font: 600 clamp(0.6875rem, 4.2cqi, var(--text-sm)) / 1 var(--font-body);
   white-space: nowrap;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -193,7 +464,6 @@
 .cb-editor__panel {
   display: grid;
   gap: var(--space-md);
-  padding-top: var(--space-md);
 }
 
 .cb-editor__panel fieldset {
@@ -209,26 +479,43 @@
 
 /* ---- 色 ---- */
 
+/* 色は、数に関係なく 1 段に並べる。横幅を色の数で等分し、丸はその幅に合わせて縮む（大きくても 2.5rem） */
 .cb-editor__swatch-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-xs);
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: var(--space-2xs);
+  justify-items: center;
 }
 
 .cb-editor__swatch {
   position: relative;
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 100%;
+  max-width: 2.5rem;
+  aspect-ratio: 1;
+  height: auto;
   padding: 0;
   border: 1px solid var(--color-rule-strong);
   border-radius: var(--radius-pill);
   cursor: pointer;
 }
 
+/* 丸の間が狭いので、選んだ印の枠は細く、近くに（隣の丸に重ならない） */
 .cb-editor__swatch[aria-pressed="true"],
 .cb-editor__swatch.is-active {
-  outline: 3px solid var(--color-ink);
-  outline-offset: 2px;
+  outline: 2px solid var(--color-ink);
+  outline-offset: 1px;
+}
+
+/* 「なし」。白い丸に、斜めの線 */
+.cb-editor__swatch--none {
+  background: linear-gradient(
+    135deg,
+    var(--color-card) 46%,
+    var(--color-danger) 46%,
+    var(--color-danger) 54%,
+    var(--color-card) 54%
+  );
 }
 
 /* 色の入力は、丸い見た目の上に重ねて、タップで色の選択を開く */
@@ -242,11 +529,25 @@
   );
 }
 
+/*
+ * 丸は、色の数に合わせて小さくなる（スマホでは 2rem ほど）。見た目はそのまま、押せる広さだけを、
+ * 縦は 2.75rem（44px）まで、横は隣との間のぶんまで広げる（隣の丸の当たりには、はみ出さない）
+ */
+.cb-editor__swatch::before {
+  content: "";
+  position: absolute;
+  inset-block: min(0px, calc((100% - 2.75rem) / 2));
+  inset-inline: calc(var(--space-2xs) / -2);
+}
+
 .cb-editor__swatch--custom input {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+  /* 色の入力も、広げた当たりと同じ広さで受ける */
+  top: 50%;
+  left: calc(var(--space-2xs) / -2);
+  width: calc(100% + var(--space-2xs));
+  height: max(100%, 2.75rem);
+  transform: translateY(-50%);
   opacity: 0;
   cursor: pointer;
 }
@@ -299,7 +600,65 @@
   accent-color: var(--color-accent-deep);
 }
 
+.cb-editor__range:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* 色の補正。フィルターの選択とは区切って、下に並べる */
+.cb-editor__adjust {
+  display: grid;
+  gap: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-rule);
+}
+
+.cb-editor__adjust-row {
+  display: grid;
+  gap: var(--space-2xs);
+  margin: 0;
+}
+
+.cb-editor__adjust-row .cb-field__label {
+  margin: 0;
+}
+
+/* 共通の .cb-field__label（display: block）より強くする */
+.cb-editor__adjust-row .cb-editor__adjust-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-xs);
+}
+
+.cb-editor__adjust-value {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-muted);
+}
+
+.cb-editor__adjust-note {
+  font-size: var(--text-sm);
+}
+
 /* ---- スタンプ ---- */
+
+/* 文字の欄と「＋ 文字を追加」を横に並べる。欄が残りの幅を使い、ボタンは文字の分だけ */
+.cb-editor__text-row {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-xs);
+}
+
+.cb-editor__text-row .cb-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.cb-editor__text-row .cb-button {
+  flex: none;
+  padding-inline: var(--space-sm);
+  font-size: var(--text-sm);
+}
 
 .cb-editor__stickers {
   margin: 0;

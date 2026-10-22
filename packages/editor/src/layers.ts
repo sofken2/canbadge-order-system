@@ -154,9 +154,21 @@ export function extentOfLayer(layer: MovableLayer, measureText: TextMeasurer): E
 
 // ---- 層の追加・入れ替え（配列を返す。もとの配列は変えない）----
 
+/** 文字のふちの太さ（文字の大きさに対する割合）。外側に付けるので、文字の形はやせない */
+export const TEXT_OUTLINE_RATIO = 0.16;
+/** ふちの太さを選べる範囲（文字の大きさに対する割合） */
+export const TEXT_OUTLINE_MIN = 0.05;
+export const TEXT_OUTLINE_MAX = 0.35;
+
 export function newTextLayer(
   text: string,
-  options: { fontId: string; color: string; fontSizeMm?: number },
+  options: {
+    fontId: string;
+    color: string;
+    outlineColor?: string;
+    outlineWidth?: number;
+    fontSizeMm?: number;
+  },
 ): TextLayer {
   return {
     type: "text",
@@ -164,6 +176,13 @@ export function newTextLayer(
     text,
     fontId: findFont(options.fontId).id,
     color: options.color,
+    // ふちは、色を選んだときだけ持つ（ふちなしの文字は、今までと同じ形で保存する）
+    ...(options.outlineColor
+      ? {
+          outlineColor: options.outlineColor,
+          ...(options.outlineWidth !== undefined ? { outlineWidth: options.outlineWidth } : {}),
+        }
+      : {}),
     fontSizeMm: options.fontSizeMm ?? 12,
     xMm: 0,
     yMm: 0,

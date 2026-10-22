@@ -1,5 +1,6 @@
 import { Group, Image as KonvaImage, Line, Path, Text } from "react-konva";
 import { findFont } from "./fonts";
+import { TEXT_OUTLINE_RATIO } from "./layers";
 import type { Layer, StickerLayer, TextLayer } from "./model";
 import { findSticker, STICKER_VIEWBOX } from "./stickers";
 import { measureTextEm } from "./text-measure";
@@ -20,6 +21,13 @@ function TextNode({ layer }: { layer: TextLayer }) {
       lineHeight={1}
       wrap="none"
       fill={layer.color}
+      // ふち：線は文字の輪郭の内と外に半分ずつ描かれるので、倍の太さで描き、塗りを上に重ねて、外側だけを見せる
+      stroke={layer.outlineColor}
+      strokeWidth={
+        layer.outlineColor ? layer.fontSizeMm * (layer.outlineWidth ?? TEXT_OUTLINE_RATIO) * 2 : 0
+      }
+      fillAfterStrokeEnabled
+      lineJoin="round"
       offsetX={widthMm / 2}
       offsetY={layer.fontSizeMm / 2}
       rotation={layer.rotationDeg}

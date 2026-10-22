@@ -8,6 +8,7 @@ import {
   fitWithin,
   MAX_SOURCE_SIDE,
 } from "./image-size";
+import { newTextLayer } from "./layers";
 import { createEmptyState, parseEditorState } from "./model";
 
 describe("編集データ", () => {
@@ -76,5 +77,30 @@ describe("写真の大きさ", () => {
   test("実効解像度：70mm に 827px なら、約 300dpi", () => {
     expect(effectiveDpi(827, 70)).toBeCloseTo(300, 0);
     expect(effectiveDpi(1654, 70)).toBeCloseTo(600, 0);
+  });
+});
+
+describe("文字のふち", () => {
+  test("ふちの色は、保存して読み戻しても残る。ふちのない文字は、項目を持たない", () => {
+    const state = createEmptyState(badgeSpec);
+    const outlined = newTextLayer("旭祭", {
+      fontId: "maru",
+      color: "#ffffff",
+      outlineColor: "#222222",
+      outlineWidth: 0.25,
+    });
+    const plain = newTextLayer("缶", {
+      fontId: "maru",
+      color: "#222222",
+      outlineColor: "",
+      outlineWidth: 0.25,
+    });
+    expect("outlineColor" in plain).toBe(false);
+    const restored = parseEditorState(
+      JSON.parse(JSON.stringify({ ...state, layers: [outlined, plain] })),
+    );
+    const texts = restored?.layers.filter((layer) => layer.type === "text");
+    expect(texts?.[0]).toMatchObject({ outlineColor: "#222222", outlineWidth: 0.25 });
+    expect(texts?.[1] && "outlineColor" in texts[1]).toBe(false);
   });
 });
