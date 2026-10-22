@@ -65,6 +65,15 @@ export type ApiClientOptions = {
   headers?: Record<string, string>;
 };
 
+/** 1 回の呼び出しごとの指定 */
+export type CallOptions = {
+  /**
+   * 画面を離れる（閉じる・移動する）ときにも、送りきる（fetch の keepalive）。
+   * 応答は待てないことがあるので、結果を使わない送信にだけ使う
+   */
+  keepalive?: boolean;
+};
+
 function queryString(query: object | undefined): string {
   if (!query) return "";
   const params = new URLSearchParams();
@@ -113,6 +122,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
   async function call<N extends EndpointName>(
     name: N,
     input: CallInput<N> = {} as CallInput<N>,
+    callOptions: CallOptions = {},
   ): Promise<CallOutput<N>> {
     const endpoint = endpoints[name];
     const { params, query, body } = input as {
@@ -124,6 +134,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
       method: endpoint.method,
       headers: body === undefined ? {} : { "content-type": "application/json" },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      ...(callOptions.keepalive ? { keepalive: true } : {}),
     });
     if (endpoint.response === null) return response as CallOutput<N>;
     return endpoint.response.parse(await response.json()) as unknown as CallOutput<N>;

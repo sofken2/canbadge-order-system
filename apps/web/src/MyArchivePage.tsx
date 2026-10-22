@@ -1,14 +1,17 @@
 import type { MyArchiveEntryView } from "@canbadge/shared";
-import { Button, ConfirmDialog, Notice, navigate, useAction, useResource } from "@canbadge/ui";
+import {
+  BackButton,
+  Button,
+  ConfirmDialog,
+  Notice,
+  navigate,
+  useAction,
+  useResource,
+} from "@canbadge/ui";
 import { useState } from "react";
 import { api } from "./api";
 import "./archive.css";
-import {
-  canWithdraw,
-  myEntryStatus,
-  postedMessage,
-  withdrawConfirmMessage,
-} from "./archive-post-logic";
+import { canWithdraw, myEntryStatus, withdrawConfirmMessage } from "./archive-post-logic";
 
 /** 状態が変わったあとも、一覧を取り直す間隔。スタッフが審査すると、「審査待ち」が「公開中」に変わる */
 const REFRESH_MS = 15_000;
@@ -39,7 +42,7 @@ function EntryCard({ entry, onChanged }: { entry: MyArchiveEntryView; onChanged:
       {canWithdraw(entry.status) && (
         <ConfirmDialog
           open={confirming}
-          title="この作品を、取り下げますか？"
+          title="この作品を取り下げますか？"
           confirmLabel="取り下げる"
           running={withdraw.running}
           error={withdraw.error}
@@ -59,20 +62,19 @@ function EntryCard({ entry, onChanged }: { entry: MyArchiveEntryView; onChanged:
  */
 export function MyArchivePage() {
   const mine = useResource(() => api.call("listMyArchive"), { refreshMs: REFRESH_MS });
-  const posted = new URLSearchParams(window.location.search).get("posted") === "1";
   const items = mine.data?.items ?? [];
 
   return (
     <main className="cb-page">
+      <BackButton className="cb-back--page" onClick={() => navigate("/archive")} />
       <h1>自分の投稿</h1>
-      {posted && <Notice tone="info">{postedMessage}</Notice>}
       <p className="cb-muted">
         この端末で投稿した作品です。端末を変えたり、ブラウザのデータを消したりすると、ここには出なくなります。
       </p>
       {mine.error && <Notice tone="error">{mine.error}</Notice>}
 
       {mine.data && items.length === 0 && (
-        <p className="cb-muted">この端末で投稿した作品は、ありません。</p>
+        <p className="cb-muted">この端末で投稿した作品はありません。</p>
       )}
       <ul className="cb-mine__list">
         {items.map((entry) => (
@@ -81,7 +83,7 @@ export function MyArchivePage() {
       </ul>
 
       <Button block size="large" onClick={() => navigate("/archive/post")}>
-        作品を、投稿する
+        作品を投稿する
       </Button>
       <Button variant="line" block onClick={() => navigate("/order")}>
         バッジを注文する

@@ -11,7 +11,9 @@ import {
 import { useEffect, useState } from "react";
 import { api } from "./api";
 import {
+  businessDateLabel,
   closeImpact,
+  FIELD_LABELS,
   type FormField,
   formChanged,
   formFromSetting,
@@ -20,6 +22,7 @@ import {
   type Impact,
   openDayImpact,
   parseSettingsForm,
+  pauseCopy,
   type SettingsForm,
   todayJst,
 } from "./settings-logic";
@@ -33,7 +36,7 @@ const yen = (amount: number): string => `${amount.toLocaleString("ja-JP")}円`;
 const acceptanceTone = (acceptance: Acceptance) =>
   acceptance === "open" ? "done" : acceptance === "busy" ? "active" : "neutral";
 
-/** 営業と受付の操作。営業開始・受付終了は取り消せないので、何が起きるかを見せてから実行する。ビジーは、ワンタップ */
+/** 営業と受付の操作。営業開始・受付終了は取り消せないので、何が起きるかを見せてから実行する。一時停止は、ワンタップ */
 function OperateTab({
   setting,
   onChanged,
@@ -89,8 +92,8 @@ function OperateTab({
           : action === "close"
             ? "受付を終了しました"
             : action === "busy"
-              ? "ビジーにしました。新しい注文は、受け付けていません"
-              : "ビジーを解除しました。受付中です",
+              ? pauseCopy.started
+              : pauseCopy.resumed,
     });
   });
 
@@ -101,12 +104,14 @@ function OperateTab({
 
   const closed = setting.acceptance === "closed";
   const beforeOpening = setting.businessDate === null;
+  // 珊瑚の主ボタンは 1 画面に 1 つまで。受付の操作（解除・開始）が主のときは、印刷の再開を黒地にする
+  const acceptancePrimary = setting.acceptance === "busy" || closed || beforeOpening;
 
   return (
     <section aria-label="営業と受付の操作">
       <dl className="cb-summary cb-settings__state">
         <dt>営業日</dt>
-        <dd>{setting.businessDate ?? "営業開始の前"}</dd>
+        <dd>{setting.businessDate ? businessDateLabel(setting.businessDate) : "営業開始の前"}</dd>
         <dt>受付</dt>
         <dd>
           <StatusLabel
@@ -125,11 +130,11 @@ function OperateTab({
       )}
       {run.error && !asking && <Notice tone="error">{run.error}</Notice>}
 
-      {/* ビジー：混んだら、すぐ止められるよう、確認なしの 1 タップ */}
+      {/* 一時停止：混んだら、すぐ止められるよう、確認なしの 1 タップ */}
       {setting.acceptance === "busy" ? (
         <div className="cb-settings__block">
           <Button size="large" block onClick={() => void run.run("unbusy")} disabled={run.running}>
-            ビジーを解除する
+            {pauseCopy.resume}
           </Button>
         </div>
       ) : (
@@ -149,9 +154,10 @@ function OperateTab({
             onClick={() => void run.run("busy")}
             disabled={run.running || setting.acceptance !== "open"}
           >
-            ビジーにする（新しい注文を止める）
+            {pauseCopy.start}
           </Button>
-          <p className="cb-muted">支払い・印刷・受け渡しは、続けられます。</p>
+          {/* 「（新しい注文を止める）」までボタンに入れると、スマホの幅で 1 行に収まらないので、下の補足に書く */}
+          <p className="cb-muted">{pauseCopy.startNote}</p>
         </div>
       )}
 
@@ -162,7 +168,13 @@ function OperateTab({
           block
           variant={closed || beforeOpening ? "primary" : "line"}
           onClick={() => setAsking("open")}
-          disabled={run.running}
+          // 今日の営業中で受付中なら、再開するものがない
+          disabled={
+            run.running ||
+            (setting.acceptance === "open" &&
+              !beforeOpening &&
+              setting.businessDate === todayJst(Date.now()))
+          }
         >
           {setting.businessDate === todayJst(Date.now()) ? "受付を再開する" : "営業を開始する"}
         </Button>
@@ -175,13 +187,14 @@ function OperateTab({
         >
           受付を終了する
         </Button>
-        <p className="cb-muted">どちらも取り消せません。押すと、先に、何が起きるかを確認します。</p>
+        <p className="cb-muted">どちらも取り消せません。押すと、先に何が起きるかを確認します。</p>
       </div>
 
       <div className="cb-settings__block">
         <h2>印刷</h2>
         <Button
-          variant={setting.printPaused ? "primary" : "line"}
+          size="large"
+          variant={setting.printPaused ? (acceptancePrimary ? "ink" : "primary") : "line"}
           block
           onClick={() => void printToggle.run()}
           disabled={printToggle.running}
@@ -255,7 +268,7 @@ function SalesTab({ businessDate }: { businessDate: string | null }) {
 
       <h2>時間帯ごと</h2>
       {rows.length === 0 ? (
-        <p className="cb-muted">この日の支払いは、まだありません。</p>
+        <p className="cb-muted">この日の支払いはまだありません。</p>
       ) : (
         <ul className="cb-settings__hours">
           {rows.map((row) => (
@@ -314,10 +327,11 @@ function ValuesTab({
   const changed = formChanged(form, setting);
   // 在庫の残りは、注文が入るたびに変わる。総数の欄の下に、いまの残りを見せる
   const remaining = useResource(() => api.call("getStatus"), { refreshMs: 5000 }).data;
-  const field = (name: FormField, label: string, hint: string, suffix?: string) => (
-    <div className="cb-settings__field">
+  // ラベルは FIELD_LABELS から取る（エラーの文と同じ名前にするため）
+  const field = (name: FormField, hint: string, suffix?: string) => (
+    <div className="cb-settings__field" data-invalid={errors[name] ? true : undefined}>
       <TextField
-        label={label}
+        label={FIELD_LABELS[name]}
         hint={errors[name] ?? hint}
         value={form[name]}
         inputMode={name === "imageMaxMb" ? "decimal" : "numeric"}
@@ -337,66 +351,30 @@ function ValuesTab({
         void save.run();
       }}
     >
-      {field("price", "価格（1 個）", "すでにある注文の金額は、変わりません", "円")}
-      {field(
-        "kiraFilmPrice",
-        "キラフィルムの加算額（1 個）",
-        "キラフィルムを貼る個数ぶんだけ、価格に足されます",
-        "円",
-      )}
-      {field(
-        "magnetPrice",
-        "マグネット加工の加算額（1 個）",
-        "マグネット加工をする個数ぶんだけ、価格に足されます",
-        "円",
-      )}
+      {field("price", "すでにある注文の金額は、変わりません", "円")}
+      {field("kiraFilmPrice", "キラフィルムを貼る個数ぶんだけ、価格に足されます", "円")}
+      {field("magnetPrice", "マグネット加工をする個数ぶんだけ、価格に足されます", "円")}
       {field(
         "badgeStock",
-        "バッジの在庫（総数）",
-        `いまの残り：${remaining?.badgeRemaining ?? "…"} 個。失効・取り消し以外の注文が、使った数を引いた数です`,
+        // 状態の名前は、契約の表示名（期限切れ・取り消し済み）にそろえる
+        `いまの残り：${remaining?.badgeRemaining ?? "…"} 個。総数から、期限切れ・取り消し済み以外の注文が使った数を引いた数です`,
         "個",
       )}
-      {field(
-        "kiraFilmStock",
-        "キラフィルムの在庫（総数）",
-        `いまの残り：${remaining?.kiraFilmRemaining ?? "…"} 個`,
-        "個",
-      )}
-      {field(
-        "magnetStock",
-        "マグネットの在庫（総数）",
-        `いまの残り：${remaining?.magnetRemaining ?? "…"} 個`,
-        "個",
-      )}
-      {field(
-        "maxQuantityPerOrder",
-        "1 注文の個数の上限",
-        "1 にすると、注文の画面に、個数の選択が出ません",
-        "個",
-      )}
-      {field(
-        "maxPendingPerDevice",
-        "1 台あたりの、支払い待ちの上限",
-        "同じスマホから出せる、支払い前の注文の数",
-        "件",
-      )}
+      {field("kiraFilmStock", `いまの残り：${remaining?.kiraFilmRemaining ?? "…"} 個`, "個")}
+      {field("magnetStock", `いまの残り：${remaining?.magnetRemaining ?? "…"} 個`, "個")}
+      {field("maxQuantityPerOrder", "1 にすると、注文の画面に、個数の選択が出ません", "個")}
+      {field("maxPendingPerDevice", "同じスマホから出せる、支払い前の注文の数", "件")}
       {field(
         "printMaxWaitSeconds",
-        "印刷を待つ最大の秒数",
         "用紙 1 枚分たまらなくても、いちばん古い注文が、この秒数待ったら、印刷します",
         "秒",
       )}
-      {field(
-        "orderNumberDigits",
-        "注文番号の桁数",
-        "1〜6。3 なら 007 のように、0 で埋めます",
-        "桁",
-      )}
-      {field("imageMaxMb", "画像の容量の上限", "お客さんが取り込める、写真 1 枚の大きさ", "MB")}
+      {field("orderNumberDigits", "1〜6。3 なら 007 のように、0 で埋めます", "桁")}
+      {field("imageMaxMb", "お客さんが取り込める、写真 1 枚の大きさ", "MB")}
 
       {save.error && <Notice tone="error">{save.error}</Notice>}
       {Object.keys(errors).length > 0 && (
-        <Notice tone="error">赤く示した欄を、直してから、もう一度、保存してください。</Notice>
+        <Notice tone="error">赤く示した欄を直してから、もう一度保存してください。</Notice>
       )}
       <Button type="submit" size="large" block disabled={!changed || save.running}>
         {changed ? "保存する" : "変更はありません"}
@@ -407,7 +385,7 @@ function ValuesTab({
 
 /**
  * 設定・売上集計。責任者が、当日の運用を画面から制御する。
- * 「受付」（営業開始・ビジー・受付終了・印刷）「売上」「設定」の 3 つ
+ * 「受付」（営業開始・一時停止・受付終了・印刷）「売上」「価格・上限」の 3 つ
  */
 export function SettingsPage() {
   const [tab, setTab] = useState<Tab>("operate");
@@ -447,7 +425,7 @@ export function SettingsPage() {
           [
             ["operate", "受付"],
             ["sales", "売上"],
-            ["values", "設定"],
+            ["values", "価格・上限"],
           ] as const
         ).map(([id, label]) => (
           <button

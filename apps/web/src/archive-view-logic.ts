@@ -34,9 +34,9 @@ export const reportedMessage =
 export const entryNotFoundMessage =
   "この作品は、見つかりません。取り下げられたか、まだ公開されていないかもしれません。";
 
-/** 作品の表示名の見出し（「たろう さんの作品」） */
+/** 作品の表示名の言い方（「たろうさんの作品」）。一覧のサムネイルの下と、詳細の見出しで、同じ言い方にする */
 export function authorLine(displayName: string): string {
-  return `${displayName} さんの作品`;
+  return `${displayName}さんの作品`;
 }
 
 /** 注文できない理由。注文できるなら undefined。受付の状態と、作品の状態から決める */
@@ -45,7 +45,7 @@ export function orderBlockedReason(input: {
   busyMessage: string | null | undefined;
   entryStatus: string;
 }): string | undefined {
-  if (input.entryStatus !== "public") return "この作品は、いま、注文できません";
+  if (input.entryStatus !== "public") return "この作品はいま注文できません";
   if (!input.accepting) return input.busyMessage ?? "現在、注文を受け付けていません。";
   return undefined;
 }

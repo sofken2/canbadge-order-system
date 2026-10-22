@@ -1,5 +1,13 @@
-import type { ReportView, StaffArchiveEntryView } from "@canbadge/shared";
-import { Button, ConfirmDialog, Notice, useAction, useResource } from "@canbadge/ui";
+import type { ArchiveStatus, ReportView, StaffArchiveEntryView } from "@canbadge/shared";
+import {
+  Button,
+  ConfirmDialog,
+  Notice,
+  StatusLabel,
+  type StatusTone,
+  useAction,
+  useResource,
+} from "@canbadge/ui";
 import { useMemo, useState } from "react";
 import { api } from "./api";
 import "./archive.css";
@@ -14,6 +22,7 @@ import {
   tabStatuses,
   waitedLabel,
 } from "./archive-logic";
+import { LONG_WAIT_LABEL } from "./assemble-logic";
 import { useNow } from "./useNow";
 
 /** 状態が変わったあとも、一覧を取り直す間隔。SSE の種類は、足していない（契約を変えないため）ので、定期的に読む */
@@ -30,6 +39,10 @@ async function loadEntries(tab: Exclude<ArchiveTab, "reports">): Promise<StaffAr
   );
   return pages.flatMap((page) => page.items).sort((a, b) => (a.id < b.id ? 1 : -1));
 }
+
+/** 状態の丸い印。審査を待っているものは珊瑚、公開中は緑、そのほかは灰 */
+const statusTone = (status: ArchiveStatus): StatusTone =>
+  status === "pending_review" ? "active" : status === "public" ? "done" : "neutral";
 
 /** 画像の大きさを見て、権利面を判断するための、大きい画像と、操作 */
 function EntryCard({
@@ -62,11 +75,10 @@ function EntryCard({
       />
       <div className="cb-arc__body">
         <p className="cb-arc__name">{entry.displayName}</p>
-        <p className="cb-muted">
-          <span className="cb-arc__status">{statusText[entry.status]}</span>
-          {" ・ "}
-          {waitedLabel(entry.createdAt, now)}に投稿
-          {long && <strong className="cb-arc__flag">　長く待っています</strong>}
+        <p className="cb-arc__meta">
+          <StatusLabel label={statusText[entry.status]} tone={statusTone(entry.status)} />
+          <span className="cb-muted">{waitedLabel(entry.createdAt, now)}に投稿</span>
+          {long && <span className="cb-flag">{LONG_WAIT_LABEL}</span>}
         </p>
         {entry.openReportCount > 0 && (
           <p className="cb-arc__reports">未対応の通報 {entry.openReportCount} 件</p>
@@ -74,20 +86,22 @@ function EntryCard({
 
         {entry.status === "pending_review" && (
           <div className="cb-arc__actions">
-            <Button
-              size="large"
-              disabled={review.running}
-              onClick={() => void review.run("approveArchiveEntry")}
-            >
-              承認して公開
-            </Button>
+            {/* カードが並ぶので、珊瑚の主ボタンにはしない（1 画面に 1 つまで）。公開は黒地、却下は輪郭で見分ける */}
             <Button
               size="large"
               variant="ink"
               disabled={review.running}
+              onClick={() => void review.run("approveArchiveEntry")}
+            >
+              公開する
+            </Button>
+            <Button
+              size="large"
+              variant="line"
+              disabled={review.running}
               onClick={() => void review.run("rejectArchiveEntry")}
             >
-              却下
+              却下する
             </Button>
           </div>
         )}
@@ -104,7 +118,7 @@ function EntryCard({
       {entry.status === "public" && (
         <ConfirmDialog
           open={confirmingHide}
-          title="この作品を、非公開にしますか？"
+          title="この作品を非公開にします"
           confirmLabel="非公開にする"
           running={hide.running}
           error={hide.error}
@@ -118,7 +132,7 @@ function EntryCard({
   );
 }
 
-/** 通報 1 件。問題がなければ「対応済み」、問題があれば「作品を非公開に」（非公開にすると、通報も対応済みになる） */
+/** 通報 1 件。問題がなければ「対応済みにする」、問題があれば「作品を非公開にする」（非公開にすると、通報も対応済みになる） */
 function ReportCard({
   report,
   now,
@@ -149,14 +163,19 @@ function ReportCard({
       />
       <div className="cb-arc__body">
         <p className="cb-arc__name">{reportHeadline(report)}</p>
-        <p className="cb-muted">
-          {waitedLabel(report.createdAt, now)}に通報 ・ 作品は {statusText[report.entry.status]}
+        <p className="cb-arc__meta">
+          <span className="cb-muted">{waitedLabel(report.createdAt, now)}に通報</span>
+          <span className="cb-muted">作品は</span>
+          <StatusLabel
+            label={statusText[report.entry.status]}
+            tone={statusTone(report.entry.status)}
+          />
         </p>
         <p className="cb-arc__reason">{report.reason}</p>
         {report.status === "open" ? (
           <div className="cb-arc__actions">
             {canHide && (
-              <Button size="large" onClick={() => setConfirmingHide(true)}>
+              <Button size="large" variant="ink" onClick={() => setConfirmingHide(true)}>
                 作品を非公開にする
               </Button>
             )}
@@ -166,7 +185,7 @@ function ReportCard({
               disabled={resolve.running}
               onClick={() => void resolve.run()}
             >
-              問題なし（対応済み）
+              対応済みにする
             </Button>
           </div>
         ) : (
@@ -178,7 +197,7 @@ function ReportCard({
       {canHide && (
         <ConfirmDialog
           open={confirmingHide}
-          title="この作品を、非公開にしますか？"
+          title="この作品を非公開にします"
           confirmLabel="非公開にする"
           running={hide.running}
           error={hide.error}
@@ -235,7 +254,7 @@ export function ArchivePage() {
 
   return (
     <main className="cb-page cb-arc">
-      <h1>アーカイブの審査</h1>
+      <h1>アーカイブ審査</h1>
       <p className="cb-muted">
         来場者が投稿した作品を、公開してよいか確かめます。画像が、他人のキャラクターや写真に見えるときは、却下します。
         迷うときは、押さずに、そのままにしておけます（審査待ちのまま残ります）。
@@ -266,7 +285,7 @@ export function ArchivePage() {
       <div role="tabpanel">
         {tab === "reports" ? (
           reports.data && reports.data.items.length === 0 && !loading ? (
-            <p className="cb-muted">未対応の通報は、ありません。</p>
+            <p className="cb-muted">未対応の通報はありません。</p>
           ) : (
             <ul className="cb-arc__list">
               {(reports.data?.items ?? []).map((report) => (
@@ -276,7 +295,7 @@ export function ArchivePage() {
           )
         ) : shown.length === 0 && !loading ? (
           <p className="cb-muted">
-            {tab === "pending" ? "審査待ちの作品は、ありません。" : "作品は、ありません。"}
+            {tab === "pending" ? "審査待ちの作品はありません。" : "作品はありません。"}
           </p>
         ) : (
           <ul className="cb-arc__list">

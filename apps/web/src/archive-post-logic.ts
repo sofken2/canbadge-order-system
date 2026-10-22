@@ -5,6 +5,13 @@ import type { ArchiveStatus } from "@canbadge/shared";
 
 export const DISPLAY_NAME_MAX = 20;
 
+/**
+ * 同意のチェックの文。入力の画面（ArchivePostFields）と、足りないときの案内（postFormProblem）で、同じ文を使う。
+ * 権利の同意は、ふつうの注文の確認（OrderPage）と同じ言い方にそろえる
+ */
+export const SELF_MADE_LABEL = "自作の画像、または使ってよい画像です";
+export const ALLOW_OTHERS_LABEL = "他のお客さんがこの作品を注文してもよいです";
+
 export type PostFormState = {
   displayName: string;
   /** 自作であること（または、使ってよい画像であること） */
@@ -27,10 +34,9 @@ export function postFormProblem(form: PostFormState): string | undefined {
   const name = form.displayName.trim();
   if (name === "") return "表示名を入れてください（ニックネームで、かまいません）";
   if (name.length > DISPLAY_NAME_MAX) return `表示名は、${DISPLAY_NAME_MAX} 文字までです`;
-  if (!form.selfMade)
-    return "「自分で作った（または使ってよい）作品です」に、チェックを入れてください";
+  if (!form.selfMade) return `「${SELF_MADE_LABEL}」に、チェックを入れてください`;
   if (!form.allowOthersToOrder) {
-    return "「他のお客さんが、注文してもよい」に、チェックを入れてください";
+    return `「${ALLOW_OTHERS_LABEL}」に、チェックを入れてください`;
   }
   return undefined;
 }
@@ -78,10 +84,9 @@ export function withdrawConfirmMessage(displayName: string): string {
   return `「${displayName}」の作品を、取り下げます。みんなの作品から消えて、他のお客さんは、この作品を注文できなくなります。この作品を見て、まだ支払っていない人の注文は、止まります。`;
 }
 
-/** 注文と同時に投稿したとき、注文はできたが、投稿が失敗した場合の案内。注文は、止めない */
-export function postFailedAfterOrderMessage(reason: string): string {
-  return `注文はできました。ただ、作品の投稿は、できませんでした（${reason}）。あとから、「作品だけ投稿する」で、もう一度、投稿できます。`;
-}
-
+/**
+ * 注文のあとに公開を選んだとき（注文状況の画面）の案内。その画面には投稿の状態を出さないので、
+ * 状態は「自分の投稿」で確かめてもらう（呼ぶ側が、そこへの入口を添える）
+ */
 export const postedMessage =
-  "投稿しました。スタッフが確認して、公開します。公開されると、ここの状態が「公開中」に変わります。";
+  "投稿しました。スタッフが確認してから公開されます。公開されたかどうかは、「自分の投稿」で確かめられます。";

@@ -9,6 +9,25 @@ export function todayJst(nowMs: number): string {
   return new Date(nowMs + JST_OFFSET_MS).toISOString().slice(0, 10);
 }
 
+/** 営業日（YYYY-MM-DD）を「10月22日」に。学祭は数日なので、年は出さない。読めない文字は、そのまま返す */
+export function businessDateLabel(date: string): string {
+  const match = /^\d{4}-(\d{2})-(\d{2})$/.exec(date);
+  if (!match) return date;
+  return `${Number(match[1])}月${Number(match[2])}日`;
+}
+
+/**
+ * 受付の一時停止（契約の acceptance が busy）の言い方。状態の表示名（「混雑のため一時停止中」）に合わせ、
+ * ボタンとお知らせで、同じ言葉を使うよう、ここだけで持つ
+ */
+export const pauseCopy = {
+  start: "受付を一時停止する",
+  startNote: "新しい注文を止めます。支払い・印刷・受け渡しは続けられます。",
+  started: "受付を一時停止しました。新しい注文は受け付けていません",
+  resume: "一時停止を解除する",
+  resumed: "一時停止を解除しました。受付中です",
+} as const;
+
 export type Impact = {
   title: string;
   confirmLabel: string;
@@ -27,16 +46,16 @@ export function openDayImpact(input: {
 }): Impact {
   if (input.businessDate === input.today) {
     return {
-      title: "受付を、再開します",
+      title: "受付を再開します",
       confirmLabel: "受付を再開する",
       lines: [
-        `今日（${input.today}）の営業は、すでに始まっています。`,
+        `今日（${businessDateLabel(input.today)}）の営業は、すでに始まっています。`,
         "受付を「受付中」に戻します。注文番号は、続きから付きます。",
       ],
     };
   }
   const lines = [
-    `営業日を ${input.today} にし、受付を「受付中」にします。`,
+    `営業日を ${businessDateLabel(input.today)}にし、受付を「受付中」にします。`,
     "注文番号は、1 番から付け直します。",
   ];
   if (input.submittedCount > 0) {
@@ -58,7 +77,11 @@ export function closeImpact(submittedCount: number): Impact {
       `支払い待ちの注文 ${submittedCount} 件は、期限切れになります。レジで、支払いを済ませてから、押してください。`,
     );
   }
-  lines.push("この操作は、取り消せません（もう一度受け付けるには、営業開始をします）。");
+  // 押すボタンの名前は、画面の実際のラベルと一字一句そろえる（違うと、探しても見つからない）
+  lines.push(
+    "この操作は、取り消せません。",
+    "もう一度受け付けるには『受付を再開する』を押します（翌日は『営業を開始する』）。",
+  );
   return { title: "受付を終了します", confirmLabel: "受付を終了する", lines };
 }
 
@@ -106,10 +129,11 @@ export function parseInteger(raw: string): number | undefined {
   return Number(text);
 }
 
-const FIELD_LABELS: Record<FormField, string> = {
-  price: "価格",
-  kiraFilmPrice: "キラフィルムの加算額",
-  magnetPrice: "マグネットの加算額",
+/** 欄の名前。入力欄のラベルとエラーの文で同じ名前を使うよう、ここだけで決める */
+export const FIELD_LABELS: Record<FormField, string> = {
+  price: "価格（1 個）",
+  kiraFilmPrice: "キラフィルムの加算額（1 個）",
+  magnetPrice: "マグネット加工の加算額（1 個）",
   badgeStock: "バッジの在庫（総数）",
   kiraFilmStock: "キラフィルムの在庫（総数）",
   magnetStock: "マグネットの在庫（総数）",

@@ -3,10 +3,12 @@
  * tokens only — no inline colours or font stacks · pre-emit critique: P4 H5 E4 S4 R5 V3
  */
 
+/* 画面の高さちょうどに収める（スクロールさせない）。番号の枠は、残った高さを分け合う */
 .cb-monitor {
-  min-height: 100dvh;
+  height: 100dvh;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 22rem);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 26rem);
+  grid-template-rows: minmax(0, 1fr);
   gap: var(--space-xl);
   padding: var(--space-xl);
   background: var(--color-paper);
@@ -15,14 +17,16 @@
 
 .cb-monitor__called {
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-lg);
 }
 
+/* 数メートル先から読むので、見出しも、画面の大きさに合わせて大きくする（1920×1080 で 4rem） */
 .cb-monitor__title {
   margin: 0;
-  font: 700 var(--text-xl) / 1.2 var(--font-body);
+  font: 700 clamp(var(--text-xl), 3.5vmax, 4rem) / 1.2 var(--font-body);
   padding-bottom: var(--space-sm);
   border-bottom: 4px solid var(--color-ink);
 }
@@ -30,21 +34,27 @@
 .cb-monitor__empty {
   margin: auto 0;
   color: var(--color-muted);
-  font: 500 var(--text-xl) / 1.4 var(--font-body);
+  font: 500 clamp(var(--text-xl), 2.8vmax, 3.5rem) / 1.4 var(--font-body);
   text-align: center;
 }
 
 /* ---- 番号 ---- */
 
+/* 行は、残った高さを等分する（番号が少ないときは、枠が縦にも大きくなり、画面の下が空かない） */
 .cb-monitor__grid {
   list-style: none;
   margin: 0;
   padding: 0;
   flex: 1;
+  min-height: 0;
   display: grid;
   gap: var(--space-md);
-  align-content: start;
+  grid-auto-rows: minmax(0, 1fr);
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.cb-monitor[data-density="solo"] .cb-monitor__grid {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .cb-monitor[data-density="some"] .cb-monitor__grid {
@@ -59,9 +69,10 @@
   grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
-/* 枠の幅から、番号の大きさを決める。桁数が増えても、画面が違っても、はみ出さない */
+/* 枠の幅と高さから、番号の大きさを決める。桁数が増えても、画面が違っても、はみ出さない */
 .cb-monitor__cell {
-  container-type: inline-size;
+  container-type: size;
+  min-height: 0;
   display: grid;
   place-items: center;
   padding-block: var(--space-sm);
@@ -71,7 +82,7 @@
 }
 
 .cb-monitor__number {
-  font: 700 calc(100cqi / (var(--digits, 3) * 0.62 + 0.9)) / 1 var(--font-display);
+  font: 700 min(calc(100cqi / (var(--digits, 3) * 0.62 + 0.9)), 75cqb) / 1 var(--font-display);
   letter-spacing: -0.04em;
   font-variant-numeric: tabular-nums;
 }
@@ -81,7 +92,7 @@
   border-width: 6px;
   border-color: var(--color-accent-deep);
   background: var(--color-accent-tint);
-  animation: cb-monitor-arrive 900ms ease-out;
+  animation: cb-monitor-arrive var(--dur-long) var(--ease-out);
 }
 
 @keyframes cb-monitor-arrive {
@@ -111,7 +122,11 @@
 
 .cb-monitor__guide {
   margin: 0;
-  font: 700 var(--text-xl) / 1.35 var(--font-body);
+  font: 700 clamp(var(--text-xl), 2.2vmax, 2.75rem) / 1.35 var(--font-body);
+}
+
+.cb-monitor__guide span {
+  display: block;
 }
 
 .cb-monitor__qr {
@@ -127,7 +142,7 @@
 .cb-monitor__qr figcaption {
   display: grid;
   gap: var(--space-2xs);
-  font: 500 var(--text-lg) / 1.35 var(--font-body);
+  font: 500 clamp(var(--text-lg), 1.6vmax, 2rem) / 1.35 var(--font-body);
 }
 
 .cb-monitor__missing,
@@ -139,19 +154,23 @@
   font: 700 var(--text-md) / 1.4 var(--font-body);
 }
 
-/* 縦長の画面（モニターを縦置きにしたとき）は、QR を下に置く */
+/*
+ * 縦長の画面（モニターを縦置きにしたとき）は、案内と QR を下に置く。
+ * QR の説明は QR の右に並べる（QR の下だと、幅が狭く「スマホで／読み取ってください」と割れる）
+ */
 @media (max-aspect-ratio: 1 / 1) {
   .cb-monitor {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
   }
 
   .cb-monitor__side {
-    flex-direction: row;
-    align-items: flex-end;
-    justify-content: space-between;
+    justify-content: flex-start;
   }
 
   .cb-monitor__qr {
-    width: min(14rem, 40vw);
+    grid-template-columns: min(16rem, 30vw) minmax(0, 1fr);
+    align-items: center;
+    gap: var(--space-lg);
   }
 }

@@ -1,14 +1,16 @@
+import type { StatusResponse } from "@canbadge/shared";
 import { Button, Checkbox } from "@canbadge/ui";
 
-/** 追加加工（キラフィルム・マグネット）の、価格と在庫。画面は、状況（getStatus）から作る */
-export type Addons = {
-  price: number;
-  kiraFilmPrice: number;
-  magnetPrice: number;
-  badgeRemaining: number;
-  kiraFilmRemaining: number;
-  magnetRemaining: number;
-};
+/** 追加加工（キラフィルム・マグネット）の、価格と在庫。型は契約（getStatus の応答）から取る */
+export type Addons = Pick<
+  StatusResponse,
+  | "price"
+  | "kiraFilmPrice"
+  | "magnetPrice"
+  | "badgeRemaining"
+  | "kiraFilmRemaining"
+  | "magnetRemaining"
+>;
 
 /** 金額は円の整数。追加加工は、選んだ個数ぶんだけ加算する */
 export function orderTotal(
@@ -23,19 +25,6 @@ export function orderTotal(
     setting.kiraFilmPrice * kiraQuantity +
     setting.magnetPrice * magnetQuantity
   );
-}
-
-/** 金額の内訳の文（例: 200円 × 2 + キラ 100円 × 1 + マグネット 100円 × 1） */
-export function totalBreakdown(
-  setting: Pick<Addons, "price" | "kiraFilmPrice" | "magnetPrice">,
-  quantity: number,
-  kiraQuantity: number,
-  magnetQuantity: number,
-): string {
-  const parts = [`${setting.price}円 × ${quantity}`];
-  if (kiraQuantity > 0) parts.push(`キラ ${setting.kiraFilmPrice}円 × ${kiraQuantity}`);
-  if (magnetQuantity > 0) parts.push(`マグネット ${setting.magnetPrice}円 × ${magnetQuantity}`);
-  return parts.join(" + ");
 }
 
 /**
@@ -66,19 +55,18 @@ export function AddonPicker({
   if (remaining <= 0) {
     return (
       <p className="cb-muted cb-gap-top" role="status">
-        {name}は、売り切れです
+        {name}は売り切れです
       </p>
     );
   }
   if (quantity <= 1) {
+    // チェック 1 つのときは、上に余白を足さない（キラフィルム・マグネット・同意のチェックを、同じ間隔で並べる）
     return (
-      <div className="cb-gap-top">
-        <Checkbox
-          label={`${name}を付ける（+${price}円）`}
-          checked={value > 0}
-          onChange={(event) => onChange(event.target.checked ? 1 : 0)}
-        />
-      </div>
+      <Checkbox
+        label={`${name}を付ける（+${price}円）`}
+        checked={value > 0}
+        onChange={(event) => onChange(event.target.checked ? 1 : 0)}
+      />
     );
   }
   return (

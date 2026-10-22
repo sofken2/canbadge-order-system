@@ -1,12 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import {
   applyDrag,
+  applyHandleRotation,
+  applyHandleScale,
   applyPinch,
   applyRotation,
   applyZoom,
   clampCenter,
   clampWidth,
   coversCircle,
+  handleAt,
   type Placement,
   type Point,
 } from "./gesture";
@@ -255,5 +258,38 @@ describe("範囲に収める", () => {
     close(Math.hypot(clamped.x, clamped.y), 50);
     close(clamped.x / clamped.y, 60 / 80);
     expect(clampCenter(base, 50)).toBe(base);
+  });
+});
+
+describe("文字・スタンプのつまみ", () => {
+  const center = { x: 10, y: 0 };
+  const half = { width: 8, height: 4 };
+
+  test("四隅は大きさ、枠の上の丸は回転。何もないところは undefined", () => {
+    expect(handleAt({ x: 18, y: 4 }, center, 0, half, 6, 2)).toBe("scale");
+    expect(handleAt({ x: 2, y: -4 }, center, 0, half, 6, 2)).toBe("scale");
+    expect(handleAt({ x: 10, y: -10 }, center, 0, half, 6, 2)).toBe("rotate");
+    expect(handleAt({ x: 10, y: 0 }, center, 0, half, 6, 2)).toBeUndefined();
+  });
+
+  test("枠が回っていれば、つまみも一緒に回る（90 度回すと、回転の丸は右に来る）", () => {
+    expect(handleAt({ x: 20, y: 0 }, center, 90, half, 6, 2)).toBe("rotate");
+    expect(handleAt({ x: 10, y: -10 }, center, 90, half, 6, 2)).toBeUndefined();
+  });
+
+  test("大きさのつまみを、中心から 2 倍の距離へ動かすと、2 倍になる（中心は動かない）", () => {
+    const placement = { x: 10, y: 0, widthMm: 16, rotationDeg: 0 };
+    const next = applyHandleScale(placement, center, { x: 18, y: 0 }, { x: 26, y: 0 });
+    expect(next.widthMm).toBeCloseTo(32);
+    expect(next.x).toBeCloseTo(10);
+    expect(next.y).toBeCloseTo(0);
+  });
+
+  test("回転のつまみを、真上から真右へ動かすと、90 度回る（中心は動かない）", () => {
+    const placement = { x: 10, y: 0, widthMm: 16, rotationDeg: 0 };
+    const next = applyHandleRotation(placement, center, { x: 10, y: -10 }, { x: 20, y: 0 });
+    expect(next.rotationDeg).toBeCloseTo(90);
+    expect(next.x).toBeCloseTo(10);
+    expect(next.y).toBeCloseTo(0);
   });
 });

@@ -25,6 +25,19 @@
   margin-bottom: var(--space-md);
 }
 
+/* 「投稿する」はフォームの中、「デザインに戻る」はその外なので、ボタン同士の間（.cb-button--block + …）が効かない */
+.cb-post__back {
+  margin-top: var(--space-sm);
+}
+
+/*
+ * 作品の詳細の 3D。3D は、回したときに縁が切れないよう、缶バッジのまわりに余白を持つ。
+ * 平面のプレビュー（上限 20rem）と同じ大きさに見えるよう、枠をその分だけ広げる
+ */
+.cb-arc-detail__badge .cb-editor__preview3d {
+  max-width: 26rem;
+}
+
 /* 自分の投稿の一覧 */
 .cb-mine__list {
   list-style: none;

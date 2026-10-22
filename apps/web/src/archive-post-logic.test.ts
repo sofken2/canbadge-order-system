@@ -1,14 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import { createArchiveEntryRequestSchema } from "@canbadge/shared";
 import {
+  ALLOW_OTHERS_LABEL,
   canPost,
   canWithdraw,
   DISPLAY_NAME_MAX,
   emptyPostForm,
   myEntryStatus,
   type PostFormState,
-  postFailedAfterOrderMessage,
   postFormProblem,
+  SELF_MADE_LABEL,
   toPostRequest,
   withdrawConfirmMessage,
 } from "./archive-post-logic";
@@ -25,9 +26,11 @@ describe("投稿できるか", () => {
 
   test("同意のどちらかが欠けていると、投稿できない（理由が、どの項目かを伝える）", () => {
     expect(canPost({ ...ok, selfMade: false })).toBe(false);
-    expect(postFormProblem({ ...ok, selfMade: false })).toContain("自分で作った");
+    expect(postFormProblem({ ...ok, selfMade: false })).toContain(`「${SELF_MADE_LABEL}」`);
     expect(canPost({ ...ok, allowOthersToOrder: false })).toBe(false);
-    expect(postFormProblem({ ...ok, allowOthersToOrder: false })).toContain("注文してもよい");
+    expect(postFormProblem({ ...ok, allowOthersToOrder: false })).toContain(
+      `「${ALLOW_OTHERS_LABEL}」`,
+    );
   });
 
   test("表示名が、空・空白だけ・長すぎるなら、投稿できない。前後の空白は数えない", () => {
@@ -81,11 +84,5 @@ describe("自分の投稿", () => {
     expect(text).toContain("「たろう」");
     expect(text).toContain("注文できなくなります");
     expect(text).toContain("まだ支払っていない人の注文は、止まります");
-  });
-
-  test("注文はできたが投稿が失敗したとき、注文が無事なことを、先に伝える", () => {
-    const text = postFailedAfterOrderMessage("通信に失敗しました");
-    expect(text.startsWith("注文はできました")).toBe(true);
-    expect(text).toContain("通信に失敗しました");
   });
 });

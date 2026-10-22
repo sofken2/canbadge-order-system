@@ -21,6 +21,17 @@ export const filterSchema = z.object({
 });
 export type Filter = z.infer<typeof filterSchema>;
 
+/**
+ * 写真の色の補正。フィルターとは別に、重ねてかけられる。どちらも 0〜1（0 は変えない）。
+ * skin は、赤い部分（肌）のシアンを抜く補正。saturation は、彩度を上げる補正。
+ * 後から足した、省ける項目なので、前の版のデータもそのまま読み戻せる（版は上げない）
+ */
+export const colorAdjustSchema = z.object({
+  skin: z.number().min(0).max(1),
+  saturation: z.number().min(0).max(1),
+});
+export type ColorAdjust = z.infer<typeof colorAdjustSchema>;
+
 /** 文字の長さの上限。バッジは小さいので、長い文字は読めない */
 export const MAX_TEXT_LENGTH = 20;
 
@@ -36,6 +47,7 @@ export const imageLayerSchema = z.object({
   aspect: z.number().positive(),
   rotationDeg: z.number(),
   filter: filterSchema.optional(),
+  adjust: colorAdjustSchema.optional(),
 });
 export type ImageLayer = z.infer<typeof imageLayerSchema>;
 
@@ -47,6 +59,10 @@ export const textLayerSchema = z.object({
   /** editor/fonts.ts の書体の ID。知らない ID は、読み戻すとき、既定の書体になる */
   fontId: z.string().min(1),
   color: colorSchema,
+  /** ふち（アウトライン）の色。なければ、ふちなし。太さは、文字の大きさに比例する（layers.ts の TEXT_OUTLINE_RATIO） */
+  outlineColor: colorSchema.optional(),
+  /** ふちの太さ（文字の大きさに対する割合）。なければ、既定の太さ（layers.ts の TEXT_OUTLINE_RATIO） */
+  outlineWidth: z.number().min(0.01).max(0.5).optional(),
   fontSizeMm: z.number().positive(),
   xMm: z.number(),
   yMm: z.number(),

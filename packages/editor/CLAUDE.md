@@ -12,7 +12,7 @@
 | `src/Panels.tsx` | 道具のパネル（文字・スタンプ・背景・フィルター）と、色の選択。状態は持たず、表示と入力だけ |
 | `src/layers.ts` | 層の操作（追加・更新・削除・手前に出す）、タップした層を探す `hitTest`、位置と大きさの範囲。画面から切り離した純粋な関数 |
 | `src/model.ts` | 編集データ（`editorData`）の形（zod）と、読み戻し（`parseEditorState`）。層は写真・文字・スタンプ。版は `EDITOR_DATA_VERSION` |
-| `src/fonts.ts` | 文字の書体（4 種）と、Google Fonts の読み込み。キャンバスは、読み込んだあとでないと正しく描けない |
+| `src/fonts.ts` | 文字の書体（4 種）と、Google Fonts・`assets/fonts`（チェックポイントフォント）の読み込み。キャンバスは、読み込んだあとでないと正しく描けない |
 | `src/stickers.ts` | スタンプの形（10 種、自作の SVG パス）。色を選べる |
 | `src/palette.ts` | 文字・スタンプ・背景の色の候補（来場者のデザインの色。画面のトークンとは別） |
 | `src/filter-params.ts` / `src/filters.ts` | 写真のフィルターの数値（純粋）／Konva の組み込みフィルターを、縮小済みの写真に 1 回だけかける |

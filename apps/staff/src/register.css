@@ -29,7 +29,8 @@
   height: 0.35rem;
   margin-bottom: var(--space-sm);
   overflow: clip;
-  background: var(--color-paper-3);
+  /* 残りの棒（珊瑚）が減っていくのが見えるよう、地より濃い罫線の色を敷く */
+  background: var(--color-rule);
   border-radius: var(--radius-pill);
 }
 
@@ -81,14 +82,22 @@
   color: var(--color-ink);
   font: 500 var(--text-sm) / 1 var(--font-body);
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition:
+    background-color var(--dur-micro) var(--ease-out),
+    transform var(--dur-micro) var(--ease-out);
 }
 
-.cb-register__waiting-item:hover {
-  background: var(--color-paper-2);
+@media (hover: hover) {
+  .cb-register__waiting-item:hover {
+    background: var(--color-paper-2);
+  }
 }
 
 .cb-register__waiting-item:active {
-  background: var(--color-paper-3);
+  transform: translateY(1px);
+  background: var(--color-rule);
 }
 
 .cb-register__waiting-item:focus-visible {
@@ -103,8 +112,10 @@
 
 /* ---- 確認：番号・金額・受け取り額・お釣り ---- */
 
+/* 列は minmax(0, 1fr)。auto だと、折り返さないボタンの幅に列が押し広げられ、スマホで横にはみ出す */
 .cb-register__confirm {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-md);
 }
 
@@ -124,7 +135,8 @@
   height: 6.5rem;
   object-fit: cover;
   border: 1px solid var(--color-rule);
-  border-radius: var(--radius-card);
+  /* バッジの絵は、どの画面でも同じ角丸（入力欄と同じ 6px）にそろえる */
+  border-radius: var(--radius-input);
 }
 
 .cb-register__confirm .cb-summary {
@@ -154,10 +166,22 @@
   font: 600 var(--text-md) / 1 var(--font-body);
   font-variant-numeric: tabular-nums;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition:
+    background-color var(--dur-micro) var(--ease-out),
+    transform var(--dur-micro) var(--ease-out);
 }
 
-.cb-register__choices button:hover {
-  background: var(--color-paper-2);
+@media (hover: hover) {
+  .cb-register__choices button:hover {
+    background: var(--color-paper-2);
+  }
+}
+
+.cb-register__choices button:active {
+  transform: translateY(1px);
+  background: var(--color-rule);
 }
 
 .cb-register__choices button:focus-visible {

@@ -22,7 +22,9 @@ describe("並び順", () => {
 
 describe("密度", () => {
   test("番号が増えるほど、密になる（境目）", () => {
-    expect(densityFor(0)).toBe("few");
+    expect(densityFor(0)).toBe("solo");
+    expect(densityFor(2)).toBe("solo");
+    expect(densityFor(3)).toBe("few");
     expect(densityFor(4)).toBe("few");
     expect(densityFor(5)).toBe("some");
     expect(densityFor(9)).toBe("some");

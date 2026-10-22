@@ -1,10 +1,19 @@
 import { badgeSpec } from "@canbadge/badge-spec";
 import { OutputPreview } from "@canbadge/editor";
 import { orderStatusLabels } from "@canbadge/shared";
-import { Button, Notice, navigate, QrCode, StatusLabel, useResource } from "@canbadge/ui";
+import {
+  BackButton,
+  Button,
+  Notice,
+  navigate,
+  QrCode,
+  StatusLabel,
+  useResource,
+} from "@canbadge/ui";
 import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
-import { takeFlash } from "./flash";
+import { kiraPatternLabel, readKiraPattern } from "./kira-pattern";
+import { rememberOrder } from "./my-orders";
 import {
   guideFor,
   justBecameReady,
@@ -13,6 +22,7 @@ import {
   showsQr,
   stepState,
 } from "./order-status";
+import { PublishOffer } from "./PublishOffer";
 import "./order-status.css";
 import { useDelayedFlag } from "./use-delayed";
 
@@ -23,12 +33,13 @@ const OFFLINE_NOTICE_DELAY_MS = 10_000;
 const READY_VIBRATION = [200, 100, 200];
 
 /**
- * 注文状況。レジで見せる QR（中身は注文 ID）、注文番号、受け渡しで言う確認コードと、いまの状態を出す。
+ * 注文状況。レジで見せる QR（中身は注文 ID）、注文番号、受け取りで言う確認コードと、いまの状態を出す。
  * 状態は、SSE の通知（変わった）で、取り直す。放置されて、あとで画面に戻ったときも、取り直す
  */
 export function OrderStatusPage({ orderId }: { orderId: string }) {
-  // 注文の確定のあとに、1 回だけ出すお知らせ（例：作品の投稿が、できなかった）。再読み込みでは、出さない
-  const [flash] = useState(() => takeFlash());
+  // 選んだキラフィルムの柄。注文には、まだ記録できない（契約に項目がない）ので、この端末に残したものを出す。
+  // ほかの端末で開いたときは出ない（そのときも、レジで伝えてもらう案内は、注文の確認で出している）
+  const [kiraPattern] = useState(() => readKiraPattern(orderId));
   const order = useResource(() => api.call("getOrder", { params: { orderId } }), {
     deps: [orderId],
     subscribe: (reload) => {
@@ -54,6 +65,13 @@ export function OrderStatusPage({ orderId }: { orderId: string }) {
   });
 
   const data = order.data;
+
+  // 開けた注文を、この端末に覚えておく（「自分の注文を確認する」で、番号を入れずに開けるように）。
+  // 通常の注文・作品からの注文・番号での照会は、どれもこの画面を開くので、ここで覚えれば足りる
+  const opened = data !== undefined;
+  useEffect(() => {
+    if (opened) rememberOrder(orderId);
+  }, [opened, orderId]);
   const status = data?.status;
   // いまの状態が出ているときの、取り直しの失敗は、再接続で自然に直ることが多い。続くときだけ知らせる
   const showRefreshError = useDelayedFlag(!!order.error && !!data, OFFLINE_NOTICE_DELAY_MS);
@@ -80,16 +98,14 @@ export function OrderStatusPage({ orderId }: { orderId: string }) {
   if (order.error && !data) {
     return (
       <main className="cb-page">
+        <BackButton className="cb-back--page" onClick={() => navigate("/")} />
         <h1>注文が見つかりません</h1>
         <Notice tone="error">{order.error}</Notice>
         <p className="cb-muted">
           お手数ですが、注文したときの画面をもう一度開くか、ブースのスタッフにお声がけください。
         </p>
         <Button block onClick={() => navigate("/lookup")}>
-          注文番号と確認コードで、注文を開く
-        </Button>
-        <Button variant="line" block onClick={() => navigate("/")}>
-          はじめの画面に戻る
+          注文番号と確認コードで注文を開く
         </Button>
       </main>
     );
@@ -98,7 +114,7 @@ export function OrderStatusPage({ orderId }: { orderId: string }) {
     return (
       <main className="cb-page">
         <p className="cb-muted" role="status">
-          読み込み中…
+          読み込んでいます…
         </p>
       </main>
     );
@@ -115,77 +131,101 @@ export function OrderStatusPage({ orderId }: { orderId: string }) {
 
   return (
     <main className="cb-page cb-ticket">
-      <header className="cb-ticket__head" data-tone={guide.tone}>
-        <StatusLabel label={orderStatusLabels[data.status]} tone={tone} />
-        {/* 見出しは、状態が変わったら、読み上げにも届ける */}
-        <h1 aria-live="polite">{guide.headline}</h1>
-        <p>{guide.body}</p>
-      </header>
+      <div className="cb-ticket__main">
+        <BackButton className="cb-back--page" onClick={() => navigate("/")} />
+        <header className="cb-ticket__head" data-tone={guide.tone}>
+          <StatusLabel label={orderStatusLabels[data.status]} tone={tone} />
+          {/* 見出しは、状態が変わったら、読み上げにも届ける */}
+          <h1 aria-live="polite">{guide.headline}</h1>
+          <p>{guide.body}</p>
+        </header>
 
-      {/* 後で、待合画面の動くキャラクター（GIF・アニメ）を入れる場所。全体の見た目は、ここでは変えない */}
+        {/* 後で、待合画面の動くキャラクター（GIF・アニメ）を入れる場所。全体の見た目は、ここでは変えない */}
 
-      {flash && <Notice tone={flash.tone}>{flash.text}</Notice>}
-      {showRefreshError && (
-        <Notice tone="info">
-          最新の状態を取得できていません。つながりしだい、自動で更新します（いまの表示は、前に取得したものです）
-        </Notice>
-      )}
+        {showRefreshError && (
+          <Notice tone="info">
+            最新の状態を取得できていません。つながりしだい、自動で更新します（いまの表示は、前に取得したものです）
+          </Notice>
+        )}
 
-      {showsQr(data.status) && (
-        <section className="cb-ticket__qr" aria-label="注文の QR コード">
-          <QrCode value={data.id} label={`注文 ${data.orderNumberText} の QR コード`} />
-          <p className="cb-muted">レジで、この QR を、読み取り機に向けてください</p>
-        </section>
-      )}
+        {showsQr(data.status) && (
+          <section className="cb-ticket__qr" aria-label="注文の QR コード">
+            <QrCode value={data.id} label={`注文 ${data.orderNumberText} の QR コード`} />
+            <p className="cb-muted">
+              {data.status === "submitted"
+                ? "レジでこの QR を読み取り機に向けてください"
+                : "受け取りのときもこの QR を見せてください"}
+            </p>
+          </section>
+        )}
 
-      <dl className="cb-ticket__ids">
-        <div>
-          <dt>注文番号</dt>
-          <dd className="cb-ticket__number">{data.orderNumberText}</dd>
-        </div>
-        <div>
-          <dt>確認コード（受け取りのとき、お伝えください）</dt>
-          <dd className="cb-ticket__code">{data.confirmationCode}</dd>
-        </div>
-      </dl>
-
-      {current !== undefined && (
-        <ol className="cb-progress" aria-label="進み具合">
-          {PROGRESS_STEPS.map((label, index) => {
-            const state = stepState(index, current);
-            return (
-              <li
-                key={label}
-                data-state={state}
-                aria-current={state === "now" ? "step" : undefined}
-              >
-                {label}
-                {state === "done" && <span className="cb-visually-hidden">（済み）</span>}
-              </li>
-            );
-          })}
-        </ol>
-      )}
-
-      <div className="cb-ticket__items">
-        {data.items.map((item) => (
-          <div key={item.id} className="cb-ticket__item">
-            <OutputPreview src={item.thumbnailUrl} spec={badgeSpec} />
-            {(item.kiraQuantity > 0 || item.magnetQuantity > 0) && (
-              <p className="cb-muted">
-                {item.kiraQuantity > 0 && `キラフィルム ${item.kiraQuantity} 個`}
-                {item.kiraQuantity > 0 && item.magnetQuantity > 0 && " ／ "}
-                {item.magnetQuantity > 0 && `マグネット加工 ${item.magnetQuantity} 個`}
-              </p>
-            )}
+        <dl className="cb-ticket__ids">
+          <div>
+            <dt>注文番号</dt>
+            <dd className="cb-ticket__number">{data.orderNumberText}</dd>
           </div>
-        ))}
+          <div>
+            <dt>確認コード（受け取りのときにお伝えください）</dt>
+            <dd className="cb-ticket__code">{data.confirmationCode}</dd>
+          </div>
+        </dl>
+
+        {/* 進み具合の横（右）に、注文したバッジを並べる。進み具合がないときは、バッジだけ */}
+        <div className="cb-ticket__flow">
+          {current !== undefined && (
+            <ol className="cb-progress" aria-label="進み具合">
+              {PROGRESS_STEPS.map((label, index) => {
+                const state = stepState(index, current);
+                return (
+                  <li
+                    key={label}
+                    data-state={state}
+                    aria-current={state === "now" ? "step" : undefined}
+                  >
+                    {label}
+                    {state === "done" && <span className="cb-visually-hidden">（済み）</span>}
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+
+          <div className="cb-ticket__items">
+            {data.items.map((item) => (
+              <div key={item.id} className="cb-ticket__item">
+                <OutputPreview src={item.thumbnailUrl} spec={badgeSpec} />
+                {(item.kiraQuantity > 0 || item.magnetQuantity > 0) && (
+                  <p className="cb-muted">
+                    {item.kiraQuantity > 0 &&
+                      `キラフィルム ${item.kiraQuantity} 個${kiraPattern ? `（柄：${kiraPatternLabel(kiraPattern)}）` : ""}`}
+                    {item.kiraQuantity > 0 && item.magnetQuantity > 0 && " ／ "}
+                    {item.magnetQuantity > 0 && `マグネット加工 ${item.magnetQuantity} 個`}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
         <p className="cb-ticket__amount">
           <strong>{data.totalAmount}円</strong>
-          <br />
-          お金は、ブースのレジで現金です
+          {/* 支払いの案内は、支払う前だけ。支払い後・返金後に出すと、まだ払っていないように読める */}
+          {data.status === "submitted" && (
+            <>
+              <br />
+              お金は、ブースのレジで現金で払います
+            </>
+          )}
         </p>
       </div>
+
+      {/*
+       * 「みんなの作品として公開しますか」。注文の確認・支払いのじゃまをしないよう、スマホは一番下、PC は右側に置く
+       * （order-status.css）。案内がないときは、何も出さない
+       */}
+      <aside className="cb-ticket__aside">
+        <PublishOffer orderId={orderId} />
+      </aside>
     </main>
   );
 }

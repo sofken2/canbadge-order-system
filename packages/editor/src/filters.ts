@@ -1,6 +1,7 @@
 import Konva from "konva";
+import { adjustImageData, hasColorAdjust } from "./color-adjust";
 import { filterParams, hasFilter } from "./filter-params";
-import type { Filter } from "./model";
+import type { ColorAdjust, Filter } from "./model";
 
 // 写真のフィルターをかける。Konva の組み込みのフィルターを、縮小済みの写真（長辺 2048px 以下）に、1 回だけかける。
 // ノードにかけると、ピンチで大きさが変わるたびに計算し直すので、重くなる。
@@ -19,13 +20,14 @@ const run = (filter: unknown, values: Record<string, number>, imageData: ImageDa
 };
 
 /**
- * フィルターをかけた写真を作る。フィルターがなければ、もとの写真をそのまま返す（コピーしない）
+ * フィルターと色の補正をかけた写真を作る。どちらもなければ、もとの写真をそのまま返す（コピーしない）
  */
 export function applyFilter(
   source: HTMLCanvasElement,
   filter: Filter | undefined,
+  adjust?: ColorAdjust,
 ): HTMLCanvasElement {
-  if (!hasFilter(filter)) return source;
+  if (!hasFilter(filter) && !hasColorAdjust(adjust)) return source;
   const params = filterParams(filter, Math.max(source.width, source.height));
 
   const canvas = document.createElement("canvas");
@@ -44,6 +46,8 @@ export function applyFilter(
     run(Konva.Filters.HSL, { hue: 0, saturation: params.saturation, luminance: 0 }, imageData);
   if (params.contrast !== 0) run(Konva.Filters.Contrast, { contrast: params.contrast }, imageData);
   if (params.blurRadius > 0) run(Konva.Filters.Blur, { blurRadius: params.blurRadius }, imageData);
+  // 色の補正は、フィルターのあとにかける（白黒・セピアにしたあとの肌も補正できる）
+  if (adjust && hasColorAdjust(adjust)) adjustImageData(imageData.data, adjust);
 
   context.putImageData(imageData, 0, 0);
   return canvas;

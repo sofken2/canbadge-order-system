@@ -1,0 +1,129 @@
+/*
+ * 全画面の編集画面（TryOnDialog）。はじめの画面の「画像をはめてみる」と、注文画面の「デザインを編集する」で使う。
+ * どちらの画面から開いても同じ見た目になるよう、TryOnDialog がこのファイルを読み込む。
+ * PC の 2 列の並び（下）は、注文画面・投稿画面のデザインの段（.cb-editpage）でも使うので、そちらも読み込む
+ */
+
+/*
+ * 画像をはめてみる。画面いっぱいに開く（全画面）。確認のダイアログ（cb-confirm）の枠・角丸・大きさの上限を外す。
+ * 切り欠きやホームバー（safe-area）の分は、余白でよける
+ */
+.cb-tryon--dialog {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  margin: 0;
+  padding: max(var(--space-sm), env(safe-area-inset-top, 0px))
+    max(var(--gutter), env(safe-area-inset-right, 0px))
+    max(var(--space-md), env(safe-area-inset-bottom, 0px))
+    max(var(--gutter), env(safe-area-inset-left, 0px));
+  border: 0;
+  border-radius: 0;
+}
+
+/* 中身は、広い画面でも読みやすい幅で、真ん中に置く */
+.cb-tryon--dialog > * {
+  max-width: 64rem;
+  margin-inline: auto;
+}
+
+/*
+ * 開いた直後、エディタが途中保存を読み終えるまで（数十 ms）は、モーダルごと見せない。
+ * 空の画面が一瞬出てから、続きの画面に切り替わって大きさが変わるのを見せないため。読み終えたら、ふわっと出す
+ */
+.cb-tryon--dialog {
+  transition: opacity var(--dur-short) var(--ease-out);
+}
+
+/* エディタがまだ入っていない最初の一瞬（空の枠）も、読み込み中と同じく隠す */
+.cb-tryon--dialog:not(:has(.cb-editor[data-ready="true"])) {
+  opacity: 0;
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cb-tryon--dialog {
+    transition: none;
+  }
+}
+
+/* 左に「戻る」、真ん中に見出し。右は「戻る」と同じ幅を空けて、見出しが画面の中央に来るようにする */
+.cb-tryon__head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-sm);
+}
+
+.cb-tryon__head .cb-back {
+  justify-self: start;
+}
+
+.cb-tryon__head h2 {
+  /* フォーカスを置くためだけ（押せない）なので、枠は出さない */
+  outline: none;
+  margin: 0;
+  font-size: var(--text-md);
+  text-align: center;
+  white-space: nowrap;
+}
+
+/*
+ * PC（広い画面）は、左に編集中のデザイン（キャンバス）、右に操作のパネル（タブ・中身・決定）を並べる。
+ * 注文画面（/order）と投稿画面（/archive/post）のデザインの段（.cb-editpage）も、同じ並びにする
+ * （どこで編集しても、同じ見た目・同じ位置で操作できるように）
+ */
+@media (min-width: 64rem) {
+  .cb-tryon--dialog {
+    padding-top: var(--space-lg);
+  }
+
+  /* ふつうの画面の幅（読みやすい本文の幅）では 2 列が狭いので、編集の間だけ、モーダルの中身と同じ幅に広げる */
+  .cb-page.cb-editpage {
+    max-width: 64rem;
+  }
+
+  :is(.cb-tryon--dialog, .cb-editpage) .cb-editor {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 24rem);
+    column-gap: var(--space-xl);
+    /* 右の列は、左（キャンバス）と同じ高さまで伸ばす。メニューは上から、決定のボタンは下端に置く */
+    align-items: stretch;
+  }
+
+  /* キャンバス側は、右の操作を下へ送っても見えたまま残す（sticky）ので、伸ばさない */
+  :is(.cb-tryon--dialog, .cb-editpage) .cb-editor__stage {
+    align-self: start;
+  }
+
+  /* 右の列。タブ・中身は上から並べ（タブを替えても位置が動かない）、決定のボタンは一番下に固定する */
+  :is(.cb-tryon--dialog, .cb-editpage) .cb-editor__controls {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* キャンバス側（左）は、右の操作を下へ送っても、見えたまま残す */
+  :is(.cb-tryon--dialog, .cb-editpage) .cb-editor__stage {
+    position: sticky;
+    top: 0;
+  }
+
+  :is(.cb-tryon--dialog, .cb-editpage) .cb-editor__frame {
+    /* キャンバスの一辺の上限（480px = 30rem）にそろえる。広げると、キャンバスの横に灰色の余白が出る */
+    max-width: min(30rem, 66svh);
+    /* 貼り付けは欄（stage）のほうで行う。枠は、キャンバス上の案内の位置の基準にだけ使う */
+    position: relative;
+  }
+
+  /* 決定のボタンは、右の欄の下に貼り付けて、いつでも押せるようにする */
+  :is(.cb-tryon--dialog, .cb-editpage) .cb-editor__confirm {
+    /* 右の列の一番下に置く（列は flex の縦並び） */
+    margin-top: auto;
+    position: sticky;
+    bottom: 0;
+    /* 下を流れる道具が、ボタンのまわりで透けないよう、地の色でふちどる（影ではない） */
+    box-shadow: 0 0 0 var(--space-sm) var(--color-paper);
+  }
+}

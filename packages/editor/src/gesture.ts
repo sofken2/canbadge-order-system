@@ -122,3 +122,58 @@ export function clampCenter(placement: Placement, limitMm: number): Placement {
   const ratio = limitMm / length;
   return { ...placement, x: placement.x * ratio, y: placement.y * ratio };
 }
+
+/** 選んだ文字・スタンプの枠につく、つまみ。四隅で大きさ、枠の上の丸で回転 */
+export type Handle = "scale" | "rotate";
+
+/**
+ * 点が、どのつまみに触れているか。枠は、中心 center・回転 rotationDeg・半分の幅と高さ half（回す前の向き）。
+ * 回転のつまみは、枠の上辺から rotateOffsetMm 上。hitMm は、指で押しやすいよう、描く大きさより広めにとる
+ */
+export function handleAt(
+  point: Point,
+  center: Point,
+  rotationDeg: number,
+  half: { width: number; height: number },
+  rotateOffsetMm: number,
+  hitMm: number,
+): Handle | undefined {
+  // 枠の向き（回す前）にそろえて比べる
+  const radians = -toRadians(rotationDeg);
+  const dx = point.x - center.x;
+  const dy = point.y - center.y;
+  const local = {
+    x: dx * Math.cos(radians) - dy * Math.sin(radians),
+    y: dx * Math.sin(radians) + dy * Math.cos(radians),
+  };
+  if (distance(local, { x: 0, y: -half.height - rotateOffsetMm }) <= hitMm) return "rotate";
+  for (const sx of [-1, 1]) {
+    for (const sy of [-1, 1]) {
+      if (distance(local, { x: sx * half.width, y: sy * half.height }) <= hitMm) return "scale";
+    }
+  }
+  return undefined;
+}
+
+/** 大きさのつまみを、from から to へ動かした。中心 about からの距離の比で拡大・縮小する */
+export function applyHandleScale(
+  placement: Placement,
+  about: Point,
+  from: Point,
+  to: Point,
+): Placement {
+  const before = distance(about, from);
+  if (before < 1e-6) return placement;
+  return applyZoom(placement, about, distance(about, to) / before);
+}
+
+/** 回転のつまみを、from から to へ動かした。中心 about から見た角度の差だけ回す */
+export function applyHandleRotation(
+  placement: Placement,
+  about: Point,
+  from: Point,
+  to: Point,
+): Placement {
+  const turn = normalizeAngle(angleOf(about, to) - angleOf(about, from));
+  return applyRotation(placement, about, toDegrees(turn));
+}

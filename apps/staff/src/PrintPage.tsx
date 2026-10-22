@@ -1,11 +1,22 @@
 import {
+  type OrderStatus,
   orderStatusLabels,
   type PrintedItemView,
+  type PrintSheetStatus,
   type PrintSheetView,
   printSheetStatusLabels,
   printSlotResultLabels,
 } from "@canbadge/shared";
-import { Button, ConfirmDialog, Notice, TextField, useAction, useResource } from "@canbadge/ui";
+import {
+  Button,
+  ConfirmDialog,
+  Notice,
+  StatusLabel,
+  type StatusTone,
+  TextField,
+  useAction,
+  useResource,
+} from "@canbadge/ui";
 import { useMemo, useState } from "react";
 import { api } from "./api";
 import {
@@ -26,7 +37,18 @@ type Message = { tone: "info" | "error"; text: string };
 const time = (iso: string): string =>
   new Date(iso).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
 
-/** 再印刷の前の確認と、実行。バッジ一覧からも、印刷ジョブからも、同じ流れで使う */
+/** 状態の丸い印。進行中は珊瑚、済んだものは緑、止まったもの（期限切れ・失敗など）は灰 */
+const orderTone = (status: OrderStatus): StatusTone =>
+  status === "ready" || status === "picked_up"
+    ? "done"
+    : status === "expired" || status === "cancelled" || status === "refunded"
+      ? "neutral"
+      : "active";
+
+const sheetTone = (status: PrintSheetStatus): StatusTone =>
+  status === "printing" ? "active" : status === "confirmed" ? "done" : "neutral";
+
+/** 再印刷の前の確認と、実行。バッジ一覧からも、シートの履歴からも、同じ流れで使う */
 function useReprint(onDone: (message: Message) => void) {
   const [targets, setTargets] = useState<readonly ReprintTarget[] | undefined>(undefined);
   const [excludedCount, setExcludedCount] = useState(0);
@@ -43,7 +65,7 @@ function useReprint(onDone: (message: Message) => void) {
   const dialog = (
     <ConfirmDialog
       open={Boolean(targets)}
-      title={`${targets?.length ?? 0} 個のバッジを、再印刷します`}
+      title={`${targets?.length ?? 0} 個のバッジを再印刷します`}
       confirmLabel="再印刷にする"
       running={run.running}
       error={run.error}
@@ -115,14 +137,14 @@ function CheckTab({ onMessage }: { onMessage: (message: Message) => void }) {
       tone: "info",
       text:
         tally.reprint === 0
-          ? `${tally.ok} 個を、OK にしました。組み立てに進みます`
+          ? `${tally.ok} 個を OK にしました。組み立てに進みます`
           : `${tally.ok} 個を OK に、${tally.reprint} 個を再印刷にしました。再印刷の分は、印刷待ちのバッジと一緒に、次のシートで印刷します（少し待つことがあります）`,
     });
   });
 
   if (current.error && !current.data) return <Notice tone="error">{current.error}</Notice>;
   if (!sheet) {
-    return <p className="cb-muted">確認するシートは、ありません。印刷が始まると、ここに出ます。</p>;
+    return <p className="cb-muted">確認するシートはありません。印刷が始まると、ここに出ます。</p>;
   }
 
   const tally = sheetTally(
@@ -134,10 +156,10 @@ function CheckTab({ onMessage }: { onMessage: (message: Message) => void }) {
   return (
     <section aria-label="印刷中のシート">
       <p className="cb-print__sheet-head">
-        <span>
-          {time(sheet.printedAt)} に印刷（{printSheetStatusLabels[sheet.status]}）
-        </span>
+        <span>{time(sheet.printedAt)} に印刷</span>
+        <StatusLabel label={printSheetStatusLabels[sheet.status]} tone={sheetTone(sheet.status)} />
         <a
+          className="cb-print__pdf"
           href={api.url("getPrintSheetPdf", { params: { sheetId: sheet.id } })}
           target="_blank"
           rel="noreferrer"
@@ -228,14 +250,17 @@ function ItemsTab({ onMessage }: { onMessage: (message: Message) => void }) {
           setSelected(new Set());
         }}
       >
+        {/* レジ・受け渡しの番号の入力と、同じ形にそろえる（大きな下線の入力欄と、幅いっぱいのボタン） */}
         <TextField
-          label="注文番号で探す"
+          numeric
+          label="注文番号"
+          hint="空のまま探すと、新しい順にすべて出ます"
           value={query}
           inputMode="numeric"
           autoComplete="off"
           onChange={(event) => setQuery(event.target.value)}
         />
-        <Button type="submit" variant="ink">
+        <Button type="submit" variant="ink" size="large" block>
           探す
         </Button>
       </form>
@@ -244,8 +269,8 @@ function ItemsTab({ onMessage }: { onMessage: (message: Message) => void }) {
       {items.data && list.length === 0 && (
         <p className="cb-muted">
           {applied
-            ? `「${applied}」の印刷済みのバッジは、ありません。`
-            : "印刷済みのバッジは、まだありません。"}
+            ? `「${applied}」の印刷済みのバッジはありません。`
+            : "印刷済みのバッジはまだありません。"}
         </p>
       )}
 
@@ -269,10 +294,15 @@ function ItemsTab({ onMessage }: { onMessage: (message: Message) => void }) {
                 <img src={item.thumbnailUrl} alt="" className="cb-print__thumb" />
                 <span className="cb-number cb-number--medium">{item.orderNumberText}</span>
                 <span className="cb-print__meta">
-                  <span>{orderStatusLabels[item.orderStatus]}</span>
-                  <span className="cb-muted">
-                    {time(item.lastPrintedAt)} ・ {item.printCount} 回印刷
-                    {!can && " ・ 再印刷できません"}
+                  <StatusLabel
+                    label={orderStatusLabels[item.orderStatus]}
+                    tone={orderTone(item.orderStatus)}
+                  />
+                  {/* 区切りは「・」の文字ではなく間隔で。狭い幅で「・」だけが行に残らないように */}
+                  <span className="cb-print__facts cb-muted">
+                    <span>{time(item.lastPrintedAt)}</span>
+                    <span>{item.printCount} 回印刷</span>
+                    {!can && <span>再印刷できません</span>}
                   </span>
                 </span>
               </label>
@@ -299,7 +329,7 @@ function ItemsTab({ onMessage }: { onMessage: (message: Message) => void }) {
   );
 }
 
-/** 印刷ジョブ：印刷したシートの履歴。シートごとに、PDF を見て、載っていたバッジを、まとめて再印刷に回す */
+/** シート：印刷したシートの履歴。シートごとに、PDF を見て、載っていたバッジを、まとめて再印刷に回す */
 function SheetsTab({ onMessage }: { onMessage: (message: Message) => void }) {
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const sheets = useResource(() => api.call("listPrintSheets", { query: { limit: 100 } }), {
@@ -325,10 +355,10 @@ function SheetsTab({ onMessage }: { onMessage: (message: Message) => void }) {
   );
 
   return (
-    <section aria-label="印刷ジョブの履歴">
+    <section aria-label="印刷したシートの履歴">
       {sheets.error && <Notice tone="error">{sheets.error}</Notice>}
       {sheets.data && list.length === 0 && (
-        <p className="cb-muted">印刷したシートは、まだありません。</p>
+        <p className="cb-muted">印刷したシートはまだありません。</p>
       )}
 
       <ul className="cb-print__list">
@@ -343,12 +373,19 @@ function SheetsTab({ onMessage }: { onMessage: (message: Message) => void }) {
                     checked={checked}
                     onChange={() => setSelected(toggled(selected, sheet.id))}
                   />
-                  <span>
-                    <strong>{time(sheet.printedAt)}</strong> に印刷 ・{" "}
-                    {printSheetStatusLabels[sheet.status]} ・ {sheet.slots.length} 個
+                  <span className="cb-print__facts">
+                    <span>
+                      <strong>{time(sheet.printedAt)}</strong> に印刷
+                    </span>
+                    <StatusLabel
+                      label={printSheetStatusLabels[sheet.status]}
+                      tone={sheetTone(sheet.status)}
+                    />
+                    <span>{sheet.slots.length} 個</span>
                   </span>
                 </label>
                 <a
+                  className="cb-print__pdf"
                   href={api.url("getPrintSheetPdf", { params: { sheetId: sheet.id } })}
                   target="_blank"
                   rel="noreferrer"
@@ -371,15 +408,15 @@ function SheetsTab({ onMessage }: { onMessage: (message: Message) => void }) {
           );
         })}
       </ul>
-      {sheets.data?.nextBefore && <p className="cb-muted">新しい 100 件だけを出しています。</p>}
+      {sheets.data?.nextBefore && <p className="cb-muted">新しい 100 枚だけを出しています。</p>}
 
       {chosenItems.length > 0 && (
         <div className="cb-print__bar">
           <span>
-            {selected.size} 件のシート（{chosenItems.length} 個）
+            {selected.size} 枚のシート（{chosenItems.length} 個）
           </span>
           <Button size="large" onClick={() => reprint.ask(chosenItems)}>
-            まとめて再印刷
+            まとめて再印刷にする
           </Button>
         </div>
       )}
@@ -389,7 +426,7 @@ function SheetsTab({ onMessage }: { onMessage: (message: Message) => void }) {
 }
 
 /**
- * 印刷確認。「確認」「バッジ」「印刷ジョブ」の 3 つ。
+ * 印刷確認。「確認」「バッジ」「シート」の 3 つ。
  * 再印刷は、注文の状態が戻る（組み立て中・完成も印刷待ちに戻る）ので、実行の前に、対象の番号と影響を見せる。
  * 印刷の一時停止・再開は、どのタブからでも押せる
  */
@@ -417,10 +454,12 @@ export function PrintPage() {
 
       <div className="cb-print__pause" data-paused={paused || undefined}>
         <p>
-          {paused ? "印刷を止めています。新しいシートは、印刷されません" : "印刷は、動いています"}
+          {paused ? "印刷を止めています。新しいシートは、印刷されません" : "印刷は動いています"}
         </p>
+        {/* 珊瑚の主ボタンは、タブの中の確定の操作に譲る（1 画面に 1 つまで）。止めているときは黒地で目立たせる */}
         <Button
-          variant={paused ? "primary" : "line"}
+          size="large"
+          variant={paused ? "ink" : "line"}
           onClick={() => void toggle.run()}
           disabled={toggle.running || !settings.data}
         >
@@ -437,7 +476,7 @@ export function PrintPage() {
           [
             ["check", "確認"],
             ["items", "バッジ"],
-            ["sheets", "印刷ジョブ"],
+            ["sheets", "シート"],
           ] as const
         ).map(([id, label]) => (
           <button

@@ -13,6 +13,7 @@
 
 .cb-arc__card {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-md);
   padding: var(--space-md);
   border: 1px solid var(--color-rule-strong);
@@ -20,9 +21,9 @@
   background: var(--color-card);
 }
 
-/* 現在地の印は、色だけにしない（左の線に加えて、文字の「長く待っています」も出す） */
+/* 待ちが長い作品。色だけにしない（左の線に加えて、「待ちが長い」の印も出す）。組み立て・受け渡しと同じ見た目 */
 .cb-arc__card[data-long] {
-  border-left: 4px solid var(--color-accent);
+  border-left: 4px solid var(--color-accent-deep);
 }
 
 /* 画像は大きく。権利面の判断（他人のキャラクターか・写真か）が、小さくて、できなくならないように */
@@ -37,8 +38,10 @@
   border-radius: var(--radius-input);
 }
 
+/* 列は minmax(0, 1fr)。auto だと、折り返さないボタンの幅に列が押し広げられ、カードの外へはみ出す */
 .cb-arc__body {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-sm);
   align-content: start;
   min-width: 0;
@@ -54,13 +57,12 @@
   overflow-wrap: anywhere;
 }
 
-.cb-arc__status {
-  font-weight: 700;
-  color: var(--color-ink);
-}
-
-.cb-arc__flag {
-  color: var(--color-danger);
+/* 状態・時刻・印を 1 行に。区切りの「・」の文字は使わず、間隔で分ける（狭い幅で「・」だけが行頭に残らないように） */
+.cb-arc__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2xs) var(--space-sm);
 }
 
 .cb-arc__reports {
@@ -89,10 +91,13 @@
   flex: 1 1 10rem;
 }
 
-/* 広い画面では、画像を左、操作を右に */
+/*
+ * 広い画面では、画像を左、操作を右に。画像の列は、カードの半分弱まで（20rem 固定だと、
+ * 幅の狭い PC で右の列が細くなり、ボタンがはみ出す）
+ */
 @media (min-width: 40rem) {
   .cb-arc__card {
-    grid-template-columns: 20rem minmax(0, 1fr);
+    grid-template-columns: min(20rem, 45%) minmax(0, 1fr);
     align-items: start;
   }
 }
