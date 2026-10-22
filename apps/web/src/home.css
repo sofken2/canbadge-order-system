@@ -1,0 +1,538 @@
+/* Hallmark · redesign · genre: modern-minimal · theme: Coral (design.md) · macrostructure: split hero + offer */
+
+/* はじめの画面。見出し → 缶バッジの見本 → 値段と注文（スマホは縦に、PC は左右に） */
+
+.cb-home__head h1 {
+  margin-bottom: var(--space-xs);
+}
+
+.cb-home__lead {
+  max-width: 28em;
+  margin: 0;
+  color: var(--color-ink-2);
+  font-size: var(--text-md);
+  line-height: 1.7;
+}
+
+/* 見本の絵を描き終わるまでも、場所を取っておく（描けたときに、ボタンが下へずれないように） */
+.cb-home__badge {
+  position: relative;
+  width: min(100%, 22rem);
+  aspect-ratio: 1;
+  margin-inline: auto;
+  margin-block: var(--space-sm) var(--space-2xs);
+  /* 長押しで、端末の長押しメニューや文字の選択が出ないように */
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+
+.cb-home__badge .cb-editor__preview3d,
+.cb-home__badge .cb-editor__preview {
+  max-width: none;
+  width: 100%;
+  height: 100%;
+}
+
+/*
+ * マグネット加工の裏を見るボタン。缶バッジの右上に重ねる小さな丸。
+ * 押している間（マグネット表示）は、珊瑚の濃いほうで塗って、いまの状態が分かるようにする
+ */
+/*
+ * 見比べるボタンの並び。PC では、缶バッジと同じマスの右上に、縦に重ねる（マグネット → キラフィルム 2 つ）。
+ * DOM は「デザインを編集する」の両側（.cb-home__actions）に置き、スマホでは、左にマグネット、右にキラフィルムを並べる
+ */
+.cb-home__looks {
+  grid-area: 1 / 1;
+  justify-self: end;
+  align-self: start;
+  margin-top: var(--space-sm);
+  z-index: 1;
+  display: grid;
+  gap: var(--space-xs);
+}
+
+/* マグネットの丸 1 つ分の下から、キラフィルムを続ける */
+.cb-home__looks--film {
+  margin-top: calc(var(--space-sm) + var(--size-control) + var(--space-xs));
+}
+
+/* PC では、ボタンの入れ物をなくして、中身を .cb-home__stage のマスに直接置く */
+.cb-home__actions {
+  display: contents;
+}
+
+.cb-home__magnet {
+  display: inline-grid;
+  place-items: center;
+  width: var(--size-control);
+  height: var(--size-control);
+  padding: 0;
+  border: 1px solid var(--color-rule-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-card);
+  color: var(--color-ink);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--dur-micro) var(--ease-out);
+}
+
+@media (hover: hover) {
+  .cb-home__magnet:hover {
+    background: var(--color-paper-2);
+  }
+}
+
+.cb-home__magnet:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.cb-home__magnet:active {
+  background: var(--color-rule);
+}
+
+.cb-home__magnet[aria-pressed="true"] {
+  border-color: var(--color-accent-deep);
+  background: var(--color-accent-deep);
+  color: var(--color-on-accent);
+}
+
+/*
+ * はじめの画面では、缶バッジを押すと写真をはめる画面が開く。回せる（grab）より、押せることを示す。
+ * この画面はスクロールしない（1 画面）ので、縦の指の動きもページのスクロールにせず、3D の傾きに使う
+ */
+.cb-home__badge .cb-editor__preview3d {
+  cursor: pointer;
+  touch-action: none;
+}
+
+/* 「画像をはめてみる」。缶バッジを押しても開くが、押せることに気づかない人のために、下に常に出しておく */
+.cb-home__stage {
+  display: grid;
+  /* 列を缶バッジの幅にして、見比べるボタンを、缶バッジの右端にそろえる */
+  grid-template-columns: min(100%, 22rem);
+  justify-content: center;
+  justify-items: center;
+}
+
+.cb-home__badge {
+  grid-area: 1 / 1;
+}
+
+.cb-home__try {
+  grid-row: 2;
+  /* 3D の枠は、回したときに縁が切れないよう、缶バッジのまわりに余白を持つ。その分だけ、ボタンを缶バッジへ寄せる */
+  margin-top: calc(-1 * var(--space-xl));
+  /* 主役の缶バッジより目立たないよう、文字は小さめに。高さは、ほかのボタンと同じ（design.md：3rem 以上） */
+  min-height: var(--size-control);
+  padding: var(--space-2xs) var(--space-md);
+  background: var(--color-card);
+  font-size: var(--text-sm);
+}
+
+/* ---------- 値段と注文 ---------- */
+
+.cb-home__offer {
+  margin-top: var(--space-lg);
+}
+
+/* 値段と直径は、いちばん知りたい数字なので、大きく出す。枠で囲まず、数字の大きさで目立たせる */
+.cb-home__specs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xl);
+  margin: 0 0 var(--space-md);
+}
+
+.cb-home__specs dt {
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+
+.cb-home__specs dd {
+  margin: 0;
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.cb-home__specs small {
+  margin-left: var(--space-2xs);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+/* オプション（キラフィルム・マグネット）は、小さな丸い札（チップ）にして並べる。押せないので、ボタンより控えめにする */
+.cb-home__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin: 0 0 var(--space-md);
+  padding: 0;
+  list-style: none;
+}
+
+.cb-home__chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-md);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-pill);
+  background: var(--color-card);
+  white-space: nowrap;
+}
+
+.cb-home__chip span {
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+}
+
+.cb-home__chip strong {
+  font-size: var(--text-base);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 受付の状況と、ブースの場所を一行に並べる。狭い画面では折り返す */
+.cb-home__status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--space-lg);
+  row-gap: var(--space-2xs);
+  margin: 0 0 var(--space-md);
+}
+
+/* ブースの場所。来場者がブースへ向かうときに見るので、本文より少し強く */
+.cb-home__place {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.cb-home__queue {
+  margin: 0;
+  color: var(--color-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ほかの入口。注文ボタンの下に、輪郭だけの楕円ボタンを横に 2 つ並べる（注文ボタンと合わせて 2 段） */
+.cb-home__links {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-xs);
+  margin-top: var(--space-md);
+}
+
+/* 半分の幅に収めるため、文字は本文の大きさにし、左右の余白を詰める。ボタンの文字を 2 行にしない */
+.cb-home__links .cb-button {
+  /* 共通の「幅いっぱいのボタンを縦に並べたときの上の余白」は、横に並べるここでは要らない（付くと、2 つの高さがずれる） */
+  margin: 0;
+  padding-inline: var(--space-sm);
+  /* 地の色より一段明るい面にして、押せるボタンだと分かるようにする（design.md：#fff は使わない） */
+  background: var(--color-card);
+  font-size: var(--text-base);
+}
+
+/* 受付が止まっているときの、注文ボタンの下のひとこと */
+.cb-home__closed {
+  margin: var(--space-2xs) 0 0;
+  font-size: var(--text-sm);
+}
+
+/*
+ * 投稿のあとのお知らせ。LP の並びを崩さないよう、画面の上に重ねて、しばらくしたら消す。
+ * 影は付けず（design.md）、罫線で地と分ける
+ */
+.cb-home__toast {
+  position: fixed;
+  z-index: 10;
+  top: max(var(--space-sm), env(safe-area-inset-top, 0px));
+  left: 50%;
+  width: min(calc(100% - 2 * var(--gutter)), 28rem);
+  transform: translateX(-50%);
+  animation: cb-home-toast-in var(--dur-short) var(--ease-out);
+}
+
+.cb-home__toast .cb-notice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin: 0;
+  padding-block: var(--space-2xs);
+  padding-right: var(--space-2xs);
+  border: 1px solid var(--color-rule);
+  border-left: 3px solid var(--color-ok);
+  background: var(--color-card);
+}
+
+.cb-home__toast .cb-notice > span {
+  flex: 1 1 auto;
+}
+
+.cb-home__toast-close {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.cb-home__toast-close:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.cb-home__toast-close:active {
+  background: var(--color-rule);
+}
+
+@keyframes cb-home-toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-1 * var(--space-sm)));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cb-home__toast {
+    animation: none;
+  }
+}
+
+@media (hover: hover) {
+  .cb-home__toast-close:hover {
+    background: var(--color-paper-2);
+  }
+
+  .cb-home__links .cb-button:hover {
+    background: var(--color-paper-2);
+  }
+}
+
+.cb-home__links .cb-button:active {
+  background: var(--color-rule);
+}
+
+/* スマホ幅では、オプションの札・下の 2 つのボタンを一回り小さくする（札が横に並び、ボタンの文字が端に詰まらないように） */
+/*
+ * スマホでは、LP の全部（見出し〜下の 2 つのボタン）を、どの端末でもスクロールせずに 1 画面に収める（必須）。
+ * ページの高さを画面（ツールバーが出た状態の svh）に固定し、見出しは上、値段とボタンは下に置いて、
+ * 残った高さを缶バッジの欄が受け持つ。缶バッジは、その欄に収まる大きさに縮む（画面が低い端末ほど小さい）
+ */
+@media (max-width: 40rem) {
+  .cb-page.cb-home {
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    height: 100svh;
+    padding-block: var(--space-md) calc(var(--space-md) + env(safe-area-inset-bottom, 0px));
+  }
+
+  .cb-home__head,
+  .cb-home__offer {
+    flex: none;
+  }
+
+  /* 残りの高さを全部使う欄。中の缶バッジは、この欄の幅と高さ（cqw・cqh）から大きさを決める */
+  .cb-home__stage {
+    flex: 1 1 0;
+    min-height: 0;
+    container-type: size;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .cb-home__head h1 {
+    margin-bottom: var(--space-2xs);
+  }
+
+  /* 欄の高さから、下の「画像をはめてみる」の分を引いた大きさまで。欄からはみ出さない */
+  /*
+   * 欄に入るいちばん大きな大きさにする。3D の枠は、缶バッジのまわりに透明な余白（一辺の 1 割ほど）を持つので、
+   * 高さはその一部（1 割強）まで欄からはみ出してよい（下の「画像をはめてみる」と値段がくっつかない程度）。はみ出すのは透明な余白だけで、缶バッジ自体は欄に収まる
+   */
+  .cb-home__badge {
+    flex: none;
+    width: min(100cqw, calc((100cqh - var(--size-control)) * 1.12));
+    margin-block: 0;
+  }
+
+  /* 「デザインを編集する」と見比べるボタンを、横一列に。とても狭い端末では、折り返して 2 段になる */
+  .cb-home__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: var(--space-xs);
+    /* 缶バッジが小さくなった分、3D の枠のまわりの余白も小さいので、寄せる量を減らす */
+    margin-top: calc(-1 * var(--space-lg));
+  }
+
+  .cb-home__try {
+    margin-top: 0;
+    /* 横の 3 つの丸と一列に収めるため、左右の余白を詰める */
+    padding-inline: var(--space-sm);
+  }
+
+  .cb-home__looks,
+  .cb-home__looks--film {
+    display: flex;
+    margin-top: 0;
+  }
+
+  /* 2 段に折り返す幅では、缶バッジの下に 2 段分を空けて、1 画面に収める */
+  @container (width < 20.5rem) {
+    .cb-home__badge {
+      width: min(100cqw, calc((100cqh - 2 * var(--size-control) - var(--space-xs)) * 1.12));
+    }
+  }
+
+  .cb-home__offer {
+    margin-top: var(--space-sm);
+  }
+
+  .cb-home__specs {
+    margin-bottom: var(--space-xs);
+  }
+
+  .cb-home__specs dt {
+    font-size: var(--text-xs);
+    line-height: 1.4;
+  }
+
+  .cb-home__chips {
+    margin-bottom: var(--space-xs);
+  }
+
+  .cb-home__status {
+    row-gap: 0;
+    margin-bottom: var(--space-sm);
+    line-height: 1.6;
+  }
+
+  .cb-home__offer .cb-button {
+    min-height: var(--size-control);
+  }
+
+  .cb-home__links {
+    margin-top: var(--space-xs);
+  }
+
+  /* 説明文は、ふだんは出さない（1 画面に収めるため）。流れは、見出しと缶バッジと、受取場所で伝わる */
+  .cb-home__lead {
+    display: none;
+  }
+
+  .cb-home__chips {
+    gap: var(--space-2xs);
+  }
+
+  .cb-home__chip {
+    gap: var(--space-2xs);
+    /* 375px 幅で 2 つの札が一段に収まるよう、左右の余白を詰める。もっと狭い端末では、折り返して 2 段になる */
+    padding: var(--space-2xs) var(--space-xs);
+  }
+
+  /*
+   * iPhone SE（375px・初代は 320px）でも 2 つの札が一段に並ぶよう、文字を画面幅に合わせて小さくする。
+   * 補足の下限 13px（design.md）を、狭い画面のこの札だけ下回る（管理者の指示）
+   */
+  .cb-home__chip span {
+    font-size: min(var(--text-xs), 3.2vw);
+  }
+
+  .cb-home__chip strong {
+    font-size: min(var(--text-sm), 3.6vw);
+  }
+
+  /*
+   * 半分の幅では、10 文字が本文の大きさで 1 行に収まらない。文字を小さくせず、縦に 2 段に積む
+   * （その分の高さは、缶バッジの欄が縮んで受け持つ）
+   */
+  .cb-home__links {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/*
+ * 背が高く、幅にも余裕のあるスマホ（説明文が 2 行に収まる）では、説明文も出す。
+ * 出しても 1 画面に収まるよう、その分は缶バッジが小さくなって受け持つ
+ */
+@media (max-width: 40rem) and (min-width: 375px) and (min-height: 700px) {
+  .cb-home__lead {
+    display: block;
+    font-size: var(--text-sm);
+    line-height: 1.6;
+  }
+}
+
+/*
+ * PC（広い画面）は、左に缶バッジのプレビュー、右に見出しと操作を並べる。
+ * プレビューは、右の操作（エディタ）を下へ送っても、画面に残す
+ */
+@media (min-width: 64rem) {
+  .cb-page.cb-home {
+    /* 左の缶バッジに幅を回す（右の欄は 28rem のまま） */
+    max-width: 80rem;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 28rem);
+    grid-template-areas:
+      "stage head"
+      "stage offer";
+    /*
+     * 右の見出しと注文を一つのまとまりにして、画面の上下中央に置く。
+     * 行を半分ずつに分けると、背の高い注文の側が下へはみ出して、全体が下に寄る。
+     * 上下の余白も同じにする（共通の .cb-page は、下を広く取っている）
+     */
+    grid-template-rows: auto auto;
+    align-content: center;
+    box-sizing: border-box;
+    min-height: 100svh;
+    padding-block: var(--space-xl);
+    column-gap: var(--space-2xl);
+  }
+
+  .cb-home__head {
+    grid-area: head;
+  }
+
+  .cb-home__head h1 {
+    font-size: var(--text-2xl);
+  }
+
+  .cb-home__stage {
+    grid-area: stage;
+    grid-row: 1 / -1;
+    align-self: center;
+    /* 列の幅を、PC の缶バッジの幅にそろえる（スマホの 22rem のままだと、缶バッジもそこで止まる） */
+    grid-template-columns: min(100%, 36rem, 62svh);
+    /* 缶バッジと下のボタンのまとまりは、右より重心が下に見えるので、少し上へ寄せる（下に余白を足すと、中央の位置が上がる） */
+    margin-bottom: var(--space-xl);
+  }
+
+  /* 大きさは列（.cb-home__stage）で決める。画面の高さに余裕があるほど大きく */
+  .cb-home__badge {
+    width: 100%;
+    margin-top: 0;
+  }
+
+  .cb-home__offer {
+    grid-area: offer;
+  }
+}
