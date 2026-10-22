@@ -2,14 +2,14 @@ import type { OrderStatus } from "@canbadge/shared";
 
 // 注文状況ページの、状態ごとの見せ方。画面から切り離した、純粋な関数（テストできるように）。
 
-/** 進み具合の段階。注文 → お支払い → 印刷 → 組み立て → できあがり → 受け渡し */
+/** 進み具合の段階。注文 → お支払い → 印刷 → 組み立て → できあがり → 受け取り（来場者の言い方にそろえる） */
 export const PROGRESS_STEPS = [
   "注文した",
   "お支払い",
   "印刷",
   "組み立て",
   "できあがり",
-  "受け渡し",
+  "受け取り",
 ] as const;
 
 /**
@@ -55,7 +55,7 @@ export function guideFor(
   switch (status) {
     case "submitted":
       return {
-        headline: "レジで、お支払いをお願いします",
+        headline: "レジでお支払いをお願いします",
         body: `ブースのレジで、この画面の QR を見せて、${order.totalAmount}円をお支払いください。`,
         tone: "action",
       };
@@ -80,7 +80,7 @@ export function guideFor(
     case "ready":
       return {
         headline: "できあがりました！",
-        body: `ブースの受け渡しで、確認コード「${order.confirmationCode}」を伝えてください。`,
+        body: `ブースの受け取り口で、確認コード「${order.confirmationCode}」を伝えてください。`,
         tone: "ready",
       };
     case "picked_up":
@@ -91,13 +91,13 @@ export function guideFor(
       };
     case "expired":
       return {
-        headline: "受け取りの期限が過ぎました",
-        body: "お手数ですが、ブースのスタッフにお声がけください。",
+        headline: "お支払いの期限が過ぎました",
+        body: "支払いの前に受付が終わったため、この注文は無効になりました。もう一度注文するか、ブースのスタッフにお声がけください。",
         tone: "stopped",
       };
     case "cancelled":
       return {
-        headline: "この注文は、取り消されました",
+        headline: "この注文は取り消されました",
         body: "ご不明な点は、ブースのスタッフにお声がけください。",
         tone: "stopped",
       };

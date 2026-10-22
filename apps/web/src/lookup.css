@@ -16,3 +16,70 @@
 .cb-lookup .cb-input[aria-invalid="true"] {
   border-color: var(--color-accent-deep);
 }
+
+/* この端末の注文。押せば、その注文の状況を開く。番号・状態・「開く」を 1 行に、罫線で区切って並べる */
+.cb-my-orders {
+  margin-block: var(--space-md) var(--space-xl);
+}
+
+.cb-my-orders h2 {
+  margin-bottom: var(--space-xs);
+  font-size: var(--text-md);
+}
+
+.cb-my-orders ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--color-rule);
+}
+
+.cb-my-orders__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  width: 100%;
+  min-height: var(--size-control-lg);
+  padding: var(--space-sm) var(--space-2xs);
+  border: 0;
+  border-bottom: 1px solid var(--color-rule);
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--dur-micro) var(--ease-out);
+}
+
+@media (hover: hover) {
+  .cb-my-orders__item:hover {
+    background: var(--color-paper-2);
+  }
+}
+
+.cb-my-orders__item:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+.cb-my-orders__item:active {
+  background: var(--color-rule);
+}
+
+.cb-my-orders__number {
+  font: 600 var(--text-xl) / 1 var(--font-display);
+  font-variant-numeric: tabular-nums;
+}
+
+.cb-my-orders__status {
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+
+.cb-my-orders__open {
+  margin-left: auto;
+  color: var(--color-accent-deep);
+  font-weight: 600;
+  white-space: nowrap;
+}

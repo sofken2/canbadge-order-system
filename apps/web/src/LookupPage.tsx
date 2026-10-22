@@ -1,5 +1,6 @@
 import { ApiClientError } from "@canbadge/api-client";
 import {
+  BackButton,
   Button,
   isCompleteCode,
   Notice,
@@ -11,6 +12,7 @@ import {
 import { useState } from "react";
 import { api } from "./api";
 import { lookupErrorMessage, parseLookupInput } from "./lookup-logic";
+import { MyOrders } from "./MyOrders";
 import "./lookup.css";
 
 /**
@@ -48,10 +50,12 @@ export function LookupPage() {
 
   return (
     <main className="cb-page cb-lookup">
-      <h1>注文を、開く</h1>
+      <BackButton className="cb-back--page" onClick={() => navigate("/")} />
+      <h1>自分の注文を確認する</h1>
+      {/* この端末で注文したなら、番号を入れなくても、ここから開ける */}
+      <MyOrders />
       <p>
-        スマホを変えた・画面を閉じてしまった方は、注文のあとに出た「注文番号」と「確認コード」で、
-        注文の状況を開けます。
+        スマホを変えた・画面を閉じてしまった方は、注文のあとに出た「注文番号」と「確認コード」で、注文の状況を開けます。
       </p>
 
       <form
@@ -102,9 +106,6 @@ export function LookupPage() {
       <p className="cb-muted cb-gap-top">
         番号や確認コードがわからないときは、ブースのスタッフにお声がけください。
       </p>
-      <Button variant="line" block onClick={() => navigate("/")}>
-        はじめの画面に戻る
-      </Button>
     </main>
   );
 }

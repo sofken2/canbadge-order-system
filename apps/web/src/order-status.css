@@ -122,22 +122,42 @@
   box-shadow: 0 0 0 4px var(--color-accent-tint);
 }
 
-/* ---- 注文したバッジ ---- */
+/* ---- 進み具合と、注文したバッジ ---- */
 
-.cb-ticket__items {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-md);
+/* 左に進み具合、右に注文したバッジ。進み具合は文字が短いので、スマホの幅でも横に並べられる */
+.cb-ticket__flow {
+  display: grid;
+  /* バッジの列は 13rem まで。狭いスマホでは半分までにして、進み具合の文字を細くしすぎない */
+  grid-template-columns: minmax(0, 1fr) minmax(0, min(13rem, 50%));
+  gap: var(--space-lg);
   align-items: center;
   margin-bottom: var(--space-lg);
 }
 
+.cb-ticket__flow .cb-progress {
+  margin-bottom: 0;
+}
+
+/* 進み具合がないとき（取り消し・失効など）は、バッジだけを左に寄せる */
+.cb-ticket__items {
+  grid-column: 2;
+  display: grid;
+  gap: var(--space-md);
+  justify-items: center;
+}
+
+.cb-ticket__flow:not(:has(.cb-progress)) .cb-ticket__items {
+  grid-column: 1;
+  justify-items: start;
+}
+
 .cb-ticket__item {
-  width: 6rem;
+  width: 100%;
+  max-width: 13rem;
 }
 
 .cb-ticket__amount {
-  margin: 0;
+  margin: 0 0 var(--space-lg);
   color: var(--color-muted);
   font-size: var(--text-sm);
 }
@@ -146,4 +166,67 @@
   color: var(--color-ink);
   font-size: var(--text-md);
   font-variant-numeric: tabular-nums;
+}
+
+/* 注文のあとの「みんなの作品として公開しますか」。注文状況の上に、罫線で区切って置く */
+.cb-publish-offer {
+  display: grid;
+  gap: var(--space-sm);
+  margin-block: var(--space-md);
+  padding-block: var(--space-md);
+  border-block: 1px solid var(--color-rule);
+}
+
+.cb-publish-offer p {
+  margin: 0;
+}
+
+.cb-publish-offer__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+/*
+ * PC（広い画面）で、公開の案内があるときは、左に注文状況、右に公開の案内を並べる。
+ * 案内がないときは、今までどおり 1 列
+ */
+@media (min-width: 64rem) {
+  /* 左右は同じ幅（公開の案内は、入力欄と説明が多いので、狭くしない） */
+  .cb-page.cb-ticket:has(.cb-ticket__aside > *) {
+    max-width: 80rem;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: var(--space-2xl);
+  }
+
+  /*
+   * 右の列は、画面の高さに合わせて上に貼り付け（sticky）、その中で上下の中央に置く。
+   * スクロールしても、公開の案内は画面の真ん中に留まる。案内が画面より高いときは、列の中でスクロールする。
+   * 中身があるときだけ。空の aside に画面の高さを持たせると、1 列の画面の下に、画面 1 つぶんの空白ができる
+   */
+  .cb-ticket:has(.cb-ticket__aside > *) .cb-ticket__aside {
+    position: sticky;
+    top: 0;
+    align-self: start;
+    box-sizing: border-box;
+    height: 100svh;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  /*
+   * 右側では、上下の罫線と内側の余白はいらない（列で分かれているので）。
+   * 上下の外の余白を auto にして、列の中で上下の中央に置く（画面より高いときは、上から並び、上が切れない）
+   */
+  .cb-ticket__aside > * {
+    margin-block: auto;
+  }
+
+  .cb-ticket__aside .cb-publish-offer {
+    margin-block: auto;
+    padding-block: 0;
+    border-block: 0;
+  }
 }

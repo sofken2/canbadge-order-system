@@ -6,27 +6,30 @@ import {
   LazyBadgePreview3D,
 } from "@canbadge/editor";
 import { acceptanceLabels } from "@canbadge/shared";
-import { Button, Checkbox, Notice, navigate, useAction, useResource } from "@canbadge/ui";
-import { useEffect, useRef, useState } from "react";
-import { AddonPicker, orderTotal, totalBreakdown } from "./AddonPicker";
-import { ArchivePostFields } from "./ArchivePostFields";
-import { api } from "./api";
 import {
-  canPost,
-  emptyPostForm,
-  type PostFormState,
-  postedMessage,
-  postFailedAfterOrderMessage,
-  toPostRequest,
-} from "./archive-post-logic";
+  BackButton,
+  Button,
+  Checkbox,
+  Notice,
+  navigate,
+  useAction,
+  useResource,
+} from "@canbadge/ui";
+import { useEffect, useRef, useState } from "react";
+import { AddonPicker, orderTotal } from "./AddonPicker";
+import { api } from "./api";
+import { SELF_MADE_LABEL } from "./archive-post-logic";
 import { discordErrorMessage, readDiscordReturn } from "./discord-return";
 import { DEV_TURNSTILE_TOKEN, discordEnabled, turnstileSiteKey } from "./env";
-import { setFlash } from "./flash";
+import { KiraPatternPicker } from "./KiraPatternPicker";
+import { type KiraPattern, saveKiraPattern } from "./kira-pattern";
+import { ORDER_DRAFT_KEY } from "./order-draft";
+import { savePublishOffer } from "./publish-offer";
 import { QuantityPicker } from "./QuantityPicker";
+import { TryOnDialog } from "./TryOnDialog";
+import "./tryon.css";
 import { TurnstileWidget } from "./TurnstileWidget";
 
-/** 作りかけのデザインの、ブラウザ内の保存名。注文が済んだら消す */
-const DRAFT_KEY = "order-design";
 /** Discord のアイコンを置く大きさ（mm）。印刷円の 70mm いっぱいに伸ばすと端が切れるので、内径 58mm より少し大きいくらいに収める */
 const DISCORD_ICON_FIT_MM = 60;
 type Design = BadgeEditorExport & {
@@ -40,21 +43,40 @@ type Design = BadgeEditorExport & {
  */
 export function OrderPage() {
   const status = useResource(() => api.call("getStatus"), { refreshMs: 5000 });
+  // はじめの画面の「注文の確認へ進む」から来たとき（?next=confirm）。デザインはもう決まっているので、
+  // 編集を触らせず（触ってずれるのを防ぐ）、途中保存から、そのまま注文の確認へ進む。読んだら、アドレスから消す
+  // （読み込み直したときは、ふつうに編集から始める）
+  const [skipToConfirm] = useState(
+    () => new URLSearchParams(window.location.search).get("next") === "confirm",
+  );
+  // 最初のデザインの段か。自動で確認へ進む・Discord のアイコンで始めるのは、最初の 1 回だけ。
+  // 確認から「戻る」でデザインに戻ったときは、途中保存（直したデザイン）の続きを見せる
+  const [firstDesign, setFirstDesign] = useState(true);
   // Discord から戻ってきたとき（W08）：取り込めたアイコンをエディタの最初の写真にし、失敗なら理由を伝える。
   // 読んだら、アドレスから消す（再読み込みで、同じ通知や、期限切れの画像を、もう一度使わないように）
   const [discordReturn] = useState(() => readDiscordReturn(window.location.search));
   useEffect(() => {
-    if (discordReturn) window.history.replaceState(null, "", window.location.pathname);
-  }, [discordReturn]);
+    if (discordReturn || skipToConfirm)
+      window.history.replaceState(null, "", window.location.pathname);
+  }, [discordReturn, skipToConfirm]);
   const discordImage =
     discordReturn && "imageId" in discordReturn
       ? api.url("getImage", { params: { imageId: discordReturn.imageId } })
       : undefined;
   const [design, setDesign] = useState<Design | undefined>(undefined);
   const [step, setStep] = useState<"design" | "confirm">("design");
-  const [quantity, setQuantity] = useState(1);
+  const [quantitySelected, setQuantity] = useState(1);
+  // 1 回に注文できる個数は、設定の上限と、バッジの在庫の残りの小さいほう
+  const maxQuantity = Math.max(
+    1,
+    Math.min(status.data?.maxQuantityPerOrder ?? 1, status.data?.badgeRemaining ?? 1),
+  );
+  // 上限が選んだ個数より下がると、上限 1 では選ぶ欄も消えて直せなくなるので、ここで上限に合わせる
+  const quantity = Math.min(quantitySelected, maxQuantity);
   const [kiraSelected, setKiraSelected] = useState(0);
   const [magnetSelected, setMagnetSelected] = useState(0);
+  // キラフィルムの柄。確認の 3D に貼って見せる（注文には、まだ記録できない。kira-pattern.ts）
+  const [kiraPattern, setKiraPattern] = useState<KiraPattern>("shards");
   // 個数や在庫の残りが減ったとき、加工の個数が、その数を超えないようにする
   const kiraQuantity = Math.min(kiraSelected, quantity, status.data?.kiraFilmRemaining ?? quantity);
   const magnetQuantity = Math.min(
@@ -63,9 +85,6 @@ export function OrderPage() {
     status.data?.magnetRemaining ?? quantity,
   );
   const [consent, setConsent] = useState(false);
-  // 注文と同時に、みんなの作品として公開する（任意）。公開しなくても、注文できる
-  const [publish, setPublish] = useState(false);
-  const [postForm, setPostForm] = useState<PostFormState>(emptyPostForm);
   const [token, setToken] = useState<string | undefined>(undefined);
   /** 注文を試すたびに増やす。Turnstile のトークンは 1 回しか使えないので、作り直す */
   const [tokenVersion, setTokenVersion] = useState(0);
@@ -104,21 +123,10 @@ export function OrderPage() {
           rightsConsent: true,
         },
       });
-      // 注文は、できている。投稿が失敗しても、注文は止めず、注文状況の画面で伝える
-      if (publish) {
-        try {
-          await api.call("createArchiveEntry", {
-            body: { imageId, editorData: design.editorData, ...toPostRequest(postForm) },
-          });
-          setFlash({ tone: "info", text: postedMessage });
-        } catch (error) {
-          setFlash({
-            tone: "error",
-            text: postFailedAfterOrderMessage(error instanceof Error ? error.message : "原因不明"),
-          });
-        }
-      }
-      await clearDraft(DRAFT_KEY);
+      // みんなの作品として公開するかは、注文のあと（注文状況の画面）で聞く。そのための材料を渡す
+      savePublishOffer(orderId, { imageId, editorData: design.editorData });
+      if (kiraQuantity > 0) saveKiraPattern(orderId, kiraPattern);
+      await clearDraft(ORDER_DRAFT_KEY);
       navigate(`/orders/${orderId}`);
     } catch (error) {
       // 失敗したら、確認をやり直す（使ったトークンは、もう使えない）
@@ -131,20 +139,10 @@ export function OrderPage() {
 
   const setting = status.data;
   const accepting = setting?.acceptance === "open";
-  // 1 回に注文できる個数は、設定の上限と、バッジの在庫の残りの小さいほう
-  const maxQuantity = Math.max(
-    1,
-    Math.min(setting?.maxQuantityPerOrder ?? 1, setting?.badgeRemaining ?? 1),
-  );
   const soldOut = !!setting && setting.badgeRemaining <= 0;
   const needsToken = turnstileSiteKey !== undefined;
   const canSubmit =
-    accepting &&
-    !soldOut &&
-    consent &&
-    (!publish || canPost(postForm)) &&
-    (!needsToken || token !== undefined) &&
-    !submit.running;
+    accepting && !soldOut && consent && (!needsToken || token !== undefined) && !submit.running;
 
   const handleExport = (output: BadgeEditorExport) => {
     setDesign({ ...output, previewUrl: URL.createObjectURL(output.png) });
@@ -153,113 +151,100 @@ export function OrderPage() {
     window.scrollTo({ top: 0 });
   };
 
-  const backToDesign = () => {
+  // 「デザインを編集する」：はじめの画面と同じ、全画面の編集画面を開く（PC は左右 2 列）。決定すると、直したデザインで確認に戻る。
+  // 「戻る」で閉じたときは、確認と注文は、編集に入る前のデザインのまま（直した中身は途中保存に残る）
+  const [reEditOpen, setReEditOpen] = useState(false);
+  const openReEdit = () => {
     submit.clearError();
-    setStep("design");
-    window.scrollTo({ top: 0 });
+    setReEditOpen(true);
+  };
+  const handleReEditExport = (output: BadgeEditorExport) => {
+    setReEditOpen(false);
+    handleExport(output);
   };
 
   const total = orderTotal(setting, quantity, kiraQuantity, magnetQuantity);
 
+  // 確認の段では、「戻る」はデザインの段へ（はじめの画面へ戻ると、選んだ個数などを考え直す途中で抜けてしまう）
+  const goBack = () => {
+    if (step === "confirm") {
+      submit.clearError();
+      setFirstDesign(false);
+      setStep("design");
+      window.scrollTo({ top: 0 });
+      return;
+    }
+    navigate("/");
+  };
+
   return (
-    <main className="cb-page">
-      <h1>オリジナル缶バッジを、つくろう</h1>
+    // デザインの段は、PC で左にキャンバス、右に操作を並べる（tryon.css の .cb-editpage。はじめの画面のモーダルと同じ並び）
+    <main className={step === "design" ? "cb-page cb-editpage" : "cb-page"}>
+      <BackButton className="cb-back--page" onClick={goBack} />
       {status.error && <Notice tone="error">{status.error}</Notice>}
-      {setting && (
-        <p className="cb-muted">
-          受付：{acceptanceLabels[setting.acceptance]} ／ {setting.price}円 / 1個（キラフィルム +
-          {setting.kiraFilmPrice}円・マグネット +{setting.magnetPrice}円）／ いま
-          {setting.waitingCount}件待ち
-        </p>
-      )}
-      <p className="cb-stepper" aria-live="polite">
-        <span aria-current={step === "design" ? "step" : undefined}>1 デザイン</span>
-        <span aria-hidden="true">→</span>
-        <span aria-current={step === "confirm" ? "step" : undefined}>2 注文の確認</span>
-      </p>
 
-      {/* 確認の間も、エディタはつないだまま隠す（戻ったとき、デザインが消えないように） */}
-      <div hidden={step !== "design"}>
-        {discordReturn && "error" in discordReturn && (
-          <Notice tone="error">{discordErrorMessage(discordReturn.error)}</Notice>
-        )}
-        {discordEnabled && (
-          <div>
-            <Button
-              variant="line"
-              // Discord の許可画面へ移る（ページを離れる）。戻ると、アイコンがエディタに読み込まれる
-              onClick={() => window.location.assign(api.url("discordAuthorize"))}
-            >
-              Discord のアイコンを使う
-            </Button>
-            <p className="cb-muted">
-              許可すると、アイコンが読み込まれます（いまの編集は、置き換わります）
-            </p>
-          </div>
-        )}
-        <BadgeEditor
-          spec={badgeSpec}
-          draftKey={DRAFT_KEY}
-          {...(discordImage ? { initialImage: discordImage, imageFitMm: DISCORD_ICON_FIT_MM } : {})}
-          confirmLabel="注文の確認へ進む"
-          onExport={handleExport}
-        />
-
-        {/* ほかの入口の案内。スマホで、エディタが画面の上のほうに来るよう、エディタのあとに置く */}
-        <div className="cb-gap-top">
-          <p className="cb-muted">
-            もう注文した方（スマホを変えた・画面を閉じてしまった方）は、
-            <a
-              href="/lookup"
-              onClick={(event) => {
-                event.preventDefault();
-                navigate("/lookup");
-              }}
-            >
-              注文番号と確認コードで、注文を開く
-            </a>
-            。
-          </p>
-          <p className="cb-muted">
-            他のお客さんが公開してくれた作品を、
-            <a
-              href="/archive"
-              onClick={(event) => {
-                event.preventDefault();
-                navigate("/archive");
-              }}
-            >
-              みんなの作品
-            </a>
-            で見られます。注文はせずに、作品だけを投稿したい方は、
-            <a
-              href="/archive/post"
-              onClick={(event) => {
-                event.preventDefault();
-                navigate("/archive/post");
-              }}
-            >
-              作品だけ投稿する
-            </a>
-            。投稿した作品は、
-            <a
-              href="/archive/mine"
-              onClick={(event) => {
-                event.preventDefault();
-                navigate("/archive/mine");
-              }}
-            >
-              自分の投稿
-            </a>
-            から、取り下げられます。
-          </p>
+      {/*
+       * 最初のデザイン（と、自動で確認へ進むとき）だけ、ここのエディタを使う。確認に進んだら外す。
+       * つないだまま残すと、画面を離れるときの保存で、「デザインを編集する」で直した途中保存を、古い中身で上書きしてしまう
+       */}
+      {step === "design" && (
+        <div>
+          <h1>デザインを作る</h1>
+          {/* 受付が止まっているときは、デザインを作り始める前に伝える（確認まで進んでから断らない） */}
+          {setting && !accepting && (
+            <Notice tone="error">
+              {setting.busyMessage ??
+                `${acceptanceLabels[setting.acceptance]}のため、いまは注文できません。`}
+            </Notice>
+          )}
+          {firstDesign && discordReturn && "error" in discordReturn && (
+            <Notice tone="error">{discordErrorMessage(discordReturn.error)}</Notice>
+          )}
+          {discordEnabled && (
+            <div>
+              <Button
+                variant="line"
+                // Discord の許可画面へ移る（ページを離れる）。戻ると、アイコンがエディタに読み込まれる
+                onClick={() => window.location.assign(api.url("discordAuthorize"))}
+              >
+                Discord のアイコンを使う
+              </Button>
+              <p className="cb-muted">
+                許可すると、アイコンが読み込まれます（いまの編集は、置き換わります）
+              </p>
+            </div>
+          )}
+          <BadgeEditor
+            spec={badgeSpec}
+            draftKey={ORDER_DRAFT_KEY}
+            {...(discordImage && firstDesign
+              ? { initialImage: discordImage, imageFitMm: DISCORD_ICON_FIT_MM }
+              : {})}
+            confirmLabel="注文の確認へ進む"
+            exportWhenReady={firstDesign && skipToConfirm && !discordImage}
+            onExport={handleExport}
+          />
         </div>
-      </div>
+      )}
+
+      <TryOnDialog
+        open={reEditOpen}
+        onClose={() => setReEditOpen(false)}
+        onExport={handleReEditExport}
+        onDraftChange={() => undefined}
+        confirmLabel="注文の確認へ進む"
+      />
 
       {step === "confirm" && design && (
         <section aria-label="注文の確認">
-          <h2>注文の確認</h2>
-          <LazyBadgePreview3D src={design.previewUrl} spec={badgeSpec} />
+          <h1>注文の確認</h1>
+          {/* マグネット加工・キラフィルムを付けたら、3D にも反映する（仕上がりを、そのまま確かめられるように） */}
+          <LazyBadgePreview3D
+            src={design.previewUrl}
+            spec={badgeSpec}
+            back={magnetQuantity > 0 ? "magnet" : "pin"}
+            film={kiraQuantity > 0 ? kiraPattern : "none"}
+          />
 
           <QuantityPicker value={quantity} max={maxQuantity} onChange={setQuantity} />
           {setting && (
@@ -272,6 +257,9 @@ export function OrderPage() {
                 remaining={setting.kiraFilmRemaining}
                 onChange={setKiraSelected}
               />
+              {kiraQuantity > 0 && (
+                <KiraPatternPicker value={kiraPattern} onChange={setKiraPattern} />
+              )}
               <AddonPicker
                 name="マグネット加工"
                 value={magnetQuantity}
@@ -287,11 +275,6 @@ export function OrderPage() {
             <dt>金額</dt>
             <dd>
               <strong>{total}円</strong>
-              {(quantity > 1 || kiraQuantity > 0 || magnetQuantity > 0) && setting && (
-                <span className="cb-muted">
-                  （{totalBreakdown(setting, quantity, kiraQuantity, magnetQuantity)}）
-                </span>
-              )}
             </dd>
           </dl>
 
@@ -312,23 +295,12 @@ export function OrderPage() {
                 if (canSubmit) void submit.run();
               }}
             >
+              {/* 権利の同意は、金額の下、注文ボタンの直前で確かめる。公開するかは、注文のあとで聞く */}
               <Checkbox
-                label="自作の画像、または使ってよい画像です"
+                label={SELF_MADE_LABEL}
                 checked={consent}
                 onChange={(event) => setConsent(event.target.checked)}
               />
-              <Checkbox
-                label="この作品を、「みんなの作品」として、公開してもよい（任意）"
-                checked={publish}
-                onChange={(event) => setPublish(event.target.checked)}
-              />
-              {publish && (
-                <ArchivePostFields
-                  value={postForm}
-                  onChange={setPostForm}
-                  disabled={submit.running}
-                />
-              )}
               {turnstileSiteKey && (
                 <TurnstileWidget
                   siteKey={turnstileSiteKey}
@@ -344,8 +316,8 @@ export function OrderPage() {
             </form>
           )}
 
-          <Button variant="line" block onClick={backToDesign} disabled={submit.running}>
-            デザインに戻る
+          <Button variant="line" block onClick={openReEdit} disabled={submit.running}>
+            デザインを編集する
           </Button>
         </section>
       )}
