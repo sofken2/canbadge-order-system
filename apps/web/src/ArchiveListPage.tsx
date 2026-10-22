@@ -1,9 +1,9 @@
 import type { ArchiveEntryView } from "@canbadge/shared";
-import { Button, Notice, navigate } from "@canbadge/ui";
+import { BackButton, Button, Notice, navigate } from "@canbadge/ui";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "./api";
 import "./archive.css";
-import { appendPage, PAGE_SIZE } from "./archive-view-logic";
+import { appendPage, authorLine, PAGE_SIZE } from "./archive-view-logic";
 
 /**
  * みんなの作品（W05）。公開中の作品を、サムネイルで、新しい順に並べる。
@@ -39,6 +39,7 @@ export function ArchiveListPage() {
 
   return (
     <main className="cb-page">
+      <BackButton className="cb-back--page" onClick={() => navigate("/")} />
       <h1>みんなの作品</h1>
       <p className="cb-muted">
         他のお客さんが、公開してくれた作品です。気に入った作品は、同じバッジを、注文できます。
@@ -46,9 +47,7 @@ export function ArchiveListPage() {
 
       {error && <Notice tone="error">{error}</Notice>}
       {empty && (
-        <p className="cb-muted">
-          まだ、公開されている作品は、ありません。最初の 1 点に、なりませんか？
-        </p>
+        <p className="cb-muted">まだ公開されている作品はありません。最初の 1 点になりませんか？</p>
       )}
 
       <ul className="cb-gallery">
@@ -71,7 +70,7 @@ export function ArchiveListPage() {
                 loading="lazy"
                 className="cb-gallery__thumb"
               />
-              <span className="cb-gallery__name">{entry.displayName}</span>
+              <span className="cb-gallery__name">{authorLine(entry.displayName)}</span>
             </a>
           </li>
         ))}
@@ -86,10 +85,11 @@ export function ArchiveListPage() {
 
       <div className="cb-gap-top">
         <Button block size="large" onClick={() => navigate("/archive/post")}>
-          作品を、投稿する
+          作品を投稿する
         </Button>
-        <Button variant="line" block onClick={() => navigate("/order")}>
-          バッジを注文する
+        {/* 投稿した作品の状態（審査待ち・公開中）と取り下げは、自分の投稿で見る */}
+        <Button variant="line" block onClick={() => navigate("/archive/mine")}>
+          自分の投稿を見る
         </Button>
       </div>
     </main>

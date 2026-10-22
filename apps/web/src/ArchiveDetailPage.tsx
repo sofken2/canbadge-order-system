@@ -1,6 +1,7 @@
 import { badgeSpec } from "@canbadge/badge-spec";
-import { OutputPreview } from "@canbadge/editor";
+import { LazyBadgePreview3D } from "@canbadge/editor";
 import {
+  BackButton,
   Button,
   ConfirmDialog,
   Notice,
@@ -40,11 +41,11 @@ function ReportForm({ entryId }: { entryId: string }) {
   return (
     <>
       <Button variant="line" block onClick={() => setOpen(true)}>
-        この作品を、通報する
+        この作品を通報する
       </Button>
       <ConfirmDialog
         open={open}
-        title="この作品を、通報しますか？"
+        title="この作品を通報しますか？"
         confirmLabel="通報する"
         running={report.running}
         error={report.error ?? (touched ? problem : undefined)}
@@ -85,17 +86,7 @@ export function ArchiveDetailPage({ entryId }: { entryId: string }) {
 
   return (
     <main className="cb-page">
-      <p>
-        <a
-          href="/archive"
-          onClick={(event) => {
-            event.preventDefault();
-            navigate("/archive");
-          }}
-        >
-          ← みんなの作品に戻る
-        </a>
-      </p>
+      <BackButton className="cb-back--page" onClick={() => navigate("/archive")} />
 
       {notFound && (
         <>
@@ -109,7 +100,10 @@ export function ArchiveDetailPage({ entryId }: { entryId: string }) {
       {data && (
         <>
           <h1>{authorLine(data.displayName)}</h1>
-          <OutputPreview src={data.imageUrl} spec={badgeSpec} />
+          {/* 作品は、3D で回して見せる（読み込む間は、平面のプレビュー） */}
+          <div className="cb-arc-detail__badge">
+            <LazyBadgePreview3D src={data.imageUrl} spec={badgeSpec} />
+          </div>
 
           {data.isMine && (
             <Notice tone="info">

@@ -1,5 +1,10 @@
 import { Checkbox, TextField } from "@canbadge/ui";
-import { DISPLAY_NAME_MAX, type PostFormState } from "./archive-post-logic";
+import {
+  ALLOW_OTHERS_LABEL,
+  DISPLAY_NAME_MAX,
+  type PostFormState,
+  SELF_MADE_LABEL,
+} from "./archive-post-logic";
 
 /**
  * 投稿の入力（表示名・同意 2 項目）。「投稿だけ」の画面と、注文の確認画面（注文と同時に投稿）で、同じものを使う。
@@ -16,10 +21,9 @@ export function ArchivePostFields({
 }) {
   return (
     <fieldset className="cb-post" disabled={disabled}>
-      <legend className="cb-post__legend">みんなの作品として、公開する</legend>
+      <legend className="cb-post__legend">みんなの作品として公開する</legend>
       <p className="cb-muted">
-        公開すると、他のお客さんが、あなたの作品を見て、同じバッジを注文できます。公開されるのは、
-        スタッフが確認したあとです。投稿した、この端末から、いつでも取り下げられます。
+        公開すると、他のお客さんが、あなたの作品を見て、同じバッジを注文できます。公開されるのは、スタッフが確認したあとです。投稿した、この端末から、いつでも取り下げられます。
       </p>
       <TextField
         label="表示名（ニックネーム）"
@@ -30,12 +34,12 @@ export function ArchivePostFields({
         onChange={(event) => onChange({ ...value, displayName: event.target.value })}
       />
       <Checkbox
-        label="自分で作った（または使ってよい）作品です"
+        label={SELF_MADE_LABEL}
         checked={value.selfMade}
         onChange={(event) => onChange({ ...value, selfMade: event.target.checked })}
       />
       <Checkbox
-        label="他のお客さんが、この作品を、注文してもよいです"
+        label={ALLOW_OTHERS_LABEL}
         checked={value.allowOthersToOrder}
         onChange={(event) => onChange({ ...value, allowOthersToOrder: event.target.checked })}
       />

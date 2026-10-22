@@ -1,10 +1,12 @@
 import type { ArchiveStatus } from "@canbadge/shared";
 import { Button, Checkbox, Notice, navigate, useAction, useResource } from "@canbadge/ui";
 import { useRef, useState } from "react";
-import { AddonPicker, orderTotal, totalBreakdown } from "./AddonPicker";
+import { AddonPicker, orderTotal } from "./AddonPicker";
 import { api } from "./api";
 import { orderBlockedReason, orderErrorMessage } from "./archive-view-logic";
 import { DEV_TURNSTILE_TOKEN, turnstileSiteKey } from "./env";
+import { KiraPatternPicker } from "./KiraPatternPicker";
+import { type KiraPattern, saveKiraPattern } from "./kira-pattern";
 import { QuantityPicker } from "./QuantityPicker";
 import { TurnstileWidget } from "./TurnstileWidget";
 
@@ -23,6 +25,8 @@ export function ArchiveOrderPanel({
   const [quantity, setQuantity] = useState(1);
   const [kiraSelected, setKiraSelected] = useState(0);
   const [magnetSelected, setMagnetSelected] = useState(0);
+  // キラフィルムの柄。ふつうの注文と同じく選んでもらう（注文には、まだ記録できない。kira-pattern.ts）
+  const [kiraPattern, setKiraPattern] = useState<KiraPattern>("shards");
   // 個数や在庫の残りが減ったとき、加工の個数が、その数を超えないようにする
   const kiraQuantity = Math.min(kiraSelected, quantity, status.data?.kiraFilmRemaining ?? quantity);
   const magnetQuantity = Math.min(
@@ -51,6 +55,7 @@ export function ArchiveOrderPanel({
           rightsConsent: true,
         },
       });
+      if (kiraQuantity > 0) saveKiraPattern(orderId, kiraPattern);
       navigate(`/orders/${orderId}`);
     } catch (error) {
       // 失敗したら、確認をやり直す（使ったトークンは、もう使えない）
@@ -87,7 +92,7 @@ export function ArchiveOrderPanel({
 
   return (
     <section className="cb-arcorder" aria-label="この作品で注文する">
-      <h2>この作品で、注文する</h2>
+      <h2>この作品で注文する</h2>
       <p className="cb-muted">
         この作品は、このまま、バッジになります（デザインは、変えられません）。作者は、他のお客さんが注文することを、認めています。
       </p>
@@ -114,6 +119,7 @@ export function ArchiveOrderPanel({
             remaining={setting.kiraFilmRemaining}
             onChange={setKiraSelected}
           />
+          {kiraQuantity > 0 && <KiraPatternPicker value={kiraPattern} onChange={setKiraPattern} />}
           <AddonPicker
             name="マグネット加工"
             value={magnetQuantity}
@@ -126,15 +132,10 @@ export function ArchiveOrderPanel({
             <dt>金額</dt>
             <dd>
               <strong>{total}円</strong>
-              {(quantity > 1 || kiraQuantity > 0 || magnetQuantity > 0) && (
-                <span className="cb-muted">
-                  （{totalBreakdown(setting, quantity, kiraQuantity, magnetQuantity)}）
-                </span>
-              )}
             </dd>
           </dl>
           <Checkbox
-            label="公開されている、他のお客さんの作品を、バッジにすることを、了解しました"
+            label="公開されている他のお客さんの作品をバッジにすることを了解しました"
             checked={consent}
             onChange={(event) => setConsent(event.target.checked)}
           />
@@ -146,7 +147,7 @@ export function ArchiveOrderPanel({
             />
           )}
           <Button type="submit" size="large" block disabled={!canSubmit}>
-            {submit.running ? "注文しています…" : "この作品で、注文する"}
+            {submit.running ? "注文しています…" : "この作品で注文する"}
           </Button>
           <p className="cb-muted cb-center cb-gap-top">お金は、ブースのレジで現金で払います</p>
           {submit.error && <Notice tone="error">{submit.error}</Notice>}

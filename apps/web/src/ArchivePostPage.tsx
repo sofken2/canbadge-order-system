@@ -1,9 +1,10 @@
 import { badgeSpec } from "@canbadge/badge-spec";
 import { BadgeEditor, type BadgeEditorExport, clearDraft, OutputPreview } from "@canbadge/editor";
-import { Button, Notice, navigate, useAction } from "@canbadge/ui";
+import { BackButton, Button, Notice, navigate, useAction } from "@canbadge/ui";
 import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import "./archive.css";
+import "./tryon.css";
 import { ArchivePostFields } from "./ArchivePostFields";
 import {
   canPost,
@@ -46,7 +47,9 @@ export function ArchivePostPage() {
         body: { imageId, editorData: design.editorData, ...toPostRequest(form) },
       });
       await clearDraft(DRAFT_KEY);
-      navigate("/archive/mine?posted=1");
+      // 投稿のあとは、はじめの画面へ。受け付けたことは、そこで短く知らせる（?posted=1。HomePage）
+      navigate("/?posted=1");
+      window.scrollTo({ top: 0 });
     } finally {
       submitting.current = false;
     }
@@ -60,21 +63,24 @@ export function ArchivePostPage() {
 
   const problem = postFormProblem(form);
 
+  const backToDesign = () => {
+    submit.clearError();
+    setStep("design");
+    window.scrollTo({ top: 0 });
+  };
+
   return (
-    <main className="cb-page">
-      <h1>作品を、投稿する</h1>
+    // デザインの段は、PC で左にキャンバス、右に操作を並べる（tryon.css の .cb-editpage。注文画面と同じ並び）
+    <main className={step === "design" ? "cb-page cb-editpage" : "cb-page"}>
+      {/* 確認の段では、デザインの段へ戻る。デザインの段では、みんなの作品へ戻る */}
+      <BackButton
+        className="cb-back--page"
+        disabled={submit.running}
+        onClick={() => (step === "post" ? backToDesign() : navigate("/archive"))}
+      />
+      <h1>作品を投稿する</h1>
       <p className="cb-muted">
         注文はしません。作った作品を、みんなの作品として、見てもらうための投稿です。
-        <a
-          href="/archive/mine"
-          onClick={(event) => {
-            event.preventDefault();
-            navigate("/archive/mine");
-          }}
-        >
-          自分の投稿を見る
-        </a>
-        。
       </p>
 
       {/* 投稿の確認の間も、エディタは、つないだまま隠す（戻ったとき、デザインが消えないように） */}
@@ -107,14 +113,11 @@ export function ArchivePostPage() {
           <Button
             variant="line"
             block
+            className="cb-post__back"
             disabled={submit.running}
-            onClick={() => {
-              submit.clearError();
-              setStep("design");
-              window.scrollTo({ top: 0 });
-            }}
+            onClick={backToDesign}
           >
-            デザインに戻る
+            デザインを編集する
           </Button>
         </section>
       )}
