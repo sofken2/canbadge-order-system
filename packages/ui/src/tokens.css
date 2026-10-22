@@ -13,7 +13,13 @@
   --color-accent: oklch(64% 0.165 28);
   --color-accent-deep: oklch(56% 0.17 28);
   --color-accent-ink: oklch(20% 0.01 35);
+  /* 主ボタンの押下・ホバー。主ボタンの地（accent-deep）より一段濃く、白い文字のコントラストを保つ */
+  --color-accent-press: oklch(50% 0.17 28);
+  /* 主ボタン（accent-deep の地）の文字。#fff は使わず、紙の色に寄せた白 */
+  --color-on-accent: oklch(99% 0.004 50);
   --color-accent-tint: oklch(64% 0.165 28 / 0.12);
+  /* 確認ダイアログの後ろを暗くする幕。墨の色を半透明にする（純黒は使わない） */
+  --color-scrim: oklch(20% 0.02 50 / 0.55);
   --color-ok: oklch(52% 0.12 155);
   --color-danger: oklch(50% 0.19 28);
   --color-focus: oklch(64% 0.165 28);
@@ -44,6 +50,8 @@
   --radius-card: 8px;
   --radius-input: 6px;
   --radius-pill: 999px;
+  /* 画面に重ねて開く大きなモーダル（写真をはめてみる）。面が大きいので、カードより大きく丸める */
+  --radius-modal: 20px;
 
   --size-control: 3rem;
   --size-control-lg: 3.75rem;

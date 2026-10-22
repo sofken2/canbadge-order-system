@@ -10,19 +10,25 @@ export function ConfirmDialog({
   title,
   children,
   confirmLabel,
+  cancelLabel = "やめる",
   running = false,
   error,
   onConfirm,
   onCancel,
+  onDismiss = onCancel,
 }: {
   open: boolean;
   title: string;
   children: ReactNode;
   confirmLabel: string;
+  /** 取り消し側のボタンの文字。取り消しが「別の操作をする」になるときに変える */
+  cancelLabel?: string;
   running?: boolean;
   error?: string | undefined;
   onConfirm: () => void;
   onCancel: () => void;
+  /** Esc で閉じたとき。省略すると onCancel（取り消しのボタンが別の操作をするときは、ただ閉じるだけにする） */
+  onDismiss?: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
 
@@ -41,7 +47,9 @@ export function ConfirmDialog({
       // Esc で閉じたときも、呼ぶ側の状態を合わせる
       onCancel={(event) => {
         event.preventDefault();
-        if (!running) onCancel();
+        // 別のダイアログの中に置いたとき、外側まで閉じないように
+        event.stopPropagation();
+        if (!running) onDismiss();
       }}
     >
       <h2 id="cb-confirm-title">{title}</h2>
@@ -53,7 +61,7 @@ export function ConfirmDialog({
       )}
       <div className="cb-confirm__actions">
         <Button variant="line" size="large" onClick={onCancel} disabled={running}>
-          やめる
+          {cancelLabel}
         </Button>
         <Button size="large" onClick={onConfirm} disabled={running}>
           {confirmLabel}
