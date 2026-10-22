@@ -7,8 +7,10 @@
   margin: var(--space-lg) 0 var(--space-xs);
 }
 
+/* 列は minmax(0, 1fr)。auto だと、折り返さないボタンの幅に列が押し広げられ、スマホで横にはみ出す */
 .cb-settings__block {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-sm);
   margin-top: var(--space-md);
 }
@@ -29,24 +31,39 @@
   background: var(--color-card);
 }
 
+/* 受付の状態の表示も、ほかの値と同じ大きさにそろえる（StatusLabel の標準は、ラベルの大きさ） */
+.cb-settings__state .cb-status {
+  font-size: inherit;
+}
+
 /* ---- 設定の入力 ---- */
 
 .cb-settings__field {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
+  align-items: start;
   gap: var(--space-xs);
   margin-bottom: var(--space-md);
 }
 
+/*
+ * 単位（円・個・秒）は、入力欄の横の高さにそろえる。下の補足に合わせると、補足が 2 行のとき、入力欄から離れる。
+ * ラベルの 1 行ぶん（文字の大きさ × 行の高さ ＋ 下の余白）下げ、入力欄と同じ高さの中で、上下の真ん中に置く
+ */
 .cb-settings__suffix {
-  padding-bottom: var(--space-xs);
+  margin-top: calc(var(--text-sm) * 1.7 + var(--space-xs));
   color: var(--color-muted);
-  font: 700 var(--text-md) / 1 var(--font-body);
+  font: 700 var(--text-md) / var(--size-control) var(--font-body);
 }
 
-.cb-settings .cb-input[aria-invalid="true"] {
-  border-color: var(--color-accent-deep);
+/* 直してほしい欄。枠と、下の文（エラーの内容）を、エラーの色にする（「赤く示した欄」と案内している） */
+.cb-settings__field[data-invalid] .cb-input {
+  border-color: var(--color-danger);
+  border-width: 2px;
+}
+
+.cb-settings__field[data-invalid] .cb-field__hint {
+  color: var(--color-danger);
 }
 
 /* ---- 売上 ---- */

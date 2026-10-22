@@ -1,4 +1,9 @@
-import type { ArchiveStatus, ReportView, StaffArchiveEntryView } from "@canbadge/shared";
+import {
+  type ArchiveStatus,
+  archiveStatusLabels,
+  type ReportView,
+  type StaffArchiveEntryView,
+} from "@canbadge/shared";
 import { formatWait, minutesSince } from "./assemble-logic";
 
 // アーカイブの審査（S06）。画面の計算の部分。画面（ArchivePage）は、これを呼ぶだけにする。
@@ -57,13 +62,8 @@ export function reportHeadline(report: ReportView): string {
   return `「${report.entry.displayName}」さんの作品への通報`;
 }
 
-/** 作品の状態の、画面に出す名前（ラベルは、色だけに頼らず、文字で伝える） */
-export const statusText: Record<ArchiveStatus, string> = {
-  pending_review: "審査待ち",
-  public: "公開中",
-  rejected: "却下",
-  hidden: "非公開",
-};
+/** 作品の状態の、画面に出す名前。表記がずれないよう、契約（shared）の表示名をそのまま使う */
+export const statusText: Record<ArchiveStatus, string> = archiveStatusLabels;
 
 /** 未対応の通報の数の、タブに出す件数 */
 export function countOpenReports(reports: readonly ReportView[]): number {

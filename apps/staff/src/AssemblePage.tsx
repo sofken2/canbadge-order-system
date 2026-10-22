@@ -1,5 +1,5 @@
 import { QrScanner } from "@canbadge/scanner";
-import type { StaffOrderView } from "@canbadge/shared";
+import { orderStatusLabels, type StaffOrderView } from "@canbadge/shared";
 import {
   Button,
   isCompleteCode,
@@ -13,10 +13,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api";
 import "./assemble.css";
 import {
-  formatWait,
   groupOrders,
+  LONG_WAIT_LABEL,
   minutesSince,
   notPickableMessage,
+  readySinceLabel,
   urgencyOf,
 } from "./assemble-logic";
 import { parseRegisterInput } from "./register-logic";
@@ -75,14 +76,15 @@ function AssembleCard({ order, onChanged }: { order: StaffOrderView; onChanged: 
         )}
         {thumbnail && <img src={thumbnail} alt="" className="cb-asm__thumb" />}
       </div>
+      {/* カードが並ぶので、珊瑚の主ボタンにはしない（1 画面に 1 つまで）。始める前は輪郭だけにして、黒地の「完成にする」と見分ける */}
       <Button
         size="large"
         block
-        variant={assembling ? "primary" : "ink"}
+        variant={assembling ? "ink" : "line"}
         disabled={act.running}
         onClick={() => void act.run()}
       >
-        {assembling ? "完成" : "組み立て開始"}
+        {assembling ? "完成にする" : "組み立てを始める"}
       </Button>
       {act.error && <Notice tone="error">{act.error}</Notice>}
     </li>
@@ -155,7 +157,7 @@ function PickupPanel({
 
 /**
  * 組み立て・受け渡し。
- * 組み立て：印刷済みの注文を、順に「組み立て開始」→「完成」にする。
+ * 組み立て：印刷済みの注文を、順に「組み立てを始める」→「完成にする」と進める。
  * 受け渡し：QR か番号で注文を探し（できあがりの一覧からも選べる）、確認コードを照合して渡す。長く待っている注文は、目立たせる
  */
 export function AssemblePage() {
@@ -260,7 +262,11 @@ export function AssemblePage() {
           onClick={() => setTab("pickup")}
         >
           受け渡し <span className="cb-switch__count">{grouped.ready.length}</span>
-          {longWaiting > 0 && <span className="cb-switch__flag">待ち長い {longWaiting}</span>}
+          {longWaiting > 0 && (
+            <span className="cb-flag cb-switch__flag">
+              {LONG_WAIT_LABEL} {longWaiting} 件
+            </span>
+          )}
         </button>
       </div>
 
@@ -270,7 +276,7 @@ export function AssemblePage() {
       {tab === "assemble" && (
         <div role="tabpanel">
           {assembleCount === 0 && (
-            <p className="cb-muted">組み立てる注文は、ありません。印刷が済むと、ここに出ます。</p>
+            <p className="cb-muted">組み立てる注文はありません。印刷が済むと、ここに出ます。</p>
           )}
           {grouped.assembling.length > 0 && (
             <>
@@ -332,9 +338,11 @@ export function AssemblePage() {
               </Button>
             </form>
 
-            <h2 className="cb-gap-top">受け取り待ち（{grouped.ready.length}）</h2>
+            <h2 className="cb-gap-top">
+              {orderStatusLabels.ready}（{grouped.ready.length}）
+            </h2>
             {grouped.ready.length === 0 && (
-              <p className="cb-muted">受け取り待ちの注文は、ありません。</p>
+              <p className="cb-muted">{orderStatusLabels.ready}の注文はありません。</p>
             )}
             <ul className="cb-asm__ready">
               {grouped.ready.map((order) => {
@@ -350,9 +358,9 @@ export function AssemblePage() {
                     >
                       <span className="cb-asm__ready-number">{order.orderNumberText}</span>
                       <span className="cb-asm__ready-wait">
-                        {minutes === undefined ? "" : `できあがりから ${formatWait(minutes)}`}
-                        {urgency !== "normal" && <strong> ／ 長くお待ちです</strong>}
+                        {minutes === undefined ? "" : readySinceLabel(minutes)}
                       </span>
+                      {urgency !== "normal" && <span className="cb-flag">{LONG_WAIT_LABEL}</span>}
                     </button>
                   </li>
                 );
@@ -368,7 +376,7 @@ export function AssemblePage() {
                 setTarget(undefined);
                 setMessage({
                   tone: "info",
-                  text: `注文 ${done.orderNumberText} を、お渡ししました。`,
+                  text: `注文 ${done.orderNumberText} をお渡ししました。`,
                 });
                 orders.reload();
               }}

@@ -48,7 +48,7 @@ export function MonitorPage() {
       <section className="cb-monitor__called" aria-label="お呼び出し中の番号" aria-live="polite">
         <h1 className="cb-monitor__title">できあがりました</h1>
         {items.length === 0 ? (
-          <p className="cb-monitor__empty">いま、お呼び出し中の番号は、ありません</p>
+          <p className="cb-monitor__empty">いまお呼び出し中の番号はありません</p>
         ) : (
           <ul className="cb-monitor__grid" style={{ "--digits": digits } as React.CSSProperties}>
             {items.map((item) => (
@@ -65,7 +65,11 @@ export function MonitorPage() {
       </section>
 
       <aside className="cb-monitor__side">
-        <p className="cb-monitor__guide">番号を呼ばれた方は、受け取り口へ</p>
+        {/* 「方は、」だけが 1 行に残らないよう、意味の切れ目で 2 行に分ける */}
+        <p className="cb-monitor__guide">
+          <span>番号を呼ばれた方は</span>
+          <span>受け取り口へ</span>
+        </p>
         {siteUrl ? (
           <figure className="cb-monitor__qr">
             <QrCode value={siteUrl} label="缶バッジの注文サイトの QR コード" />

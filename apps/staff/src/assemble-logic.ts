@@ -2,7 +2,10 @@ import { type OrderStatus, orderStatusLabels, type StaffOrderView } from "@canba
 
 // 組み立て・受け渡し画面の、画面から切り離した判定と計算（テストできるように）。
 
-/** できあがりから、この分数をこえたら、「長くお待ちです」として目立たせる（暫定。Q01 で、現場に合わせて決める） */
+/** 待ちが長いものに付ける印の文字。組み立て・受け渡しとアーカイブの審査で、同じ言い方にそろえる */
+export const LONG_WAIT_LABEL = "待ちが長い";
+
+/** できあがりから、この分数をこえたら、「待ちが長い」として目立たせる（暫定。Q01 で、現場に合わせて決める） */
 export const LONG_WAIT_MINUTES = 10;
 /** さらに、この分数をこえたら、強く目立たせる */
 export const VERY_LONG_WAIT_MINUTES = 20;
@@ -29,6 +32,11 @@ export function formatWait(minutes: number): string {
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
   return rest === 0 ? `${hours} 時間` : `${hours} 時間 ${rest} 分`;
+}
+
+/** 受け取り可能になってからの時間。見出し（契約の「受け取り可能」）と同じ言葉で書く */
+export function readySinceLabel(minutes: number): string {
+  return `${orderStatusLabels.ready}になって ${formatWait(minutes)}`;
 }
 
 export type Grouped = {
@@ -66,6 +74,6 @@ export function notPickableMessage(status: OrderStatus, orderNumberText: string)
     case "assembling":
       return `注文 ${orderNumberText} は、まだできあがっていません（いまの状態：${label}）。もう少し、お待ちいただいてください。`;
     default:
-      return `注文 ${orderNumberText} は「${label}」のため、受け渡しできません。スタッフに、お声がけください。`;
+      return `注文 ${orderNumberText} は「${label}」のため、受け渡しできません。お客さんに状況を伝え、責任者に確認してください。`;
   }
 }

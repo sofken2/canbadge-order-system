@@ -4,6 +4,7 @@ import {
   type PrintSlotResult,
   type StaffOrderView,
 } from "@canbadge/shared";
+import { formatWait } from "./assemble-logic";
 
 // 印刷確認画面の、画面から切り離した判定と計算（テストできるように）。
 
@@ -147,9 +148,13 @@ export function secondsUntilPrint(
   return Math.max(0, Math.ceil((oldest + waitSeconds * 1000 - now) / 1000));
 }
 
-/** 「1 分 5 秒」のように読みやすく（秒の単位まで） */
+/**
+ * 「1 分 5 秒」のように読みやすく（秒の単位まで）。1 時間をこえたら、秒は捨てて「1 時間 5 分」
+ * （組み立て・受け渡しの待ち時間と同じ書き方。「1235 分 7 秒」のような大きな分の数を出さない）
+ */
 export function formatSeconds(totalSeconds: number): string {
   const seconds = Math.max(0, Math.floor(totalSeconds));
+  if (seconds >= 3600) return formatWait(Math.floor(seconds / 60));
   if (seconds < 60) return `${seconds} 秒`;
   const minutes = Math.floor(seconds / 60);
   const rest = seconds % 60;
@@ -189,7 +194,7 @@ export function queueState(input: {
   }
   if (badges === 0) {
     return {
-      headline: "印刷待ちは、ありません",
+      headline: "印刷待ちはありません",
       detail: input.printing
         ? "印刷中のシートの確認が済むと、次の印刷に進めます。"
         : "支払いが済んだ注文が、ここに出ます。",

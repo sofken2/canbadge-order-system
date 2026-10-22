@@ -14,7 +14,7 @@ const pages = [
   { path: "/assemble", label: "組み立て・受け渡し", element: <AssemblePage /> },
   { path: "/monitor", label: "呼び出しモニター", element: <MonitorPage /> },
   { path: "/archive", label: "アーカイブ審査", element: <ArchivePage /> },
-  { path: "/settings", label: "設定", element: <SettingsPage /> },
+  { path: "/settings", label: "設定・売上", element: <SettingsPage /> },
 ] as const;
 
 export function App() {

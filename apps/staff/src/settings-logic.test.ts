@@ -2,7 +2,9 @@ import { describe, expect, test } from "bun:test";
 import type { SalesResponse, Setting } from "@canbadge/shared";
 import {
   barRatio,
+  businessDateLabel,
   closeImpact,
+  FIELD_LABELS,
   formChanged,
   formFromSetting,
   hourlyRows,
@@ -35,6 +37,14 @@ describe("今日（日本時間）", () => {
   test("UTC の夜は、日本では翌日", () => {
     expect(todayJst(Date.parse("2026-11-03T14:59:59Z"))).toBe("2026-11-03");
     expect(todayJst(Date.parse("2026-11-03T15:00:00Z"))).toBe("2026-11-04");
+  });
+});
+
+describe("営業日の表示", () => {
+  test("「10月22日」のように、年を出さず、0 を詰めない。読めない文字は、そのまま", () => {
+    expect(businessDateLabel("2026-10-22")).toBe("10月22日");
+    expect(businessDateLabel("2026-11-03")).toBe("11月3日");
+    expect(businessDateLabel("あした")).toBe("あした");
   });
 });
 
@@ -80,6 +90,9 @@ describe("受付終了の影響", () => {
 
   test("支払い待ちがなければ、期限切れの話は出ない", () => {
     expect(closeImpact(0).lines.join("\n")).not.toContain("期限切れ");
+    // 案内するボタンの名前は、画面のボタンのラベルと同じにする
+    expect(closeImpact(0).lines.join("\n")).toContain("『受付を再開する』");
+    expect(closeImpact(0).lines.join("\n")).toContain("『営業を開始する』");
   });
 });
 
@@ -127,7 +140,8 @@ describe("設定の入力", () => {
     expect(parsed.ok).toBe(false);
     if (!parsed.ok) {
       expect(Object.keys(parsed.errors)).toEqual(["price"]);
-      expect(parsed.errors.price).toContain("価格");
+      // エラーの文は、入力欄のラベルと同じ名前で、どの欄かを示す
+      expect(parsed.errors.price).toContain(FIELD_LABELS.price);
     }
   });
 

@@ -239,6 +239,10 @@ describe("あと何秒で、印刷されるか", () => {
     expect(formatSeconds(5)).toBe("5 秒");
     expect(formatSeconds(60)).toBe("1 分");
     expect(formatSeconds(65)).toBe("1 分 5 秒");
+    expect(formatSeconds(3599)).toBe("59 分 59 秒");
+    // 1 時間をこえたら、秒は出さず、時間と分にする
+    expect(formatSeconds(3600)).toBe("1 時間");
+    expect(formatSeconds(1235 * 60 + 7)).toBe("20 時間 35 分");
     expect(waitedSeconds("2026-11-03T01:00:00.000Z", T0 + 75_000)).toBe(75);
     expect(waitedSeconds(undefined, T0)).toBeUndefined();
     expect(waitedSeconds("ふつうの文字", T0)).toBeUndefined();
@@ -271,7 +275,7 @@ describe("印刷待ちの説明", () => {
   test("止めているときは、再開を促す。何もないときは、その旨", () => {
     expect(queueState({ ...base, paused: true }).detail).toContain("印刷を再開する");
     expect(queueState({ ...base, paused: true }).needsAction).toBe(true);
-    expect(queueState({ ...base, badges: 0 }).headline).toBe("印刷待ちは、ありません");
+    expect(queueState({ ...base, badges: 0 }).headline).toBe("印刷待ちはありません");
     expect(queueState({ ...base, badges: 0, printing: true }).detail).toContain("確認が済むと");
   });
 

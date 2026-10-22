@@ -6,6 +6,7 @@ import {
   LONG_WAIT_MINUTES,
   minutesSince,
   notPickableMessage,
+  readySinceLabel,
   urgencyOf,
   VERY_LONG_WAIT_MINUTES,
 } from "./assemble-logic";
@@ -48,6 +49,8 @@ describe("長く待っているか", () => {
     expect(formatWait(59)).toBe("59 分");
     expect(formatWait(60)).toBe("1 時間");
     expect(formatWait(65)).toBe("1 時間 5 分");
+    // 見出しと同じ、契約の「受け取り可能」の言葉で書く
+    expect(readySinceLabel(12)).toBe("受け取り可能になって 12 分");
   });
 });
 

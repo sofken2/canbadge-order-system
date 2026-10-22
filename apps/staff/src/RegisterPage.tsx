@@ -45,11 +45,10 @@ export function RegisterPage() {
       await api.call("payOrder", { params: { orderId: target.id } });
     },
     commitOnLeave: (target) => {
-      // 画面を離れるときは、応答を待てない。keepalive で、送りきる
-      void fetch(api.url("payOrder", { params: { orderId: target.id } }), {
-        method: "POST",
-        keepalive: true,
-      });
+      // 画面を離れるときは、応答を待てない。keepalive で、送りきる（結果は使わないので、失敗も捨てる）
+      void api
+        .call("payOrder", { params: { orderId: target.id } }, { keepalive: true })
+        .catch(() => undefined);
     },
     onCommitted: (target, change) => {
       setMessage({
@@ -231,7 +230,7 @@ export function RegisterPage() {
         <h2 className="cb-gap-top">支払い待ち</h2>
         {waiting.error && <Notice tone="error">{waiting.error}</Notice>}
         {waiting.data && waiting.data.items.length === 0 && (
-          <p className="cb-muted">支払い待ちの注文は、ありません。</p>
+          <p className="cb-muted">支払い待ちの注文はありません。</p>
         )}
         <ul className="cb-register__waiting">
           {waiting.data?.items.map((item) => (

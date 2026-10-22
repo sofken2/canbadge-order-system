@@ -9,10 +9,12 @@ export function sortReady(items: readonly MonitorReadyItem[]): MonitorReadyItem[
   );
 }
 
-export type Density = "few" | "some" | "many" | "crowded";
+export type Density = "solo" | "few" | "some" | "many" | "crowded";
 
 /** 番号の数に応じた、並べ方の密度。少ないときは、番号を最大にし、増えたら、列を増やして、すべて見えるようにする */
 export function densityFor(count: number): Density {
+  // 2 つまでは 1 列にして、番号を画面の幅いっぱいまで大きくする（2 列だと、画面の下半分が空く）
+  if (count <= 2) return "solo";
   if (count <= 4) return "few";
   if (count <= 9) return "some";
   if (count <= 20) return "many";

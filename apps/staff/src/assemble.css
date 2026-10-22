@@ -13,8 +13,10 @@
   gap: var(--space-md);
 }
 
+/* 列は minmax(0, 1fr)。auto だと、折り返さないボタンの幅に列が押し広げられ、スマホで横にはみ出す */
 .cb-asm__card {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-md);
   padding: var(--space-md);
   border: 1px solid var(--color-rule-strong);
@@ -82,8 +84,14 @@
   cursor: pointer;
 }
 
-.cb-asm__ready-item:hover {
-  background: var(--color-paper-2);
+@media (hover: hover) {
+  .cb-asm__ready-item:hover {
+    background: var(--color-paper-2);
+  }
+}
+
+.cb-asm__ready-item:active {
+  background: var(--color-rule);
 }
 
 .cb-asm__ready-item:focus-visible {
@@ -96,21 +104,46 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* 長く待っている注文は、左の太い線と、地の色で目立たせる（文字でも「長くお待ちです」と出す） */
-.cb-asm__ready-item[data-urgency="long"] {
-  border-left-color: var(--color-accent);
-  background: var(--color-accent-tint);
+.cb-asm__ready-wait {
+  flex: 1;
+  min-width: 0;
+}
+
+/* スマホの幅では、番号と印を 1 行目、経過時間を 2 行目に。横に詰めると、経過時間が 3 行に割れる */
+@media (max-width: 30rem) {
+  .cb-asm__ready-item {
+    flex-wrap: wrap;
+    row-gap: var(--space-2xs);
+    padding-block: var(--space-sm);
+  }
+
+  .cb-asm__ready-item .cb-flag {
+    order: 1;
+    margin-left: auto;
+  }
+
+  .cb-asm__ready-wait {
+    order: 2;
+    flex-basis: 100%;
+  }
+}
+
+/*
+ * 待ちが長い注文は、左の線と「待ちが長い」の印（.cb-flag）で示す。アーカイブの審査と同じ見た目にそろえる。
+ * さらに長いときは、線を太くし、時間を太字にする（色を増やさず、太さで段階を付ける）
+ */
+.cb-asm__ready-item:is([data-urgency="long"], [data-urgency="very-long"]) {
+  border-left-color: var(--color-accent-deep);
 }
 
 .cb-asm__ready-item[data-urgency="very-long"] {
-  border-color: var(--color-accent-deep);
-  border-left-color: var(--color-accent-deep);
-  background: var(--color-accent-tint);
+  border-left-width: 8px;
   font-weight: 700;
 }
 
 .cb-asm__pickup {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-md);
 }
 

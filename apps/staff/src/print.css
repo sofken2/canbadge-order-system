@@ -23,19 +23,22 @@
   font-weight: 700;
 }
 
-/* 止めているときは、地の色と太い枠で目立たせる（色だけに頼らず、文でも伝える） */
+/*
+ * 止めているときは、太い墨の枠と、左の珊瑚の線で目立たせる（色だけに頼らず、文でも伝える）。
+ * 珊瑚は「いまここ」の印だけにして、面を塗らない（珊瑚は画面の 3〜5% まで。design.md）
+ */
 .cb-print__pause[data-paused] {
-  border-width: 3px;
-  border-color: var(--color-accent-deep);
-  background: var(--color-accent-tint);
+  border: 3px solid var(--color-ink);
+  border-left: 8px solid var(--color-accent-deep);
 }
 
 /* ---- 確認：用紙と同じ並びの、バッジのリスト ---- */
 
 .cb-print__sheet-head {
   display: flex;
-  justify-content: space-between;
-  gap: var(--space-sm);
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs) var(--space-sm);
   margin: 0 0 var(--space-xs);
   font-weight: 700;
 }
@@ -102,6 +105,11 @@
   color: var(--color-ink);
   font: 700 var(--text-base) / 1.2 var(--font-body);
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition:
+    background-color var(--dur-micro) var(--ease-out),
+    transform var(--dur-micro) var(--ease-out);
 }
 
 .cb-print__choice button[aria-pressed="true"] {
@@ -110,10 +118,25 @@
   color: var(--color-paper);
 }
 
+/* 珊瑚の濃い地には、白い文字（design.md。墨の文字ではコントラストが足りない） */
 .cb-print__slot[data-reprint] .cb-print__choice button[aria-pressed="true"] {
   border-color: var(--color-accent-deep);
   background: var(--color-accent-deep);
-  color: var(--color-accent-ink);
+  color: var(--color-on-accent);
+}
+
+@media (hover: hover) {
+  .cb-print__choice button[aria-pressed="false"]:hover {
+    background: var(--color-paper-2);
+  }
+}
+
+.cb-print__choice button:active {
+  transform: translateY(1px);
+}
+
+.cb-print__choice button[aria-pressed="false"]:active {
+  background: var(--color-rule);
 }
 
 .cb-print__choice button:focus-visible {
@@ -121,14 +144,10 @@
   outline-offset: 2px;
 }
 
-/* ---- バッジ・印刷ジョブ：選べる一覧 ---- */
+/* ---- バッジ・シート：選べる一覧 ---- */
 
 .cb-print__search {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  gap: var(--space-sm);
-  margin-bottom: var(--space-md);
+  margin-bottom: var(--space-lg);
 }
 
 .cb-print__list {
@@ -174,8 +193,18 @@
 
 .cb-print__meta {
   display: grid;
+  justify-items: start;
   gap: var(--space-2xs);
+  min-width: 0;
   font-size: var(--text-sm);
+}
+
+/* 時刻・回数などを並べる。区切りは「・」の文字ではなく間隔（狭い幅で「・」だけが行に残らないように） */
+.cb-print__facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--space-sm);
 }
 
 .cb-print__sheet-top {
@@ -261,6 +290,12 @@
   overflow-wrap: anywhere;
 }
 
+/* PDF へのリンク。右に寄せ、折り返さない（「PDF を / 開く」と 2 行に割れないように） */
+.cb-print__pdf {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
 /* PDF へのリンク。ブラウザ標準の青ではなく、本文の色で、下線で示す */
 .cb-print a {
   color: var(--color-ink);
@@ -286,11 +321,13 @@
   background: var(--color-card);
 }
 
-/* 印刷係が動く場面（シートの確認・再開）は、太い枠で目立たせる。色だけでなく、文でも伝える */
+/*
+ * 印刷係が動く場面（シートの確認・再開）は、太い墨の枠と、左の珊瑚の線で目立たせる。色だけでなく、文でも伝える。
+ * 面は塗らない（珊瑚は「いまここ」の印だけ。画面の 3〜5% まで。design.md）
+ */
 .cb-queue[data-action] {
-  border-width: 3px;
-  border-color: var(--color-accent-deep);
-  background: var(--color-accent-tint);
+  border: 3px solid var(--color-ink);
+  border-left: 8px solid var(--color-accent-deep);
 }
 
 .cb-queue__headline {
