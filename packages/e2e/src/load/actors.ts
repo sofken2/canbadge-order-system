@@ -270,7 +270,13 @@ export async function assembler(world: World): Promise<void> {
       await client.call("completeOrder", { params: { orderId: candidate.id } });
       if (record) mark(world, record, "ready");
     } catch (error) {
-      if (record) fail(record, error);
+      if (record?.reprinted) {
+        // 別の組み立て係が、この注文を再印刷に回したあと、古い一覧のまま取ってしまった。画面でも起こる競合なので、失敗には数えない。
+        // 印刷が終わって組み立て中に戻ったときに、また取れるよう、声かけは外す
+        claimed.delete(candidate.id);
+      } else if (record) {
+        fail(record, error);
+      }
     }
     world.busySeconds.assembler += clock.virtualNow() - started;
   }
