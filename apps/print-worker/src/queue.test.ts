@@ -3,15 +3,16 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  checkPrintSheet,
   createManualClock,
   createOrder,
   type Database,
+  getOrder,
   getOrderItem,
   getPrintSheet,
   listPrintSlots,
   openBusinessDay,
   openDatabase,
+  reprintItems,
   setPrintPaused,
   transitionOrder,
 } from "@canbadge/db";
@@ -97,13 +98,12 @@ describe("印刷キューの巡回", () => {
     const items = [paidItem(), paidItem(), paidItem()];
     const first = await runQueueOnce(db, options({ slots: 2 }));
     expect(first).toMatchObject({ status: "printed", orderNumbers: [1, 2] });
-    // 印刷中のシートがあるうちは、次を送らない（同時に印刷するのは 1 枚まで）
-    expect(await runQueueOnce(db, options({ slots: 2 }))).toEqual({ status: "busy" });
+    // 印刷が終わったバッジの注文は、自動で組み立て中になる。載らなかった分は、印刷待ちのまま
+    expect(getOrder(db.orm, items[0]?.orderId ?? "")?.status).toBe("assembling");
     expect(getOrderItem(db.orm, items[2]?.itemId ?? "")?.status).toBe("queued");
+    // 1 個だけでは、用紙が埋まらず、待ち時間にも達していない
+    expect(await runQueueOnce(db, options({ slots: 2 }))).toEqual({ status: "waiting" });
 
-    // 印刷係が確認したら、次のシートに進む
-    const sheetId = first.status === "printed" ? first.sheetId : "";
-    checkPrintSheet(db, { sheetId, reprintOrderItemIds: [], actor: "staff" });
     clock.advance(121_000);
     const second = await runQueueOnce(db, options({ slots: 2 }));
     expect(second).toMatchObject({ status: "printed", orderNumbers: [3] });
@@ -139,18 +139,19 @@ describe("印刷キューの巡回", () => {
         .subarray(0, 5)
         .toString(),
     ).toBe("%PDF-");
+    // ドライバーが成功したので、印刷の確認なしで、OK になっている
     expect(listPrintSlots(db.orm, result.sheetId).map((s) => [s.position, s.result])).toEqual([
-      [0, "pending"],
-      [1, "pending"],
+      [0, "ok"],
+      [1, "ok"],
     ]);
   });
 
   test("再印刷のバッジが先に載る", async () => {
     const a = paidItem();
     const b = paidItem();
-    const first = await runQueueOnce(db, options({ slots: 2 }));
-    const sheetId = first.status === "printed" ? first.sheetId : "";
-    checkPrintSheet(db, { sheetId, reprintOrderItemIds: [b.itemId], actor: "staff" });
+    await runQueueOnce(db, options({ slots: 2 }));
+    // 組み立てで、b の印刷が不良だと分かって、履歴から再印刷する
+    reprintItems(db, { orderItemIds: [b.itemId], actor: "staff" });
     expect(getOrderItem(db.orm, a.itemId)?.status).toBe("printed");
 
     const c = paidItem();
@@ -183,7 +184,7 @@ describe("印刷キューの巡回", () => {
     );
   });
 
-  test("ドライバーが失敗しても、シートは記録済みで残る（印刷係が確認で再印刷を選べる）", async () => {
+  test("ドライバーが失敗したら、バッジは印刷待ちに戻り、シートは失敗になり、印刷は一時停止になる", async () => {
     const a = paidItem();
     const broken: PrintDriver = {
       name: "broken",
@@ -196,9 +197,9 @@ describe("印刷キューの巡回", () => {
       status: "driver-failed",
       error: "プリンターがつながっていません",
     });
-    expect(getOrderItem(db.orm, a.itemId)?.status).toBe("printing");
-    // 確認待ちのシートがあるので、次の巡回は印刷しない（二重に印刷しない）
-    expect(await runQueueOnce(db, options({ slots: 1 }))).toEqual({ status: "busy" });
+    expect(getOrderItem(db.orm, a.itemId)?.status).toBe("queued");
+    // 一時停止になるので、次の巡回は印刷しない（失敗し続けない）
+    expect(await runQueueOnce(db, options({ slots: 1 }))).toEqual({ status: "paused" });
   });
 
   test("シートを作れなかったときは、PDF を残さず failed を返す", async () => {

@@ -68,7 +68,7 @@ describe("受け取り額のボタン", () => {
 
 describe("支払いを受けられない注文の説明", () => {
   test("支払い済み以降は『すでに支払い済み』と、いまの状態を伝える", () => {
-    for (const status of ["paid", "printed", "assembling", "ready", "picked_up"] as const) {
+    for (const status of ["paid", "assembling", "ready", "picked_up"] as const) {
       const message = notPayableMessage(status, "017");
       expect(message).toContain("017");
       expect(message).toContain("すでに支払い済み");

@@ -2,14 +2,17 @@ import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { badgeSpec, slotsPerSheet } from "@canbadge/badge-spec";
 import {
+  completePrintSheet,
   createPrintSheet,
   type Database,
+  failPrintSheet,
   getCurrentPrintSheet,
   getSetting,
   listPrintableItems,
   newId,
   type PrintableItem,
   recordPrintSkip,
+  setPrintPaused,
   sheetsDir,
 } from "@canbadge/db";
 import { formatOrderNumber } from "@canbadge/shared";
@@ -20,9 +23,11 @@ import { checkBadgeImage, renderSheetPdf } from "./sheet-pdf";
 // 印刷キュー（P02）。印刷待ちのバッジを、用紙 1 枚ごとにまとめ、PDF を作って、ドライバーで印刷する。
 //
 // 守っていること：
-// - 同時に印刷中にできるのは 1 枚（印刷係の確認が済むまで、次を送らない）。db も、同じことを保証する
+// - 同時に印刷中にできるのは 1 枚（いまのシートの印刷が終わるまで、次を送らない）。db も、同じことを保証する
 // - シートとバッジの状態を、印刷する**前に** DB に記録する。途中で落ちても、二重には印刷されない
-//   （印刷中のまま、確認待ちとして残る。再起動したあと、自動で印刷し直すことは、しない）
+//   （印刷中のまま残り、起動時に印刷済みとして扱う。自動で印刷し直すことは、しない）
+// - 印刷の確認の操作はない。ドライバーが成功したら、すぐ印刷済みにして、注文を組み立て中に進める
+//   （足りなければ、履歴からバッジごとに再印刷する）。ドライバーが失敗したら、バッジを印刷待ちに戻して、印刷を一時停止する
 // - 再印刷のバッジが先、次に待った順（listPrintableItems の並び）
 // - 画像が読めないなど、載せられないバッジは、外して、ほかのバッジの印刷を止めない
 
@@ -47,7 +52,7 @@ type TickBase =
   | { status: "printed"; sheetId: string; orderNumbers: number[] }
   /** 設定で印刷を一時停止している */
   | { status: "paused" }
-  /** 印刷中のシートが、印刷係の確認を待っている（同時に印刷するのは 1 枚まで） */
+  /** 別のシートが印刷中（同時に印刷するのは 1 枚まで） */
   | { status: "busy" }
   /** 印刷できるバッジがない */
   | { status: "empty" }
@@ -55,7 +60,7 @@ type TickBase =
   | { status: "waiting" }
   /** シートを記録できなかった（記録されていないので、次の巡回でやり直す） */
   | { status: "failed"; error: string }
-  /** シートは記録済みだが、ドライバーが印刷に失敗した。印刷係が、シートの確認で再印刷を選べる */
+  /** ドライバーが印刷に失敗した。バッジは印刷待ちに戻り、印刷は一時停止になる（直したら、スタッフ画面で再開する） */
   | { status: "driver-failed"; sheetId: string; error: string };
 
 /** 巡回の結果。載せられなくて外したバッジがあれば、skipped に入る */
@@ -229,11 +234,19 @@ export async function runQueueOnce(db: Database, options: QueueOptions): Promise
   try {
     await options.driver.print({ sheetId, pdfPath });
   } catch (error) {
+    // 印刷のジョブを送れなかった。バッジを印刷待ちに戻し、印刷を一時停止する
+    // （止めないと、プリンターが直るまで、巡回のたびに、同じシートを作って、失敗し続ける）。
+    // 直したら、スタッフ画面で再開する
+    failPrintSheet(db, { sheetId, detail: { error: errorText(error) } });
+    setPrintPaused(db, { paused: true, actor: "system" });
     options.log?.(
-      `印刷に失敗しました（シート ${sheetId}）: ${errorText(error)}。印刷係が、スタッフ画面の「印刷確認」で、再印刷を選べます`,
+      `印刷に失敗しました（シート ${sheetId}）: ${errorText(error)}。バッジは印刷待ちに戻し、印刷を一時停止しました。プリンターを確かめて、スタッフ画面で印刷を再開してください`,
     );
     return withSkipped({ status: "driver-failed", sheetId, error: errorText(error) });
   }
+  // 印刷のジョブを送れた。印刷の確認はしない（足りなければ、履歴からバッジごとに再印刷する）。
+  // 注文の全バッジが印刷済みになれば、注文は、自動で組み立て中になる
+  completePrintSheet(db, { sheetId });
   return withSkipped({
     status: "printed",
     sheetId,

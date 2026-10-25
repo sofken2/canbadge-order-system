@@ -2,7 +2,7 @@ import { join } from "node:path";
 import { databasePath, openDatabase, resolveDataDir } from "@canbadge/db";
 import { createDriver } from "./driver";
 import { startQueueLoop } from "./queue";
-import { describeStartup } from "./recovery";
+import { recoverOnStartup } from "./recovery";
 
 const dataDir = resolveDataDir();
 // api と同じ DB を使う。DB がなければ、空の DB を作る
@@ -17,7 +17,7 @@ const waitOverride = process.env.PRINT_WAIT_OVERRIDE_SECONDS;
 const intervalMs = Number(process.env.PRINT_POLL_MS ?? 2000);
 
 // 前の起動で印刷中だったシートがあれば、知らせる（自動では、印刷し直さない）
-for (const message of describeStartup(db, dataDir)) console.log(`print-worker: ${message}`);
+for (const message of recoverOnStartup(db)) console.log(`print-worker: ${message}`);
 
 const loop = startQueueLoop(
   db,

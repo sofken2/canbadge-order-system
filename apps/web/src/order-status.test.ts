@@ -12,10 +12,9 @@ import {
 const order = { totalAmount: 300, confirmationCode: "K7QH" };
 
 describe("進み具合", () => {
-  test("注文の流れに沿って、段階が進む。印刷済みと組み立て中は、同じ段階（組み立て）", () => {
+  test("注文の流れに沿って、段階が進む。印刷が終わると、自動で組み立て中になる（段階 3）", () => {
     expect(progressIndex("submitted")).toBe(1);
     expect(progressIndex("paid")).toBe(2);
-    expect(progressIndex("printed")).toBe(3);
     expect(progressIndex("assembling")).toBe(3);
     expect(progressIndex("ready")).toBe(4);
   });
@@ -71,7 +70,7 @@ describe("案内の文", () => {
 
 describe("QR を出す状態", () => {
   test("対応が続いている間だけ出す。済んだ・止まった注文には出さない", () => {
-    for (const status of ["submitted", "paid", "printed", "assembling", "ready"] as const) {
+    for (const status of ["submitted", "paid", "assembling", "ready"] as const) {
       expect(showsQr(status)).toBe(true);
     }
     for (const status of ["picked_up", "expired", "cancelled", "refunded"] as const) {

@@ -100,22 +100,30 @@ describe("注文の遷移の規則", () => {
   });
 
   test("返金は、支払い後のどの状態からでもできる（受け渡し済みを含む）", () => {
-    for (const from of ["paid", "printed", "assembling", "ready", "picked_up"]) {
+    for (const from of ["paid", "assembling", "ready", "picked_up"]) {
       expect(find(from, "refunded")?.actors).toEqual(["staff"]);
     }
     expect(find("submitted", "refunded")).toBeUndefined();
   });
 
   test("再印刷は、受け渡し前の状態だけを印刷待ちに戻す", () => {
-    for (const from of ["printed", "assembling", "ready"]) {
+    for (const from of ["assembling", "ready"]) {
       expect(find(from, "paid")).toBeDefined();
     }
     expect(find("picked_up", "paid")).toBeUndefined();
   });
 
-  test("支払いはスタッフだけ、印刷済みへの自動遷移は system だけ", () => {
+  test("支払いはスタッフだけ。印刷が終わったあとの、組み立て中への自動遷移は system だけ（組み立て開始の操作は、ない）", () => {
     expect(find("submitted", "paid")?.actors).toEqual(["staff"]);
-    expect(find("paid", "printed")?.actors).toEqual(["system"]);
+    expect(find("paid", "assembling")?.actors).toEqual(["system"]);
+    expect(orderTransitions.some((row) => (row.to as string) === "printed")).toBe(false);
+  });
+
+  test("明細の印刷の完了・失敗と、シートの確認済み・失敗は、system だけ（印刷の確認の操作は、ない）", () => {
+    for (const row of [...orderItemTransitions, ...printSheetTransitions]) {
+      if (row.from === "printed") continue; // 履歴からの再印刷は、スタッフ
+      expect(row.actors).toEqual(["system"]);
+    }
   });
 
   test("来場者が取り消せるのは、支払い前だけ", () => {

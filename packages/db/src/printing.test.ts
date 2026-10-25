@@ -5,7 +5,12 @@ import { transitionOrderItem } from "./items";
 import { transitionOrder } from "./orders";
 import { getOrder, getOrderItem, getPrintSheet, listOrderItems, listPrintSlots } from "./queries";
 import { reprintItems } from "./reprint";
-import { checkPrintSheet, createPrintSheet, transitionPrintSheet } from "./sheets";
+import {
+  completePrintSheet,
+  createPrintSheet,
+  failPrintSheet,
+  transitionPrintSheet,
+} from "./sheets";
 import { paidOrder, placeOrder, setup } from "./test-helpers";
 
 function codeOf(fn: () => unknown): string | undefined {
@@ -81,7 +86,7 @@ describe("印刷シートの作成", () => {
     expect(getOrderItem(db.orm, a.itemId)?.status).toBe("queued");
   });
 
-  test("印刷中のシートがあるうちは、次のシートを作れない（確認が済むまで、次を送らない）", () => {
+  test("印刷中のシートがあるうちは、次のシートを作れない（いまのシートが終わるまで、次を送らない）", () => {
     const { db } = setup();
     const a = readyToPrint(db);
     const b = readyToPrint(db);
@@ -92,8 +97,8 @@ describe("印刷シートの作成", () => {
     // 断られたバッジは、そのまま印刷待ち
     expect(getOrderItem(db.orm, b.itemId)?.status).toBe("queued");
 
-    // 確認が済めば、次を作れる
-    checkPrintSheet(db, { sheetId: first.sheet.id, reprintOrderItemIds: [], actor: "staff" });
+    // 印刷が終われば、次を作れる
+    completePrintSheet(db, { sheetId: first.sheet.id });
     expect(() =>
       createPrintSheet(db, { pdfPath: "sheets/2.pdf", orderItemIds: [b.itemId] }),
     ).not.toThrow();
@@ -142,8 +147,8 @@ describe("印刷シートの作成", () => {
   });
 });
 
-describe("印刷の確認", () => {
-  test("すべて OK なら、バッジは印刷済み、注文は自動で印刷済みになり、シートは確認済みになる", () => {
+describe("印刷の完了と失敗", () => {
+  test("完了すると、バッジは印刷済み、注文は自動で組み立て中になり、シートは確認済みになる", () => {
     const { db, clock } = setup();
     const a = readyToPrint(db);
     const b = readyToPrint(db);
@@ -153,31 +158,41 @@ describe("印刷の確認", () => {
     });
 
     clock.advance(30_000);
-    const checked = checkPrintSheet(db, {
-      sheetId: sheet.id,
-      reprintOrderItemIds: [],
-      actor: "staff",
-    });
-    expect(checked.sheet).toMatchObject({
+    const done = completePrintSheet(db, { sheetId: sheet.id });
+    expect(done.sheet).toMatchObject({
       status: "confirmed",
       checkedAt: "2026-11-03T00:00:30.000Z",
     });
-    expect(checked.slots.map((s) => s.result)).toEqual(["ok", "ok"]);
+    expect(done.slots.map((s) => s.result)).toEqual(["ok", "ok"]);
     for (const { orderId, itemId } of [a, b]) {
       expect(getOrderItem(db.orm, itemId)?.status).toBe("printed");
-      expect(getOrder(db.orm, orderId)?.status).toBe("printed");
+      expect(getOrder(db.orm, orderId)?.status).toBe("assembling");
     }
     // 自動の遷移は system の操作として記録される
     const autoLogs = listAuditLogsSince(db, 0).filter(
       (e) =>
         e.log.action === "order.transition" &&
         e.log.actor === "system" &&
-        e.log.detail?.to === "printed",
+        e.log.detail?.to === "assembling",
     );
     expect(autoLogs).toHaveLength(2);
   });
 
-  test("一部だけ再印刷：そのバッジは印刷待ちに戻り、注文は支払い済みのまま。次のシートで印刷済みになる", () => {
+  test("注文の全バッジが印刷済みになるまで、注文は印刷待ちのまま（複数の明細の注文）", () => {
+    const { db } = setup();
+    const a = readyToPrint(db);
+    const { sheet } = createPrintSheet(db, { pdfPath: "sheets/s1.pdf", orderItemIds: [a.itemId] });
+    // 同じ注文に、まだ印刷していない明細があれば、注文は進まない
+    db.sqlite
+      .query(
+        "INSERT INTO order_items (id, order_id, design_id, quantity, kira_quantity, magnet_quantity, status, print_count) SELECT '01HZX3V5Q8N4M6T2B9C7D1E0FB', order_id, design_id, 1, 0, 0, 'queued', 0 FROM order_items WHERE id = ?",
+      )
+      .run(a.itemId);
+    completePrintSheet(db, { sheetId: sheet.id });
+    expect(getOrder(db.orm, a.orderId)?.status).toBe("paid");
+  });
+
+  test("失敗すると、バッジは印刷待ちに戻り（印刷回数は残る）、シートは失敗になる。次のシートで印刷できる", () => {
     const { db } = setup();
     const a = readyToPrint(db);
     const b = readyToPrint(db);
@@ -185,103 +200,67 @@ describe("印刷の確認", () => {
       pdfPath: "sheets/s1.pdf",
       orderItemIds: [a.itemId, b.itemId],
     });
+    const failed = failPrintSheet(db, { sheetId: first.sheet.id });
+    expect(failed.sheet.status).toBe("failed");
+    expect(failed.slots.map((s) => s.result)).toEqual(["reprint", "reprint"]);
+    expect(getOrderItem(db.orm, a.itemId)).toMatchObject({ status: "queued", printCount: 1 });
+    expect(getOrder(db.orm, a.orderId)?.status).toBe("paid");
 
-    const checked = checkPrintSheet(db, {
-      sheetId: first.sheet.id,
-      reprintOrderItemIds: [b.itemId],
-      actor: "staff",
+    // 印刷中のシートはなくなったので、次のシートを作れる。履歴（最初のシート）は残る
+    const second = createPrintSheet(db, {
+      pdfPath: "sheets/s2.pdf",
+      orderItemIds: [a.itemId, b.itemId],
     });
-    expect(checked.sheet.status).toBe("confirmed");
-    expect(checked.slots.map((s) => s.result)).toEqual(["ok", "reprint"]);
-    expect(getOrder(db.orm, a.orderId)?.status).toBe("printed");
-    expect(getOrder(db.orm, b.orderId)?.status).toBe("paid");
-    expect(getOrderItem(db.orm, b.itemId)).toMatchObject({ status: "queued", printCount: 1 });
-
-    // 次のシートに載せ直し、確認すると、注文が印刷済みに進む。履歴（最初のシート）は残る
-    const second = createPrintSheet(db, { pdfPath: "sheets/s2.pdf", orderItemIds: [b.itemId] });
-    expect(getOrderItem(db.orm, b.itemId)?.printCount).toBe(2);
-    checkPrintSheet(db, { sheetId: second.sheet.id, reprintOrderItemIds: [], actor: "staff" });
-    expect(getOrder(db.orm, b.orderId)?.status).toBe("printed");
+    expect(getOrderItem(db.orm, a.itemId)?.printCount).toBe(2);
+    completePrintSheet(db, { sheetId: second.sheet.id });
+    expect(getOrder(db.orm, a.orderId)?.status).toBe("assembling");
     expect(listPrintSlots(db.orm, first.sheet.id)).toHaveLength(2);
   });
 
-  test("全部を再印刷に回したときだけ、シートは失敗になる", () => {
-    const { db } = setup();
-    const a = readyToPrint(db);
-    const b = readyToPrint(db);
-    const { sheet } = createPrintSheet(db, {
-      pdfPath: "sheets/s1.pdf",
-      orderItemIds: [a.itemId, b.itemId],
-    });
-    const checked = checkPrintSheet(db, {
-      sheetId: sheet.id,
-      reprintOrderItemIds: [a.itemId, b.itemId],
-      actor: "staff",
-    });
-    expect(checked.sheet.status).toBe("failed");
-    expect(listOrderItems(db.orm, a.orderId)[0]?.status).toBe("queued");
-  });
-
-  test("シートに載っていないバッジを指定すると、何も変えずに断る", () => {
-    const { db } = setup();
-    const a = readyToPrint(db);
-    const other = readyToPrint(db);
-    const { sheet } = createPrintSheet(db, { pdfPath: "sheets/s1.pdf", orderItemIds: [a.itemId] });
-    expect(
-      codeOf(() =>
-        checkPrintSheet(db, {
-          sheetId: sheet.id,
-          reprintOrderItemIds: [other.itemId],
-          actor: "staff",
-        }),
-      ),
-    ).toBe("VALIDATION_FAILED");
-    expect(getPrintSheet(db.orm, sheet.id)?.status).toBe("printing");
-    expect(getOrderItem(db.orm, a.itemId)?.status).toBe("printing");
-  });
-
-  test("確認済みのシートは、もう一度確認できない", () => {
+  test("完了・失敗済みのシートは、もう一度は完了も失敗もできない", () => {
     const { db } = setup();
     const a = readyToPrint(db);
     const { sheet } = createPrintSheet(db, { pdfPath: "sheets/s1.pdf", orderItemIds: [a.itemId] });
-    checkPrintSheet(db, { sheetId: sheet.id, reprintOrderItemIds: [], actor: "staff" });
-    expect(
-      codeOf(() =>
-        checkPrintSheet(db, { sheetId: sheet.id, reprintOrderItemIds: [], actor: "staff" }),
-      ),
-    ).toBe("INVALID_TRANSITION");
+    completePrintSheet(db, { sheetId: sheet.id });
+    expect(codeOf(() => completePrintSheet(db, { sheetId: sheet.id }))).toBe("INVALID_TRANSITION");
+    expect(codeOf(() => failPrintSheet(db, { sheetId: sheet.id }))).toBe("INVALID_TRANSITION");
   });
 
-  test("シートの失敗は、印刷中のシートだけに、スタッフができる", () => {
+  test("シートの状態は、system だけが変えられる（スタッフ・来場者は、できない）", () => {
     const { db } = setup();
     const a = readyToPrint(db);
     const { sheet } = createPrintSheet(db, { pdfPath: "sheets/s1.pdf", orderItemIds: [a.itemId] });
+    for (const actor of ["visitor", "staff"] as const) {
+      expect(
+        codeOf(() => transitionPrintSheet(db, { sheetId: sheet.id, to: "failed", actor })),
+      ).toBe("INVALID_TRANSITION");
+    }
     expect(
-      codeOf(() => transitionPrintSheet(db, { sheetId: sheet.id, to: "failed", actor: "visitor" })),
-    ).toBe("INVALID_TRANSITION");
-    expect(
-      transitionPrintSheet(db, { sheetId: sheet.id, to: "failed", actor: "staff" }).status,
+      transitionPrintSheet(db, { sheetId: sheet.id, to: "failed", actor: "system" }).status,
     ).toBe("failed");
   });
 
-  test("明細の遷移も、表にないものは断る（印刷待ちから印刷済みへ）", () => {
+  test("明細の遷移も、表にないものは断る（印刷待ちから印刷済みへ。スタッフが印刷済みにすることも）", () => {
     const { db } = setup();
     const a = readyToPrint(db);
+    expect(
+      codeOf(() => transitionOrderItem(db, { itemId: a.itemId, to: "printed", actor: "system" })),
+    ).toBe("INVALID_TRANSITION");
+    createPrintSheet(db, { pdfPath: "sheets/s1.pdf", orderItemIds: [a.itemId] });
     expect(
       codeOf(() => transitionOrderItem(db, { itemId: a.itemId, to: "printed", actor: "staff" })),
     ).toBe("INVALID_TRANSITION");
   });
 });
 
-/** 支払い済み → 印刷 → 確認 → 組み立て → 完成まで進める */
+/** 支払い済み → 印刷（完了で、自動で組み立て中）→ 完成まで進める */
 function readyOrder(db: ReturnType<typeof setup>["db"]) {
   const target = readyToPrint(db);
   const { sheet } = createPrintSheet(db, {
     pdfPath: "sheets/s.pdf",
     orderItemIds: [target.itemId],
   });
-  checkPrintSheet(db, { sheetId: sheet.id, reprintOrderItemIds: [], actor: "staff" });
-  transitionOrder(db, { orderId: target.orderId, to: "assembling", actor: "staff" });
+  completePrintSheet(db, { sheetId: sheet.id });
   transitionOrder(db, { orderId: target.orderId, to: "ready", actor: "staff" });
   return target;
 }
@@ -299,26 +278,25 @@ describe("履歴からの再印刷", () => {
     expect(order?.status).toBe("paid");
     expect(order?.readyAt).toBeUndefined();
 
-    // 次のシートで印刷・確認すると、注文は印刷済みに戻る
+    // 次のシートで印刷が終わると、注文は組み立て中に戻る
     const { sheet } = createPrintSheet(db, { pdfPath: "sheets/again.pdf", orderItemIds: [itemId] });
-    checkPrintSheet(db, { sheetId: sheet.id, reprintOrderItemIds: [], actor: "staff" });
-    expect(getOrder(db.orm, orderId)?.status).toBe("printed");
+    completePrintSheet(db, { sheetId: sheet.id });
+    expect(getOrder(db.orm, orderId)?.status).toBe("assembling");
     expect(getOrderItem(db.orm, itemId)?.printCount).toBe(2);
   });
 
-  test("組み立て中・印刷済みの注文からも、印刷待ちに戻せる", () => {
+  test("組み立て中の注文からも、印刷待ちに戻せる", () => {
     const { db } = setup();
     const a = readyToPrint(db);
     const sheet = createPrintSheet(db, { pdfPath: "sheets/s.pdf", orderItemIds: [a.itemId] });
-    checkPrintSheet(db, { sheetId: sheet.sheet.id, reprintOrderItemIds: [], actor: "staff" });
-    expect(getOrder(db.orm, a.orderId)?.status).toBe("printed");
+    completePrintSheet(db, { sheetId: sheet.sheet.id });
+    expect(getOrder(db.orm, a.orderId)?.status).toBe("assembling");
     reprintItems(db, { orderItemIds: [a.itemId], actor: "staff" });
     expect(getOrder(db.orm, a.orderId)?.status).toBe("paid");
 
     const b = readyToPrint(db);
     const sheetB = createPrintSheet(db, { pdfPath: "sheets/b.pdf", orderItemIds: [b.itemId] });
-    checkPrintSheet(db, { sheetId: sheetB.sheet.id, reprintOrderItemIds: [], actor: "staff" });
-    transitionOrder(db, { orderId: b.orderId, to: "assembling", actor: "staff" });
+    completePrintSheet(db, { sheetId: sheetB.sheet.id });
     reprintItems(db, { orderItemIds: [b.itemId], actor: "staff" });
     expect(getOrder(db.orm, b.orderId)?.status).toBe("paid");
   });
@@ -332,7 +310,7 @@ describe("履歴からの再印刷", () => {
     });
   });
 
-  test("印刷中のバッジは、履歴からは断る（印刷の確認で選ぶ）", () => {
+  test("印刷中のバッジは、履歴からは断る（印刷が終わってから）", () => {
     const { db } = setup();
     const { itemId } = readyToPrint(db);
     createPrintSheet(db, { pdfPath: "sheets/s.pdf", orderItemIds: [itemId] });

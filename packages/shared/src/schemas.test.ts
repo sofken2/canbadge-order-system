@@ -4,7 +4,6 @@ import {
   archiveEntrySchema,
   archiveEntryViewSchema,
   auditLogSchema,
-  checkPrintSheetRequestSchema,
   createArchiveEntryRequestSchema,
   createOrderRequestSchema,
   designSchema,
@@ -154,9 +153,9 @@ describe("エンティティ", () => {
       action: "transition",
       targetType: "order",
       targetId: B,
-      detail: { from: "paid", to: "printed" },
+      detail: { from: "paid", to: "assembling" },
     });
-    expect(log.detail).toEqual({ from: "paid", to: "printed" });
+    expect(log.detail).toEqual({ from: "paid", to: "assembling" });
   });
 });
 
@@ -223,10 +222,10 @@ describe("API の入出力", () => {
   });
 
   test("注文の検索は、カンマ区切りの状態を配列にし、件数の既定は 30", () => {
-    const parsed = staffOrderSearchQuerySchema.parse({ status: "printed,assembling,ready" });
-    expect(parsed.status).toEqual(["printed", "assembling", "ready"]);
+    const parsed = staffOrderSearchQuerySchema.parse({ status: "paid,assembling,ready" });
+    expect(parsed.status).toEqual(["paid", "assembling", "ready"]);
     expect(parsed.limit).toBe(30);
-    expect(staffOrderSearchQuerySchema.safeParse({ status: "printed,nope" }).success).toBe(false);
+    expect(staffOrderSearchQuerySchema.safeParse({ status: "paid,nope" }).success).toBe(false);
     expect(staffOrderSearchQuerySchema.safeParse({ limit: "500" }).success).toBe(false);
   });
 
@@ -234,8 +233,7 @@ describe("API の入出力", () => {
     expect(pickupRequestSchema.parse({ confirmationCode: "k7qh" }).confirmationCode).toBe("K7QH");
   });
 
-  test("印刷の確認は、再印刷の指定が空でもよい。再印刷は 1 個以上", () => {
-    expect(checkPrintSheetRequestSchema.parse({}).reprintOrderItemIds).toEqual([]);
+  test("再印刷は 1 個以上", () => {
     expect(reprintRequestSchema.safeParse({ orderItemIds: [] }).success).toBe(false);
     expect(reprintRequestSchema.safeParse({ orderItemIds: [A, B] }).success).toBe(true);
   });

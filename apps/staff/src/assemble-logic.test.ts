@@ -57,24 +57,23 @@ describe("長く待っているか", () => {
 describe("注文のまとめ方", () => {
   const items = [
     order(7, "ready", "2026-11-03T11:30:00Z"),
-    order(3, "printed"),
+    order(3, "assembling"),
     order(5, "assembling"),
-    order(2, "printed"),
+    order(2, "assembling"),
     order(9, "ready", "2026-11-03T11:10:00Z"),
     order(4, "assembling"),
     order(1, "picked_up"),
   ];
 
-  test("組み立て待ち・組み立て中は番号順。受け取り待ちは、できあがりの古い順（長く待っている順）", () => {
+  test("組み立て中は番号順。受け取り待ちは、できあがりの古い順（長く待っている順）", () => {
     const grouped = groupOrders(items);
-    expect(grouped.toAssemble.map((o) => o.orderNumber)).toEqual([2, 3]);
-    expect(grouped.assembling.map((o) => o.orderNumber)).toEqual([4, 5]);
+    expect(grouped.assembling.map((o) => o.orderNumber)).toEqual([2, 3, 4, 5]);
     expect(grouped.ready.map((o) => o.orderNumber)).toEqual([9, 7]);
   });
 
   test("対象の状態でない注文は、どこにも入らない。もとの配列は変えない", () => {
     const grouped = groupOrders(items);
-    const count = grouped.toAssemble.length + grouped.assembling.length + grouped.ready.length;
+    const count = grouped.assembling.length + grouped.ready.length;
     expect(count).toBe(6);
     expect(items[0]?.orderNumber).toBe(7);
   });
@@ -87,7 +86,7 @@ describe("受け渡しできない注文の説明", () => {
 
   test("できあがる前は、いまの状態と、してほしいことを伝える。支払い前は、レジへ", () => {
     expect(notPickableMessage("assembling", "017")).toContain("組み立て中");
-    expect(notPickableMessage("printed", "017")).toContain("まだできあがっていません");
+    expect(notPickableMessage("paid", "017")).toContain("まだできあがっていません");
     expect(notPickableMessage("submitted", "017")).toContain("レジ");
   });
 

@@ -5,7 +5,6 @@ import {
   type ReprintTarget,
   reprintImpact,
   reprintResultMessage,
-  sheetTally,
   splitReprintable,
   toggled,
 } from "./print-logic";
@@ -22,8 +21,8 @@ const target = (
 });
 
 describe("再印刷できる状態", () => {
-  test("印刷済み・組み立て中・完成だけ（受け渡し済み・取り消しなどは、できない）", () => {
-    for (const status of ["printed", "assembling", "ready"] as const) {
+  test("組み立て中・完成だけ（受け渡し済み・取り消しなどは、できない）", () => {
+    for (const status of ["assembling", "ready"] as const) {
       expect(isReprintableOrderStatus(status)).toBe(true);
     }
     for (const status of [
@@ -58,16 +57,6 @@ describe("選択", () => {
     expect([...toggled(added, "a")]).toEqual(["b"]);
     expect([...base]).toEqual(["a"]);
   });
-
-  test("確認の集計：選ばなかったバッジは OK", () => {
-    expect(sheetTally(["a", "b", "c", "d"], new Set(["b"]))).toEqual({ ok: 3, reprint: 1 });
-    expect(sheetTally(["a", "b"], new Set())).toEqual({ ok: 2, reprint: 0 });
-    expect(sheetTally(["a", "b"], new Set(["a", "b"]))).toEqual({ ok: 0, reprint: 2 });
-  });
-
-  test("シートにない ID が混ざっていても、数えない", () => {
-    expect(sheetTally(["a", "b"], new Set(["zzz"]))).toEqual({ ok: 2, reprint: 0 });
-  });
 });
 
 describe("再印刷の影響の説明", () => {
@@ -85,16 +74,14 @@ describe("再印刷の影響の説明", () => {
     const lines = reprintImpact([
       target(5, "ready"),
       target(7, "assembling"),
-      target(2, "printed"),
+      target(2, "assembling"),
       target(9, "ready"),
     ]);
-    expect(lines.map((line) => line.status)).toEqual(["printed", "assembling", "ready"]);
+    expect(lines.map((line) => line.status)).toEqual(["assembling", "ready"]);
     expect(lines.find((line) => line.status === "ready")?.numbers).toEqual(["005", "009"]);
     expect(lines.find((line) => line.status === "ready")?.text).toContain("呼び出しモニター");
     expect(lines.find((line) => line.status === "assembling")?.text).toContain("作り直し");
-    expect(lines.find((line) => line.status === "printed")?.text).toContain(
-      "「印刷待ち」に戻ります",
-    );
+    expect(lines.find((line) => line.status === "assembling")?.numbers).toEqual(["002", "007"]);
   });
 
   test("対象がなければ、説明もない", () => {
@@ -161,7 +148,7 @@ describe("印刷待ちの一覧", () => {
     const entries = toQueueEntries([
       orderOf(2, { paidAt: "2026-11-03T01:00:30.000Z" }),
       orderOf(1, { paidAt: "2026-11-03T01:00:00.000Z" }),
-      orderOf(3, { status: "printed" }),
+      orderOf(3, { status: "assembling" }),
       orderOf(4, {}, [
         {
           id: QID,
@@ -266,17 +253,17 @@ describe("印刷待ちの説明", () => {
     );
   });
 
-  test("印刷中のシートがあるときは、確認が済むまで、次は印刷されないと伝える（印刷係が動く場面）", () => {
+  test("印刷中のシートがあるときは、終わると次を印刷すると伝える（印刷係は、何もしなくてよい）", () => {
     const state = queueState({ ...base, printing: true });
-    expect(state.detail).toContain("確認（OK）が済むまで、次のシートは、印刷されません");
-    expect(state.needsAction).toBe(true);
+    expect(state.detail).toContain("終わると、次のシートを印刷します");
+    expect(state.needsAction).toBe(false);
   });
 
   test("止めているときは、再開を促す。何もないときは、その旨", () => {
     expect(queueState({ ...base, paused: true }).detail).toContain("印刷を再開する");
     expect(queueState({ ...base, paused: true }).needsAction).toBe(true);
     expect(queueState({ ...base, badges: 0 }).headline).toBe("印刷待ちはありません");
-    expect(queueState({ ...base, badges: 0, printing: true }).detail).toContain("確認が済むと");
+    expect(queueState({ ...base, badges: 0, printing: true }).detail).toContain("自動で組み立て中");
   });
 
   test("再印刷だけのとき・待ち時間に達したとき", () => {

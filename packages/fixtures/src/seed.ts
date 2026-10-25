@@ -1,17 +1,19 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-  checkPrintSheet,
+  completePrintSheet,
   createManualClock,
   createOrder,
   createPrintSheet,
   databasePath,
+  failPrintSheet,
   getOrder,
   getSetting,
   imagesDir,
   newId,
   openBusinessDay,
   openDatabase,
+  reprintItems,
   schema,
   setAcceptance,
   sheetsDir,
@@ -108,9 +110,15 @@ export function seedSampleData(options: SeedOptions): SeedSummary {
     const pay = (name: string) => move(name, "paid");
     const printSheet = (file: string, names: string[]) =>
       createPrintSheet(db, { pdfPath: `sheets/${file}`, orderItemIds: names.map(itemId) }).sheet;
-    const check = (sheetId: string, reprint: string[] = []) => {
-      checkPrintSheet(db, { sheetId, reprintOrderItemIds: reprint.map(itemId), actor: "staff" });
+    // 印刷が終わる（ドライバーが成功する）と、注文は自動で組み立て中になる
+    const finish = (sheetId: string) => {
+      completePrintSheet(db, { sheetId });
       step(2);
+    };
+    // 履歴から、バッジごとに再印刷する（注文は印刷待ちに戻る）
+    const reprint = (names: string[]) => {
+      reprintItems(db, { orderItemIds: names.map(itemId), actor: "staff" });
+      step(1);
     };
 
     openBusinessDay(db, { actor: "staff" });
@@ -134,12 +142,12 @@ export function seedSampleData(options: SeedOptions): SeedSummary {
     pay("refunded");
     move("refunded", "refunded");
 
-    // 1 枚目のシート：5 個とも OK。そこから、組み立て・完成・受け渡しまで進める
+    // 1 枚目のシート：5 個とも印刷できた（注文は自動で組み立て中）。そこから、完成・受け渡しまで進める
     for (const name of ["pickedUp", "readyLong", "readyNew", "assembling", "printedA"]) {
       make(name);
       pay(name);
     }
-    check(
+    finish(
       printSheet("sample-sheet-1.pdf", [
         "pickedUp",
         "readyLong",
@@ -149,34 +157,32 @@ export function seedSampleData(options: SeedOptions): SeedSummary {
       ]).id,
     );
 
-    move("pickedUp", "assembling");
     move("pickedUp", "ready");
     move("pickedUp", "picked_up");
-    move("readyLong", "assembling");
     move("readyLong", "ready");
     // 完成してから時間がたって、まだ受け取られていない注文（長時間未受け取りの強調表示の確認用）
     step(25);
-    move("readyNew", "assembling");
     move("readyNew", "ready");
-    move("assembling", "assembling");
 
-    // 2 枚目のシート：1 個だけ再印刷。OK の注文は印刷済みになり、再印刷の注文は印刷待ちのまま
+    // 2 枚目のシート：印刷できたあと、1 個だけ履歴から再印刷。ほかの注文は組み立て中のまま、再印刷の注文は印刷待ちに戻る
     for (const name of ["printedB", "reprintPrinting", "printedC"]) {
       make(name);
       pay(name);
     }
     const second = printSheet("sample-sheet-2.pdf", ["printedB", "reprintPrinting", "printedC"]);
-    check(second.id, ["reprintPrinting"]);
+    finish(second.id);
+    reprint(["reprintPrinting"]);
 
-    // 3 枚目のシート：2 個とも再印刷（用紙ごとやり直し）で、失敗になる
+    // 3 枚目のシート：ドライバーが失敗して、2 個とも印刷待ちに戻り、シートは失敗になる
     for (const name of ["failedPrinting", "failedWaiting"]) {
       make(name);
       pay(name);
     }
     const third = printSheet("sample-sheet-3.pdf", ["failedPrinting", "failedWaiting"]);
-    check(third.id, ["failedPrinting", "failedWaiting"]);
+    failPrintSheet(db, { sheetId: third.id });
+    step(2);
 
-    // 4 枚目のシート：再印刷のバッジ 2 個を載せ直した、印刷中のシート（確認待ち）
+    // 4 枚目のシート：再印刷のバッジ 2 個を載せ直した、印刷中のシート（print-worker の起動時に、印刷済みとして扱われる）
     printSheet("sample-sheet-4.pdf", ["reprintPrinting", "failedPrinting"]);
     step(1);
 

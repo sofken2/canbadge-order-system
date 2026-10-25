@@ -10,7 +10,7 @@ import { SettingsPage } from "./SettingsPage";
 
 const pages = [
   { path: "/register", label: "レジ", element: <RegisterPage /> },
-  { path: "/print", label: "印刷確認", element: <PrintPage /> },
+  { path: "/print", label: "印刷", element: <PrintPage /> },
   { path: "/assemble", label: "組み立て・受け渡し", element: <AssemblePage /> },
   { path: "/monitor", label: "呼び出しモニター", element: <MonitorPage /> },
   { path: "/archive", label: "アーカイブ審査", element: <ArchivePage /> },

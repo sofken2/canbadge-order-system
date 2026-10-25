@@ -8,10 +8,10 @@ import { requireOrder, requireOrderItem } from "./queries";
 import { write } from "./transaction";
 
 /** 履歴から再印刷できる注文の状態。受け渡し済み・取り消し・失効・返金済みは、もう作り直さない */
-const reprintableOrderStatuses: readonly OrderStatus[] = ["paid", "printed", "assembling", "ready"];
+const reprintableOrderStatuses: readonly OrderStatus[] = ["paid", "assembling", "ready"];
 
 /** 再印刷で、注文を印刷待ちに戻す状態。paid は、すでに印刷待ちなので変えない */
-const resetToPaidStatuses: readonly OrderStatus[] = ["printed", "assembling", "ready"];
+const resetToPaidStatuses: readonly OrderStatus[] = ["assembling", "ready"];
 
 export type ReprintResult = { reprintedItemIds: string[]; skippedItemIds: string[] };
 
@@ -19,10 +19,10 @@ export type ReprintResult = { reprintedItemIds: string[]; skippedItemIds: string
  * 履歴から選んだバッジを再印刷に回す（組み立て中に傷が見つかった場合など）。
  * すべて 1 つのトランザクションで行い、1 つでも再印刷できなければ全体を取り消す。
  * - 印刷済みのバッジ：印刷待ちに戻る。printCount が 1 以上なので、次のシートの先頭に優先して載る
- * - その注文が印刷済み・組み立て中・完成なら、注文を印刷待ち（paid）に戻す。
+ * - その注文が組み立て中・完成なら、注文を印刷待ち（paid）に戻す。
  *   完成から戻る場合は、完成の時刻が消え、呼び出しモニターの表示からも消える
  * - すでに印刷待ちのバッジは、何もせず skipped に入れる
- * - 印刷中のバッジ（確認前のシート）と、受け渡し済みなどの注文のバッジは断る
+ * - 印刷中のバッジ（いま印刷のジョブを送っているシート）と、受け渡し済みなどの注文のバッジは断る
  */
 export function reprintItems(
   db: Database,
@@ -44,7 +44,7 @@ export function reprintItems(
       if (item.status === "printing") {
         throw new DbError(
           "INVALID_TRANSITION",
-          "印刷中のバッジです。印刷の確認で、再印刷を選んでください",
+          "印刷中のバッジです。印刷が終わってから、再印刷してください",
           { orderItemId: itemId },
         );
       }

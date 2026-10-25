@@ -14,7 +14,7 @@ import { useNow } from "./useNow";
 
 /**
  * 印刷待ち（支払い済みで、まだ印刷されていないバッジ）。印刷係が、「いま、何が待っていて、次に何が起きるか」を、
- * 見られるようにする。印刷が始まる前（最大で、設定の待ち時間）や、シートの確認を待っている間は、ここだけが手がかり。
+ * 見られるようにする。印刷が始まる前（最大で、設定の待ち時間）は、ここだけが手がかり。
  * 契約は、既存の注文の検索（status=paid）と、印刷中のシートを使う。SSE の通知で、取り直す
  */
 export function QueuePanel({ paused, waitSeconds }: { paused: boolean; waitSeconds: number }) {

@@ -132,11 +132,9 @@ describe("スタッフ向けのエンドポイント", () => {
     for (const item of items) expect(["ready", "assembling"]).toContain(item.status);
   });
 
-  test("支払い → 組み立て開始 → 完成 → 受け渡し → 返金 → 取り消し", async () => {
+  test("支払い → 完成 → 受け渡し → 返金 → 取り消し（組み立て開始の操作は、ない）", async () => {
     const pay = await run("payOrder", { params: { orderId: t.orderId("waiting") } });
     expect(pay.body).toMatchObject({ status: "paid" });
-    const assemble = await run("assembleOrder", { params: { orderId: t.orderId("printedA") } });
-    expect(assemble.body).toMatchObject({ status: "assembling" });
     const complete = await run("completeOrder", { params: { orderId: t.orderId("assembling") } });
     expect(complete.body).toMatchObject({ status: "ready" });
     const pickup = await run("pickupOrder", {
@@ -152,7 +150,7 @@ describe("スタッフ向けのエンドポイント", () => {
     expect(cancel.body).toMatchObject({ status: "cancelled" });
   });
 
-  test("印刷：現在のシート → 履歴 → PDF → 確認", async () => {
+  test("印刷：現在のシート → 履歴 → PDF（印刷の確認の操作は、ない）", async () => {
     const current = await run("getCurrentPrintSheet", {});
     const sheet = (
       current.body as { sheet: { id: string; status: string; slots: unknown[] } | null }
@@ -167,12 +165,6 @@ describe("スタッフ向けのエンドポイント", () => {
     const pdf = await run("getPrintSheetPdf", { params: { sheetId: state.sheetId ?? "" } });
     expect(pdf.response.headers.get("content-type")).toBe("application/pdf");
     expect(new TextDecoder().decode((await pdf.response.arrayBuffer()).slice(0, 5))).toBe("%PDF-");
-
-    const check = await run("checkPrintSheet", {
-      params: { sheetId: state.sheetId ?? "" },
-      json: { reprintOrderItemIds: [] },
-    });
-    expect(check.body).toMatchObject({ status: "confirmed" });
   });
 
   test("印刷済みバッジの一覧 → 再印刷", async () => {
