@@ -45,12 +45,10 @@ function saveTab(tab: Tab): void {
   }
 }
 
-/** 組み立て 1 件。状態に合う、次の操作のボタンを 1 つだけ出す。ボタンは、誤って押しにくいよう、カードの下端に、幅いっぱいで置く */
+/** 組み立て 1 件。操作は「完成」だけ（印刷が終わると、自動で組み立て中になる）。ボタンは、誤って押しにくいよう、カードの下端に、幅いっぱいで置く */
 function AssembleCard({ order, onChanged }: { order: StaffOrderView; onChanged: () => void }) {
-  const assembling = order.status === "assembling";
   const act = useAction(async () => {
-    if (assembling) await api.call("completeOrder", { params: { orderId: order.id } });
-    else await api.call("assembleOrder", { params: { orderId: order.id } });
+    await api.call("completeOrder", { params: { orderId: order.id } });
     onChanged();
   });
   const quantity = order.items.reduce((sum, item) => sum + item.quantity, 0);
@@ -76,15 +74,15 @@ function AssembleCard({ order, onChanged }: { order: StaffOrderView; onChanged: 
         )}
         {thumbnail && <img src={thumbnail} alt="" className="cb-asm__thumb" />}
       </div>
-      {/* カードが並ぶので、珊瑚の主ボタンにはしない（1 画面に 1 つまで）。始める前は輪郭だけにして、黒地の「完成にする」と見分ける */}
+      {/* カードが並ぶので、珊瑚の主ボタンにはしない（1 画面に 1 つまで）。黒地にして、主ボタンと混ざらないようにする */}
       <Button
         size="large"
         block
-        variant={assembling ? "ink" : "line"}
+        variant="ink"
         disabled={act.running}
         onClick={() => void act.run()}
       >
-        {assembling ? "完成にする" : "組み立てを始める"}
+        完成にする
       </Button>
       {act.error && <Notice tone="error">{act.error}</Notice>}
     </li>
@@ -157,7 +155,7 @@ function PickupPanel({
 
 /**
  * 組み立て・受け渡し。
- * 組み立て：印刷済みの注文を、順に「組み立てを始める」→「完成にする」と進める。
+ * 組み立て：印刷が終わった注文（自動で組み立て中になる）を、順に「完成にする」と進める。
  * 受け渡し：QR か番号で注文を探し（できあがりの一覧からも選べる）、確認コードを照合して渡す。長く待っている注文は、目立たせる
  */
 export function AssemblePage() {
@@ -169,8 +167,7 @@ export function AssemblePage() {
   const now = useNow(30000);
 
   const orders = useResource(
-    () =>
-      api.call("searchStaffOrders", { query: { status: "printed,assembling,ready", limit: 100 } }),
+    () => api.call("searchStaffOrders", { query: { status: "assembling,ready", limit: 100 } }),
     { subscribe: (reload) => api.subscribe("staffEvents", { onEvent: reload, onOpen: reload }) },
   );
   const grouped = useMemo(() => groupOrders(orders.data?.items ?? []), [orders.data]);
@@ -240,7 +237,7 @@ export function AssemblePage() {
     );
   }
 
-  const assembleCount = grouped.toAssemble.length + grouped.assembling.length;
+  const assembleCount = grouped.assembling.length;
 
   return (
     <main className="cb-page cb-asm">
@@ -283,16 +280,6 @@ export function AssemblePage() {
               <h2>組み立て中（{grouped.assembling.length}）</h2>
               <ul className="cb-asm__list">
                 {grouped.assembling.map((order) => (
-                  <AssembleCard key={order.id} order={order} onChanged={orders.reload} />
-                ))}
-              </ul>
-            </>
-          )}
-          {grouped.toAssemble.length > 0 && (
-            <>
-              <h2>組み立て待ち（{grouped.toAssemble.length}）</h2>
-              <ul className="cb-asm__list">
-                {grouped.toAssemble.map((order) => (
                   <AssembleCard key={order.id} order={order} onChanged={orders.reload} />
                 ))}
               </ul>

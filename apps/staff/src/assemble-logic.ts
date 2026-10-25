@@ -40,9 +40,7 @@ export function readySinceLabel(minutes: number): string {
 }
 
 export type Grouped = {
-  /** 印刷済み・組み立て待ち。番号の小さい（古い）順 */
-  toAssemble: StaffOrderView[];
-  /** 組み立て中。番号の小さい順 */
+  /** 組み立て中（印刷が終わった注文。印刷が終わると、自動でここに入る）。番号の小さい（古い）順 */
   assembling: StaffOrderView[];
   /** できあがり・受け取り待ち。できあがりが古い（長く待っている）順 */
   ready: StaffOrderView[];
@@ -53,7 +51,6 @@ export function groupOrders(items: readonly StaffOrderView[]): Grouped {
   const byReady = (a: StaffOrderView, b: StaffOrderView) =>
     (a.readyAt ?? "").localeCompare(b.readyAt ?? "") || byNumber(a, b);
   return {
-    toAssemble: items.filter((order) => order.status === "printed").sort(byNumber),
     assembling: items.filter((order) => order.status === "assembling").sort(byNumber),
     ready: items.filter((order) => order.status === "ready").sort(byReady),
   };
@@ -70,7 +67,6 @@ export function notPickableMessage(status: OrderStatus, orderNumberText: string)
     case "submitted":
       return `注文 ${orderNumberText} は、まだ支払いが済んでいません。レジで、支払いをお願いしてください。`;
     case "paid":
-    case "printed":
     case "assembling":
       return `注文 ${orderNumberText} は、まだできあがっていません（いまの状態：${label}）。もう少し、お待ちいただいてください。`;
     default:

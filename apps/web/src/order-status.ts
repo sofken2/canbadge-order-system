@@ -23,7 +23,6 @@ export function progressIndex(status: OrderStatus): number | undefined {
       return 1;
     case "paid":
       return 2;
-    case "printed":
     case "assembling":
       return 3;
     case "ready":
@@ -65,16 +64,10 @@ export function guideFor(
         body: "いま、順番に印刷しています。できあがりまで、少しお待ちください。",
         tone: "waiting",
       };
-    case "printed":
-      return {
-        headline: "印刷ができました",
-        body: "これから、ひとつずつ手作業で組み立てます。",
-        tone: "waiting",
-      };
     case "assembling":
       return {
-        headline: "組み立てています",
-        body: "もうすぐです。ブースの近くで、お待ちください。",
+        headline: "印刷ができました。組み立てています",
+        body: "ひとつずつ手作業で組み立てます。もうすぐです。ブースの近くで、お待ちください。",
         tone: "waiting",
       };
     case "ready":

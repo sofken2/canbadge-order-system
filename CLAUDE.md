@@ -18,7 +18,7 @@ Bun + Turborepo のモノレポ。本番は Windows の処理PC 1台で全プロ
 | パス | 役割 |
 | --- | --- |
 | `apps/web` | 来場者向け（エディタ・注文・注文状況） |
-| `apps/staff` | スタッフ向け（レジ・印刷確認・組み立て・受け渡し・設定・呼び出しモニター） |
+| `apps/staff` | スタッフ向け（レジ・印刷・組み立て・受け渡し・設定・呼び出しモニター） |
 | `apps/api` | REST API と SSE（Hono on Bun） |
 | `apps/print-worker` | 面付け・PDF生成・印刷 |
 | `packages/shared` | 契約（zod スキーマ・ステータス・遷移表・API型・SSEイベント型） |

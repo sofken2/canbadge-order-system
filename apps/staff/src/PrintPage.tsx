@@ -3,7 +3,6 @@ import {
   orderStatusLabels,
   type PrintedItemView,
   type PrintSheetStatus,
-  type PrintSheetView,
   printSheetStatusLabels,
   printSlotResultLabels,
 } from "@canbadge/shared";
@@ -24,14 +23,13 @@ import {
   type ReprintTarget,
   reprintImpact,
   reprintResultMessage,
-  sheetTally,
   splitReprintable,
   toggled,
 } from "./print-logic";
 import { QueuePanel } from "./QueuePanel";
 import "./print.css";
 
-type Tab = "check" | "items" | "sheets";
+type Tab = "items" | "sheets";
 type Message = { tone: "info" | "error"; text: string };
 
 const time = (iso: string): string =>
@@ -112,108 +110,6 @@ function useReprint(onDone: (message: Message) => void) {
     },
     dialog,
   };
-}
-
-/** 確認：印刷中のシートを、用紙と同じ並びで見て、再印刷にするバッジだけを選ぶ（選ばなかったバッジは OK） */
-function CheckTab({ onMessage }: { onMessage: (message: Message) => void }) {
-  const current = useResource(() => api.call("getCurrentPrintSheet"), {
-    subscribe: (reload) => api.subscribe("staffEvents", { onEvent: reload, onOpen: reload }),
-  });
-  const [reprint, setReprint] = useState<ReadonlySet<string>>(new Set());
-  const sheet = current.data?.sheet;
-
-  const check = useAction(async (target: PrintSheetView) => {
-    await api.call("checkPrintSheet", {
-      params: { sheetId: target.id },
-      body: { reprintOrderItemIds: [...reprint] },
-    });
-    const tally = sheetTally(
-      target.slots.map((slot) => slot.orderItemId),
-      reprint,
-    );
-    setReprint(new Set());
-    current.reload();
-    onMessage({
-      tone: "info",
-      text:
-        tally.reprint === 0
-          ? `${tally.ok} 個を OK にしました。組み立てに進みます`
-          : `${tally.ok} 個を OK に、${tally.reprint} 個を再印刷にしました。再印刷の分は、印刷待ちのバッジと一緒に、次のシートで印刷します（少し待つことがあります）`,
-    });
-  });
-
-  if (current.error && !current.data) return <Notice tone="error">{current.error}</Notice>;
-  if (!sheet) {
-    return <p className="cb-muted">確認するシートはありません。印刷が始まると、ここに出ます。</p>;
-  }
-
-  const tally = sheetTally(
-    sheet.slots.map((slot) => slot.orderItemId),
-    reprint,
-  );
-  const slots = [...sheet.slots].sort((a, b) => a.position - b.position);
-
-  return (
-    <section aria-label="印刷中のシート">
-      <p className="cb-print__sheet-head">
-        <span>{time(sheet.printedAt)} に印刷</span>
-        <StatusLabel label={printSheetStatusLabels[sheet.status]} tone={sheetTone(sheet.status)} />
-        <a
-          className="cb-print__pdf"
-          href={api.url("getPrintSheetPdf", { params: { sheetId: sheet.id } })}
-          target="_blank"
-          rel="noreferrer"
-        >
-          PDF を開く
-        </a>
-      </p>
-      <p className="cb-muted">
-        用紙の注文番号と、見比べてください。印字が失敗しているバッジだけ、「再印刷」にします。
-      </p>
-
-      <ol className="cb-print__slots">
-        {slots.map((slot) => {
-          const isReprint = reprint.has(slot.orderItemId);
-          return (
-            <li
-              key={slot.orderItemId}
-              className="cb-print__slot"
-              data-reprint={isReprint || undefined}
-            >
-              <span className="cb-print__position">{slot.position + 1}</span>
-              <img src={slot.thumbnailUrl} alt="" className="cb-print__thumb" />
-              <span className="cb-number cb-number--medium">{slot.orderNumberText}</span>
-              <div className="cb-print__choice">
-                <button
-                  type="button"
-                  aria-label={`OK（注文 ${slot.orderNumberText}）`}
-                  aria-pressed={!isReprint}
-                  onClick={() => isReprint && setReprint(toggled(reprint, slot.orderItemId))}
-                >
-                  OK
-                </button>
-                <button
-                  type="button"
-                  aria-label={`再印刷（注文 ${slot.orderNumberText}）`}
-                  aria-pressed={isReprint}
-                  onClick={() => !isReprint && setReprint(toggled(reprint, slot.orderItemId))}
-                >
-                  再印刷
-                </button>
-              </div>
-            </li>
-          );
-        })}
-      </ol>
-
-      {check.error && <Notice tone="error">{check.error}</Notice>}
-      <Button size="large" block onClick={() => void check.run(sheet)} disabled={check.running}>
-        {tally.reprint === 0
-          ? `${tally.ok} 個すべて OK にする`
-          : `${tally.ok} 個 OK・${tally.reprint} 個 再印刷で確定する`}
-      </Button>
-    </section>
-  );
 }
 
 /** バッジ：印刷済みのバッジを、注文番号で探し、選んで再印刷に回す */
@@ -426,12 +322,13 @@ function SheetsTab({ onMessage }: { onMessage: (message: Message) => void }) {
 }
 
 /**
- * 印刷確認。「確認」「バッジ」「シート」の 3 つ。
+ * 印刷。「バッジ」「シート」の 2 つ。印刷の確認の操作はない（印刷が終わると、注文は自動で組み立て中になる）。
+ * 足りないバッジは、ここから、バッジごとに、すぐ再印刷できる。
  * 再印刷は、注文の状態が戻る（組み立て中・完成も印刷待ちに戻る）ので、実行の前に、対象の番号と影響を見せる。
- * 印刷の一時停止・再開は、どのタブからでも押せる
+ * 印刷の一時停止・再開は、どのタブからでも押せる（プリンターの失敗で、自動で止まったときも、ここで再開する）
  */
 export function PrintPage() {
-  const [tab, setTab] = useState<Tab>("check");
+  const [tab, setTab] = useState<Tab>("items");
   const [message, setMessage] = useState<Message | undefined>(undefined);
 
   const settings = useResource(() => api.call("getSettings"), {
@@ -450,11 +347,13 @@ export function PrintPage() {
 
   return (
     <main className="cb-page cb-print">
-      <h1>印刷確認</h1>
+      <h1>印刷</h1>
 
       <div className="cb-print__pause" data-paused={paused || undefined}>
         <p>
-          {paused ? "印刷を止めています。新しいシートは、印刷されません" : "印刷は動いています"}
+          {paused
+            ? "印刷を止めています。新しいシートは、印刷されません（プリンターの失敗で、自動で止まることもあります）"
+            : "印刷は動いています"}
         </p>
         {/* 珊瑚の主ボタンは、タブの中の確定の操作に譲る（1 画面に 1 つまで）。止めているときは黒地で目立たせる */}
         <Button
@@ -474,7 +373,6 @@ export function PrintPage() {
       <div className="cb-switch" role="tablist" aria-label="印刷の作業">
         {(
           [
-            ["check", "確認"],
             ["items", "バッジ"],
             ["sheets", "シート"],
           ] as const
@@ -494,7 +392,6 @@ export function PrintPage() {
       {message && <Notice tone={message.tone}>{message.text}</Notice>}
 
       <div role="tabpanel">
-        {tab === "check" && <CheckTab onMessage={setMessage} />}
         {tab === "items" && <ItemsTab onMessage={setMessage} />}
         {tab === "sheets" && <SheetsTab onMessage={setMessage} />}
       </div>

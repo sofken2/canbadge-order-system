@@ -25,13 +25,11 @@ export const loadConfigSchema = z.object({
   cashiers: count.default(2),
   cashierServiceSeconds: positive.default(25),
 
-  /** 用紙 1 枚の、プリンターが印刷する時間（秒）。この間は、印刷係が、確認できない */
+  /** 用紙 1 枚の、プリンターが印刷する時間（秒）。印刷中のシートは同時に 1 枚なので、処理能力の上限になる */
   printSeconds: nonNegative.default(45),
-  /** 印刷確認の担当（人数は 1 固定。印刷中のシートは同時に 1 枚）の、1 枚あたりの確認の時間（秒） */
-  checkServiceSeconds: positive.default(20),
   /** 印刷を待つ最大の時間（仮想の秒）。api の printMaxWaitSeconds に当たる */
   printMaxWaitSeconds: positive.default(60),
-  /** 印刷確認で、再印刷にするバッジの割合（0〜1） */
+  /** 組み立てで、印刷の不良に気づいて、履歴から再印刷するバッジの割合（0〜1） */
   reprintRate: z.coerce.number().min(0).max(1).default(0.03),
 
   /** 組み立て係の人数と、バッジ 1 個あたりの作業時間（秒）。多くの場合、ここが、ボトルネック */
@@ -114,7 +112,7 @@ export const HELP = `負荷テスト（Q04）：模擬の来場者とスタッ�
   --cashiers N / --cashier-service-seconds S             レジ（2 人・25 秒）
   --assemblers N / --assemble-service-seconds S          組み立て（3 人・100 秒）
   --pickup-staff N / --pickup-service-seconds S          受け渡し（1 人・20 秒）
-  --print-seconds S / --check-service-seconds S          印刷 1 枚・確認（45 秒・20 秒）
+  --print-seconds S                                      印刷 1 枚（45 秒）
   --print-max-wait-seconds S  印刷を待つ最大の時間（60）
   --reprint-rate R            再印刷の割合（0.03）
   --seed N                    乱数の種（1）。同じ種なら、同じ客で再現できる

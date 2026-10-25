@@ -129,12 +129,24 @@ async function payAtRegister(number: string) {
 }
 
 /** print-worker が作った、印刷中のシート（指定した注文番号を含むもの）を待つ */
+/** 注文が載った印刷シートを、履歴から探す（印刷が終わると、シートは自動で確認済みになる） */
 async function waitForSheet(number: string, notSheetId?: string) {
   return await waitFor(`注文 ${number} が載った印刷シート`, async () => {
-    const { sheet } = await client.call("getCurrentPrintSheet");
-    const found =
-      sheet && sheet.id !== notSheetId && sheet.slots.some((s) => s.orderNumberText === number);
-    return found ? sheet : undefined;
+    const { items } = await client.call("listPrintSheets", { query: { limit: 20 } });
+    return items.find(
+      (sheet) =>
+        sheet.id !== notSheetId &&
+        sheet.status !== "printing" &&
+        sheet.slots.some((s) => s.orderNumberText === number),
+    );
+  });
+}
+
+/** 注文が、その状態になるのを待つ */
+async function waitForOrderStatus(orderId: string, status: string) {
+  return await waitFor(`注文の状態が ${status} になる`, async () => {
+    const order = await client.call("getOrder", { params: { orderId } });
+    return order.status === status ? order : undefined;
   });
 }
 
@@ -175,8 +187,9 @@ describe("注文から受け渡しまで", () => {
   test("print-worker が、印刷待ちを拾ってシートを作り、開発用ドライバーが PDF を出力する", async () => {
     const sheet = await waitForSheet(state.first?.number ?? "");
     state.firstSheetId = sheet.id;
-    expect(sheet.status).toBe("printing");
-    expect(sheet.slots[0]).toMatchObject({ orderNumberText: "001", result: "pending" });
+    // ドライバーが成功すると、印刷の確認なしで、シートは確認済み・バッジは OK になる
+    expect(sheet.status).toBe("confirmed");
+    expect(sheet.slots[0]).toMatchObject({ orderNumberText: "001", result: "ok" });
 
     // 生成した PDF（data/sheets）と、開発用ドライバーが出力した PDF（data/print-out）
     const generated = readdirSync(join(dataDir, "sheets"));
@@ -193,26 +206,20 @@ describe("注文から受け渡しまで", () => {
     await waitFor("シートの変化の通知", async () =>
       staffEvents.events.find(
         (e) =>
-          e.type === "sheet.updated" && e.sheetId === state.firstSheetId && e.status === "printing",
+          e.type === "sheet.updated" &&
+          e.sheetId === state.firstSheetId &&
+          e.status === "confirmed",
       ),
     );
   });
 
-  test("印刷確認：全部 OK にすると、シートは確認済みに、注文は自動で印刷済みになる", async () => {
-    const checked = await client.call("checkPrintSheet", {
-      params: { sheetId: state.firstSheetId ?? "" },
-      body: { reprintOrderItemIds: [] },
-    });
-    expect(checked).toMatchObject({ status: "confirmed" });
-    const order = await client.call("getOrder", {
-      params: { orderId: state.first?.orderId ?? "" },
-    });
-    expect(order.status).toBe("printed");
+  test("印刷が終わると、印刷の確認も組み立て開始の操作もなく、注文は自動で組み立て中になる", async () => {
+    const order = await waitForOrderStatus(state.first?.orderId ?? "", "assembling");
+    expect(order.status).toBe("assembling");
   });
 
-  test("組み立て → 完成：呼び出しモニターに、注文番号が出る", async () => {
+  test("完成：呼び出しモニターに、注文番号が出る", async () => {
     const orderId = state.first?.orderId ?? "";
-    await client.call("assembleOrder", { params: { orderId } });
     await client.call("completeOrder", { params: { orderId } });
     const ready = await waitFor("呼び出しモニターの表示", async () => {
       const { items } = await client.call("getMonitorReady");
@@ -252,7 +259,6 @@ describe("注文から受け渡しまで", () => {
     // 購読の直後に、注文作成（submitted）の通知が先に届くことがある。順序の検査からは外す
     expect(statuses.filter((status) => status !== "submitted")).toEqual([
       "paid",
-      "printed",
       "assembling",
       "ready",
       "picked_up",
@@ -262,30 +268,24 @@ describe("注文から受け渡しまで", () => {
 });
 
 describe("再印刷", () => {
-  test("印刷確認で再印刷を選ぶと、別のシートに自動で載り直り、確認すると注文が印刷済みになる", async () => {
+  test("履歴からバッジを再印刷すると、別のシートに自動で載り直り、印刷が終わると注文は組み立て中に戻る", async () => {
     const second = await placeOrder();
     expect(second.number).toBe("002");
     await payAtRegister(second.number);
 
     const first = await waitForSheet(second.number);
     const itemId = first.slots.find((s) => s.orderNumberText === second.number)?.orderItemId ?? "";
-    await client.call("checkPrintSheet", {
-      params: { sheetId: first.id },
-      body: { reprintOrderItemIds: [itemId] },
-    });
-    // 再印刷のバッジは、印刷待ちに戻り、注文は支払い済みのまま
+    await waitForOrderStatus(second.orderId, "assembling");
+
+    // 用紙が足りなかった、などで、バッジごとに再印刷する。バッジは印刷待ちに戻り、注文は支払い済みに戻る
+    await client.call("reprint", { body: { orderItemIds: [itemId] } });
     const waiting = await client.call("getOrder", { params: { orderId: second.orderId } });
     expect(waiting.status).toBe("paid");
 
-    // print-worker が、次のシートに載せ直す
+    // print-worker が、次のシートに載せ直す。印刷が終わると、注文は組み立て中に戻る
     const again = await waitForSheet(second.number, first.id);
     expect(again.id).not.toBe(first.id);
-    await client.call("checkPrintSheet", {
-      params: { sheetId: again.id },
-      body: { reprintOrderItemIds: [] },
-    });
-    const done = await client.call("getOrder", { params: { orderId: second.orderId } });
-    expect(done.status).toBe("printed");
+    await waitForOrderStatus(second.orderId, "assembling");
 
     // 履歴には、2 回印刷されたことが残る
     const printed = await client.call("listPrintedItems", { query: { q: "2", limit: 10 } });

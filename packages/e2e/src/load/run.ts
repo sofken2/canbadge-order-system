@@ -5,7 +5,7 @@ import {
   createDesks,
   monitor,
   pickupDesk,
-  printChecker,
+  printWatcher,
   sampler,
   visitor,
 } from "./actors";
@@ -71,7 +71,7 @@ export async function runLoad(config: LoadConfig, options: RunOptions): Promise<
   // 動いているサーバーに流すときは、本物の注文を壊さないよう、未完成の注文がないことを確かめる
   if (config.target) {
     const unfinished = await staff.call("searchStaffOrders", {
-      query: { status: "submitted,paid,printed,assembling,ready", limit: 1 },
+      query: { status: "submitted,paid,assembling,ready", limit: 1 },
     });
     if (unfinished.items.length > 0) {
       throw new Error(
@@ -90,7 +90,7 @@ export async function runLoad(config: LoadConfig, options: RunOptions): Promise<
   const sampling = sampler(world, desks);
   monitor(world);
   const actors: Promise<void>[] = [
-    printChecker(world),
+    printWatcher(world),
     ...Array.from({ length: config.cashiers }, () => cashier(world, desks)),
     ...Array.from({ length: config.assemblers }, () => assembler(world)),
     ...Array.from({ length: config.pickupStaff }, () => pickupDesk(world, desks)),

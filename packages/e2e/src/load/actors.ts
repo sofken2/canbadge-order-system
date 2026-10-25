@@ -163,55 +163,52 @@ export async function cashier(world: World, desks: Desks): Promise<void> {
 }
 
 /**
- * 印刷確認の担当：印刷中のシートが出たら、プリンターが印刷する時間と、確認の時間のあと、確認する。
- * 一部を再印刷にする（reprintRate）。確認が済むまで、次のシートは出ない（同時に 1 枚）
+ * 印刷の見張り（人は動かない）：print-worker が、シートを印刷し終えると、注文は自動で組み立て中になる。
+ * 新しく確認済みになったシートを見つけたら、載っている注文に「印刷が終わった」時刻を記録する。
+ * 印刷中のシートは同時に 1 枚なので、模擬のプリンターの時間（printSeconds）が、処理能力の上限になる
  */
-export async function printChecker(world: World): Promise<void> {
-  const { config, clock } = world;
+export async function printWatcher(world: World): Promise<void> {
+  const { clock } = world;
   const client = makeClient(world);
-  let lastSheet: string | undefined;
+  const seen = new Set<string>();
   while (!world.abort.signal.aborted) {
     try {
-      const { sheet } = await client.call("getCurrentPrintSheet");
-      if (sheet && sheet.id !== lastSheet) {
-        lastSheet = sheet.id;
-        const printedAt = clock.virtualNow();
-        // 用紙を、プリンターが印刷している間
-        await clock.sleep(config.printSeconds);
-        const started = clock.virtualNow();
-        await clock.sleep(jitter(world.random, config.checkServiceSeconds));
-        const reprint = sheet.slots
-          .filter(() => world.random() < config.reprintRate)
-          .map((slot) => slot.orderItemId);
-        await client.call("checkPrintSheet", {
-          params: { sheetId: sheet.id },
-          body: { reprintOrderItemIds: reprint },
-        });
-        const checkedAt = clock.virtualNow();
-        world.busySeconds.check += checkedAt - started;
-        world.sheets.push({ slots: sheet.slots.length, printedAt, checkedAt });
-        const reprinted = new Set(
-          sheet.slots.filter((s) => reprint.includes(s.orderItemId)).map((s) => s.orderNumber),
-        );
+      const { items } = await client.call("listPrintSheets", { query: { limit: 20 } });
+      for (const sheet of [...items].reverse()) {
+        if (sheet.status === "printing" || seen.has(sheet.id)) continue;
+        seen.add(sheet.id);
+        const at = clock.virtualNow();
+        world.sheets.push({ slots: sheet.slots.length, printedAt: at, checkedAt: at });
         for (const slot of sheet.slots) {
           const record = world.orders.find((o) => o.orderNumber === slot.orderNumber);
-          if (!record) continue;
-          if (reprinted.has(slot.orderNumber)) {
-            record.reprinted = true;
-            continue;
-          }
-          mark(world, record, "printed");
+          if (record) mark(world, record, "printed");
         }
-        continue;
       }
     } catch (error) {
-      countExpected(world, `印刷確認: ${error instanceof Error ? error.message : String(error)}`);
+      countExpected(
+        world,
+        `印刷の見張り: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
     await Bun.sleep(250);
   }
 }
 
-/** 組み立て係：「組み立て待ち」の一覧から、1 つ取り（組み立て開始）、作業して、完成にする（S04 と同じ API の順） */
+const claimsByWorld = new WeakMap<World, Set<string>>();
+/** 組み立て係たちが、取った注文（模擬の中だけ。実際の運用では、声をかけ合う） */
+function claimsOf(world: World): Set<string> {
+  let claims = claimsByWorld.get(world);
+  if (!claims) {
+    claims = new Set();
+    claimsByWorld.set(world, claims);
+  }
+  return claims;
+}
+
+/**
+ * 組み立て係：「組み立て中」の一覧から、1 つ取り、作業して、完成にする（S04 と同じ API の順。組み立て開始の操作は、ない）。
+ * ときどき、印刷の不良に気づいて、履歴から再印刷する（注文は印刷待ちに戻り、印刷が終わると、また組み立て中に出る）
+ */
 export async function assembler(world: World): Promise<void> {
   const { config, clock } = world;
   const client = makeClient(world);
@@ -219,7 +216,7 @@ export async function assembler(world: World): Promise<void> {
   let wake: () => void = () => undefined;
   const refetch = async () => {
     const page = await client.call("searchStaffOrders", {
-      query: { status: "printed", limit: 50 },
+      query: { status: "assembling", limit: 50 },
     });
     list = [...page.items].sort((a, b) => a.orderNumber - b.orderNumber);
     wake();
@@ -241,30 +238,45 @@ export async function assembler(world: World): Promise<void> {
       }
       continue;
     }
+    // 組み立ての開始の操作は、ない。同じ注文を、別の組み立て係が取らないように、声をかけ合う（模擬の中だけ）
+    const claimed = claimsOf(world);
+    if (claimed.has(candidate.id)) continue;
+    claimed.add(candidate.id);
     const record = world.orders.find((o) => o.orderNumber === candidate.orderNumber);
-    try {
-      await client.call("assembleOrder", { params: { orderId: candidate.id } });
-    } catch (error) {
-      // 別の組み立て係が、先に取った（ふつうに起きる取り合い）
-      if (error instanceof ApiClientError && error.code === "INVALID_TRANSITION") {
-        countExpected(world, "組み立ての取り合い（別の人が先に取った）");
-        continue;
-      }
-      throw error;
-    }
     const started = clock.virtualNow();
     if (record) {
+      // 印刷の見張りの記録が、取り直しの間隔の分だけ遅れることがある。そのときは、この時刻を、印刷が終わった時刻にする
+      if (record.at.printed === undefined) mark(world, record, "printed");
       mark(world, record, "assembling");
-      if (record.at.printed !== undefined) {
-        world.waits.assembly.push(started - record.at.printed);
+      world.waits.assembly.push(started - (record.at.printed ?? started));
+    }
+    // ときどき、印刷の不良に気づく：バッジを再印刷に回す（注文は印刷待ちに戻り、印刷が終わると、また組み立て中に出る）
+    const itemId = candidate.items[0]?.id;
+    if (record && itemId && !record.reprinted && world.random() < config.reprintRate) {
+      try {
+        await client.call("reprint", { body: { orderItemIds: [itemId] } });
+        record.reprinted = true;
+        record.at.printed = undefined;
+        record.at.assembling = undefined;
+        claimed.delete(candidate.id);
+      } catch (error) {
+        fail(record, error);
       }
+      world.busySeconds.assembler += clock.virtualNow() - started;
+      continue;
     }
     await clock.sleep(jitter(world.random, config.assembleServiceSeconds));
     try {
       await client.call("completeOrder", { params: { orderId: candidate.id } });
       if (record) mark(world, record, "ready");
     } catch (error) {
-      if (record) fail(record, error);
+      if (record?.reprinted) {
+        // 別の組み立て係が、この注文を再印刷に回したあと、古い一覧のまま取ってしまった。画面でも起こる競合なので、失敗には数えない。
+        // 印刷が終わって組み立て中に戻ったときに、また取れるよう、声かけは外す
+        claimed.delete(candidate.id);
+      } else if (record) {
+        fail(record, error);
+      }
     }
     world.busySeconds.assembler += clock.virtualNow() - started;
   }

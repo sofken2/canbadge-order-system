@@ -219,8 +219,8 @@ export function applyOrderTransition(ctx: Ctx, input: OrderTransitionInput): Ord
     actor: input.actor,
   });
 
-  // 印刷済みへの遷移は、全明細が印刷済みのときだけ（明細の遷移が自動で行う）
-  if (input.to === "printed") {
+  // 印刷待ちから組み立て中への遷移は、全明細が印刷済みのときだけ（明細の遷移が自動で行う）
+  if (order.status === "paid" && input.to === "assembling") {
     const items = listOrderItems(ctx.tx, order.id);
     if (items.length === 0 || items.some((item) => item.status !== "printed")) {
       throw new DbError("INVALID_TRANSITION", "印刷が済んでいない明細があります");

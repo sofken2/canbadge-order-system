@@ -320,7 +320,6 @@ describe("実際に流す（小さな規模）", () => {
         assemblers: 3,
         assembleServiceSeconds: 30,
         printSeconds: 10,
-        checkServiceSeconds: 5,
         walkMinSeconds: 5,
         walkMaxSeconds: 20,
         pickupMinDelaySeconds: 5,

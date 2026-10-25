@@ -1,7 +1,6 @@
 import { isAbsolute, join, relative, resolve } from "node:path";
 import {
   businessDateOf,
-  checkPrintSheet,
   getCurrentPrintSheet,
   getSetting,
   listPrintedItems,
@@ -44,7 +43,6 @@ function insideDataDir(dataDir: string, relativePath: string): string | undefine
 export const staffHandlers: HandlersFor<
   | "searchStaffOrders"
   | "payOrder"
-  | "assembleOrder"
   | "completeOrder"
   | "pickupOrder"
   | "refundOrder"
@@ -52,7 +50,6 @@ export const staffHandlers: HandlersFor<
   | "getCurrentPrintSheet"
   | "listPrintSheets"
   | "getPrintSheetPdf"
-  | "checkPrintSheet"
   | "listPrintedItems"
   | "reprint"
   | "pausePrintQueue"
@@ -78,7 +75,6 @@ export const staffHandlers: HandlersFor<
   },
 
   payOrder: ({ deps, params }) => move(deps, params.orderId, "paid"),
-  assembleOrder: ({ deps, params }) => move(deps, params.orderId, "assembling"),
   completeOrder: ({ deps, params }) => move(deps, params.orderId, "ready"),
   refundOrder: ({ deps, params }) => move(deps, params.orderId, "refunded"),
   cancelStaffOrder: ({ deps, params }) => move(deps, params.orderId, "cancelled"),
@@ -111,17 +107,6 @@ export const staffHandlers: HandlersFor<
       if (!exists) throw notFound("PDF");
       return new Response(file, { headers: { "content-type": "application/pdf" } });
     });
-  },
-
-  checkPrintSheet: ({ deps, params, body }) => {
-    const result = checkPrintSheet(deps.db, {
-      sheetId: params.sheetId,
-      reprintOrderItemIds: body.reprintOrderItemIds,
-      actor: "staff",
-    });
-    const view = buildPrintSheetViews(deps.db, [result.sheet])[0];
-    if (!view) throw notFound("印刷シート");
-    return view;
   },
 
   listPrintedItems: ({ deps, query }) => {

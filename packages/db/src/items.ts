@@ -25,7 +25,7 @@ type ItemTransitionInput = {
 /**
  * 明細（バッジ）の状態を変える（トランザクションの中で呼ぶ版）。
  * - 印刷待ち → 印刷中：注文が支払い済みのときだけ。印刷した回数（printCount）を 1 増やす
- * - 印刷中 → 印刷済み：注文の全明細が印刷済みになったら、注文を「印刷済み」に自動で進める
+ * - 印刷中 → 印刷済み：注文の全明細が印刷済みになったら、注文を「組み立て中」に自動で進める
  */
 export function applyItemTransition(ctx: Ctx, input: ItemTransitionInput): OrderItem {
   const item = requireOrderItem(ctx.tx, input.itemId);
@@ -67,13 +67,13 @@ export function applyItemTransition(ctx: Ctx, input: ItemTransitionInput): Order
   return requireOrderItem(ctx.tx, item.id);
 }
 
-/** 注文が支払い済みで、全明細が印刷済みなら、注文を印刷済みに進める（呼ぶ側が意識しなくて済むように） */
+/** 注文が支払い済みで、全明細が印刷済みなら、注文を組み立て中に進める（呼ぶ側が意識しなくて済むように） */
 function advanceOrderIfAllPrinted(ctx: Ctx, orderId: string): void {
   const order = requireOrder(ctx.tx, orderId);
   if (order.status !== "paid") return;
   const items = listOrderItems(ctx.tx, orderId);
   if (items.every((item) => item.status === "printed")) {
-    applyOrderTransition(ctx, { orderId, to: "printed", actor: "system" });
+    applyOrderTransition(ctx, { orderId, to: "assembling", actor: "system" });
   }
 }
 

@@ -127,7 +127,7 @@ export function buildPrintSheetViews(db: Database, sheets: PrintSheet[]): PrintS
 }
 
 /** 履歴から再印刷できる注文の状態（受け渡し済み・取り消し・失効・返金済みは、もう作り直さない） */
-const reprintableOrderStatuses: readonly OrderStatus[] = ["paid", "printed", "assembling", "ready"];
+const reprintableOrderStatuses: readonly OrderStatus[] = ["paid", "assembling", "ready"];
 
 export function buildPrintedItemView(db: Database, item: PrintedItem): PrintedItemView {
   return {

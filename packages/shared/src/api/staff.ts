@@ -95,12 +95,6 @@ export type PrintSheetView = z.infer<typeof printSheetViewSchema>;
 export const currentPrintSheetResponseSchema = z.object({ sheet: printSheetViewSchema.nullable() });
 export type CurrentPrintSheetResponse = z.infer<typeof currentPrintSheetResponseSchema>;
 
-/** POST /api/staff/print-sheets/:sheetId/check。再印刷に回すバッジ以外は、すべて OK になる */
-export const checkPrintSheetRequestSchema = z.object({
-  reprintOrderItemIds: z.array(idSchema).default([]),
-});
-export type CheckPrintSheetRequest = z.infer<typeof checkPrintSheetRequestSchema>;
-
 /** GET /api/staff/print-sheets。印刷ジョブの履歴（新しい順） */
 export const printSheetListResponseSchema = pagedSchema(printSheetViewSchema);
 export type PrintSheetListResponse = z.infer<typeof printSheetListResponseSchema>;

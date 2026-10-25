@@ -31,7 +31,6 @@ import {
   statusResponseSchema,
 } from "./public";
 import {
-  checkPrintSheetRequestSchema,
   currentPrintSheetResponseSchema,
   pickupRequestSchema,
   printedItemListResponseSchema,
@@ -241,14 +240,6 @@ export const endpoints = {
     params: orderIdParamsSchema,
     response: staffOrderViewSchema,
   },
-  assembleOrder: {
-    method: "POST",
-    path: "/api/staff/orders/:orderId/assemble",
-    access: "staff",
-    summary: "組み立て開始",
-    params: orderIdParamsSchema,
-    response: staffOrderViewSchema,
-  },
   completeOrder: {
     method: "POST",
     path: "/api/staff/orders/:orderId/complete",
@@ -304,15 +295,6 @@ export const endpoints = {
     summary: "印刷したシートの PDF（プレビュー）",
     params: sheetIdParamsSchema,
     response: null,
-  },
-  checkPrintSheet: {
-    method: "POST",
-    path: "/api/staff/print-sheets/:sheetId/check",
-    access: "staff",
-    summary: "印刷の確認。再印刷に回すバッジ以外は OK",
-    params: sheetIdParamsSchema,
-    body: checkPrintSheetRequestSchema,
-    response: printSheetViewSchema,
   },
   listPrintedItems: {
     method: "GET",

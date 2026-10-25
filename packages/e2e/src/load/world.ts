@@ -7,7 +7,11 @@ import { type CallRecord, endpointLabel } from "./stats";
 
 // 負荷テストの、共有の状態（Q04）。サーバーへの呼び出しの記録、注文ごとの時刻、SSE の接続。
 
-/** 注文の状態の、進む順（SSE で、より進んだ状態を見たら、それまでの状態も通ったものとして扱う） */
+/**
+ * 注文の進み具合の、進む順（SSE で、より進んだ状態を見たら、それまでの状態も通ったものとして扱う）。
+ * printed は、サーバーの状態ではなく、模擬の記録の区切り（印刷が終わって、注文が自動で組み立て中になった時刻）。
+ * assembling は、組み立て係が、その注文を取って、作業を始めた時刻（サーバーの状態は、printed の時点から、組み立て中）
+ */
 export const STATUS_ORDER = [
   "submitted",
   "paid",
@@ -48,7 +52,7 @@ export type World = {
   orders: OrderRecord[];
   calls: CallRecord[];
   /** 担当ごとの、作業していた時間の合計（仮想の秒）。稼働率の計算に使う */
-  busySeconds: Record<"cashier" | "assembler" | "pickup" | "check", number>;
+  busySeconds: Record<"cashier" | "assembler" | "pickup", number>;
   /** 待った時間の記録（仮想の秒）。列に入ってから、担当が取るまで */
   waits: Record<"cashier" | "print" | "assembly" | "pickup", number[]>;
   /** 印刷したシートの記録 */
@@ -84,7 +88,7 @@ export function createWorld(config: LoadConfig, clock: Clock, baseUrl: string): 
     baseUrl,
     orders: [],
     calls: [],
-    busySeconds: { cashier: 0, assembler: 0, pickup: 0, check: 0 },
+    busySeconds: { cashier: 0, assembler: 0, pickup: 0 },
     waits: { cashier: [], print: [], assembly: [], pickup: [] },
     sheets: [],
     samples: [],

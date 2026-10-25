@@ -4,7 +4,6 @@ import { z } from "zod";
 export const orderStatusSchema = z.enum([
   "submitted",
   "paid",
-  "printed",
   "assembling",
   "ready",
   "picked_up",
@@ -18,11 +17,11 @@ export type OrderStatus = z.infer<typeof orderStatusSchema>;
 export const orderItemStatusSchema = z.enum(["queued", "printing", "printed"]);
 export type OrderItemStatus = z.infer<typeof orderItemStatusSchema>;
 
-/** 印刷した用紙 1 枚の状態。failed は、紙詰まりなどで用紙ごとやり直すとき */
+/** 印刷した用紙 1 枚の状態。ドライバーが成功すれば confirmed（自動）。failed は、ドライバーが失敗して、用紙ごとやり直すとき */
 export const printSheetStatusSchema = z.enum(["printing", "confirmed", "failed"]);
 export type PrintSheetStatus = z.infer<typeof printSheetStatusSchema>;
 
-/** 印刷確認での、シート上のバッジごとの結果 */
+/** シート上のバッジごとの結果。印刷が成功すれば ok、ドライバーが失敗してやり直すときは reprint（pending は、印刷中） */
 export const printSlotResultSchema = z.enum(["pending", "ok", "reprint"]);
 export type PrintSlotResult = z.infer<typeof printSlotResultSchema>;
 
@@ -46,7 +45,7 @@ export type Actor = z.infer<typeof actorSchema>;
 export const orderStatusLabels: Record<OrderStatus, string> = {
   submitted: "支払い待ち",
   paid: "印刷待ち",
-  printed: "組み立て待ち",
+  // 印刷が終わると、自動でこの状態になる。組み立て待ちと、組み立て中を、分けない
   assembling: "組み立て中",
   ready: "受け取り可能",
   picked_up: "受け渡し済み",

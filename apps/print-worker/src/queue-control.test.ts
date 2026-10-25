@@ -3,17 +3,21 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  checkPrintSheet,
+  completePrintSheet,
   createManualClock,
   createOrder,
   createPrintSheet,
   type Database,
   getCurrentPrintSheet,
+  getOrder,
   getOrderItem,
+  getSetting,
   listAuditLogsSince,
+  listPrintSheets,
   listPrintSlots,
   openBusinessDay,
   openDatabase,
+  reprintItems,
   setPrintPaused,
   transitionOrder,
   updateSetting,
@@ -22,7 +26,7 @@ import { encodePng } from "@canbadge/fixtures";
 import type { PrintDriver, PrintJob } from "./driver";
 import { contentOf, imageDraws } from "./pdf-test-utils";
 import { createSkipRegistry, runQueueOnce, SKIP_COOLDOWN_MS, startQueueLoop } from "./queue";
-import { describeStartup, STALE_SHEET_MINUTES } from "./recovery";
+import { recoverOnStartup } from "./recovery";
 
 // 印刷キューの制御（P02）：個数・載せられないバッジ・一時停止・同時に 1 枚・再起動・停止。
 
@@ -94,11 +98,8 @@ const skipLogs = () =>
     .map((entry) => entry.log)
     .filter((log) => log.action === "print.skip");
 
-const confirmCurrent = () => {
-  const sheet = getCurrentPrintSheet(db);
-  if (!sheet) throw new Error("印刷中のシートがありません");
-  checkPrintSheet(db, { sheetId: sheet.id, reprintOrderItemIds: [], actor: "staff" });
-};
+/** いちばん新しいシート（印刷が終わると、シートは自動で確認済みになるので、印刷中とは限らない） */
+const lastSheet = () => listPrintSheets(db, { limit: 1 }).items[0];
 
 describe("個数のあるバッジ", () => {
   test("個数の分だけ、用紙の枠を使う。位置は、最初の 1 個の位置", async () => {
@@ -107,7 +108,7 @@ describe("個数のあるバッジ", () => {
     const result = await run({ waitOverrideSeconds: 9999 });
     // 2 + 1×4 = 6 個で、枠がちょうど埋まる。待ち時間に関係なく、すぐ印刷される
     expect(result.status).toBe("printed");
-    const sheet = getCurrentPrintSheet(db);
+    const sheet = lastSheet();
     const slots = listPrintSlots(db.orm, sheet?.id ?? "");
     expect(slots.map((s) => [s.position, s.orderItemId])).toEqual([
       [0, two.itemId],
@@ -122,12 +123,11 @@ describe("個数のあるバッジ", () => {
     const d = paid();
     await run({ waitOverrideSeconds: 9999 });
     // a(3) + b(3) = 6 で埋まる。c は収まらない
-    const first = listPrintSlots(db.orm, getCurrentPrintSheet(db)?.id ?? "");
+    const first = listPrintSlots(db.orm, lastSheet()?.id ?? "");
     expect(first.map((s) => s.orderItemId)).toEqual([a.itemId, b.itemId]);
 
-    confirmCurrent();
     await run();
-    const second = listPrintSlots(db.orm, getCurrentPrintSheet(db)?.id ?? "");
+    const second = listPrintSlots(db.orm, lastSheet()?.id ?? "");
     // 回された c が先頭。続けて d（3 + 1 = 4 個。足りないが、待ち時間 0 で、そのまま印刷する）
     expect(second.map((s) => s.orderItemId)).toEqual([c.itemId, d.itemId]);
   });
@@ -157,7 +157,7 @@ describe("載せられないバッジ", () => {
       expect.objectContaining({ orderItemId: bad.itemId, orderNumber: bad.orderNumber }),
     ]);
     expect(result.skipped?.[0]?.reason).toContain("画像が見つかりません");
-    const slots = listPrintSlots(db.orm, getCurrentPrintSheet(db)?.id ?? "");
+    const slots = listPrintSlots(db.orm, lastSheet()?.id ?? "");
     expect(slots.map((s) => s.orderItemId)).toEqual(goods.map((g) => g.itemId));
     // 外したバッジは、印刷待ちのまま
     expect(getOrderItem(db.orm, bad.itemId)?.status).toBe("queued");
@@ -182,9 +182,9 @@ describe("載せられないバッジ", () => {
     const result = await run();
     expect(result.status).toBe("printed");
     expect(result.skipped?.map((s) => s.orderItemId).sort()).toEqual([a.itemId, b.itemId].sort());
-    expect(
-      listPrintSlots(db.orm, getCurrentPrintSheet(db)?.id ?? "").map((s) => s.orderItemId),
-    ).toEqual([good.itemId]);
+    expect(listPrintSlots(db.orm, lastSheet()?.id ?? "").map((s) => s.orderItemId)).toEqual([
+      good.itemId,
+    ]);
   });
 
   test("外したバッジを、巡回のたびに記録し直さない。しばらくたつと、もう一度、確かめる（画像が直された）", async () => {
@@ -204,9 +204,9 @@ describe("載せられないバッジ", () => {
     clock.advance(SKIP_COOLDOWN_MS + 1000);
     const third = await run({ skips });
     expect(third.status).toBe("printed");
-    expect(
-      listPrintSlots(db.orm, getCurrentPrintSheet(db)?.id ?? "").map((s) => s.orderItemId),
-    ).toEqual([bad.itemId]);
+    expect(listPrintSlots(db.orm, lastSheet()?.id ?? "").map((s) => s.orderItemId)).toEqual([
+      bad.itemId,
+    ]);
   });
 
   test("1 枚に載る数より多い個数のバッジは、外す（どのシートにも載らない）", async () => {
@@ -216,9 +216,9 @@ describe("載せられないバッジ", () => {
     expect(result.skipped?.[0]).toMatchObject({ orderItemId: big.itemId });
     expect(result.skipped?.[0]?.reason).toContain("1 枚に載る数");
     expect(result.status).toBe("printed");
-    expect(
-      listPrintSlots(db.orm, getCurrentPrintSheet(db)?.id ?? "").map((s) => s.orderItemId),
-    ).toEqual([small.itemId]);
+    expect(listPrintSlots(db.orm, lastSheet()?.id ?? "").map((s) => s.orderItemId)).toEqual([
+      small.itemId,
+    ]);
   });
 });
 
@@ -227,7 +227,7 @@ describe("一時停止と再開", () => {
     paid();
     setPrintPaused(db, { paused: true, actor: "staff" });
     expect(await run()).toEqual({ status: "paused" });
-    expect(getCurrentPrintSheet(db)).toBeUndefined();
+    expect(lastSheet()).toBeUndefined();
     expect(printed).toHaveLength(0);
 
     setPrintPaused(db, { paused: false, actor: "staff" });
@@ -235,26 +235,27 @@ describe("一時停止と再開", () => {
     expect(printed).toHaveLength(1);
   });
 
-  test("一時停止にしても、すでに印刷中のシートは、そのまま確認できる", async () => {
-    paid();
+  test("一時停止にしても、すでに印刷が終わったシートは、そのまま（注文は組み立て中）", async () => {
+    const a = paid();
     await run();
     setPrintPaused(db, { paused: true, actor: "staff" });
-    expect(getCurrentPrintSheet(db)).toBeDefined();
-    expect(() => confirmCurrent()).not.toThrow();
+    expect(getOrderItem(db.orm, a.itemId)?.status).toBe("printed");
+    expect(getOrder(db.orm, a.orderId)?.status).toBe("assembling");
   });
 });
 
 describe("同時に印刷中にできるのは 1 枚", () => {
-  test("確認が済むまで、次のシートは作らない。済めば、次が印刷される", async () => {
-    paid();
-    await run();
+  test("印刷中のシートがあるうちは、次のシートは作らない。終われば、次が印刷される", async () => {
+    // 別の worker が、印刷のジョブを送っている最中（シートは印刷中）
+    const a = paid();
+    const other = createPrintSheet(db, { pdfPath: "sheets/other.pdf", orderItemIds: [a.itemId] });
     paid();
     expect(await run()).toEqual({ status: "busy" });
-    expect(printed).toHaveLength(1);
+    expect(printed).toHaveLength(0);
 
-    confirmCurrent();
+    completePrintSheet(db, { sheetId: other.sheet.id });
     expect((await run()).status).toBe("printed");
-    expect(printed).toHaveLength(2);
+    expect(printed).toHaveLength(1);
   });
 
   test("2 つの巡回が、同時に動いても、シートは 1 枚だけ（db が保証する）", async () => {
@@ -264,14 +265,8 @@ describe("同時に印刷中にできるのは 1 枚", () => {
     const statuses = [a.status, b.status].sort();
     expect(statuses).toEqual(["failed", "printed"]);
     expect(printed).toHaveLength(1);
-    expect(getCurrentPrintSheet(db)).toBeDefined();
     // 負けたほうの PDF は、残らない
-    expect(
-      [a, b].find(
-        (r) =>
-          r.status === "failed" && "error" in r && r.error.includes("印刷中のシートがあります"),
-      ),
-    ).toBeDefined();
+    expect([a, b].find((r) => r.status === "failed")).toBeDefined();
   });
 });
 
@@ -287,30 +282,23 @@ describe("再起動と、印刷の失敗", () => {
     expect(getOrderItem(db.orm, a.itemId)?.status).toBe("printing");
   });
 
-  test("起動時に、印刷中のシートがあれば、確認を待っていることと、自動では印刷し直さないことを知らせる", () => {
+  test("起動時に、印刷中のまま残ったシートは、印刷済みとして扱い（注文は組み立て中）、自動では印刷し直さないことを知らせる", () => {
     const a = paid();
     createPrintSheet(db, { pdfPath: "sheets/waiting.pdf", orderItemIds: [a.itemId] });
-    const messages = describeStartup(db, dir);
-    expect(messages[0]).toContain("確認を待っています");
+    const messages = recoverOnStartup(db);
+    expect(messages[0]).toContain("印刷済みとして扱いました");
     expect(messages[0]).toContain("印刷し直しません");
-    // PDF がないことも、知らせる
-    expect(messages.some((m) => m.includes("PDF") && m.includes("見つかりません"))).toBe(true);
-  });
-
-  test("確認されないまま、長くたったシートは、強く知らせる", () => {
-    const a = paid();
-    createPrintSheet(db, { pdfPath: "sheets/old.pdf", orderItemIds: [a.itemId] });
-    clock.advance((STALE_SHEET_MINUTES + 5) * 60 * 1000);
-    const messages = describeStartup(db, dir);
-    expect(messages.some((m) => m.includes("確認されていません"))).toBe(true);
+    expect(getOrderItem(db.orm, a.itemId)?.status).toBe("printed");
+    expect(getOrder(db.orm, a.orderId)?.status).toBe("assembling");
+    expect(getCurrentPrintSheet(db)).toBeUndefined();
   });
 
   test("印刷中のシートがなければ、何も知らせない", () => {
-    expect(describeStartup(db, dir)).toEqual([]);
+    expect(recoverOnStartup(db)).toEqual([]);
   });
 
-  test("ドライバーが失敗しても、シートは記録済み。自動では印刷し直さない（用紙が出ていたら二重になる）", async () => {
-    paid();
+  test("ドライバーが失敗したら、バッジは印刷待ちに戻り、シートは失敗になり、印刷は一時停止になる（失敗し続けない）", async () => {
+    const a = paid();
     let calls = 0;
     const failing: PrintDriver = {
       name: "failing",
@@ -322,27 +310,28 @@ describe("再起動と、印刷の失敗", () => {
     const logs: string[] = [];
     const result = await run({ driver: failing, log: (m) => logs.push(m) });
     expect(result.status).toBe("driver-failed");
-    expect(logs.some((m) => m.includes("印刷確認") && m.includes("再印刷"))).toBe(true);
+    expect(logs.some((m) => m.includes("一時停止") && m.includes("再開"))).toBe(true);
+    expect(getOrderItem(db.orm, a.itemId)?.status).toBe("queued");
+    expect(lastSheet()?.status).toBe("failed");
+    expect(getSetting(db.orm).printPaused).toBe(true);
 
-    // 次の巡回は、確認待ち（busy）。ドライバーを、もう一度呼ばない
-    expect(await run({ driver: failing })).toEqual({ status: "busy" });
+    // 次の巡回は、一時停止（ドライバーを、もう一度呼ばない）。再開すると、印刷待ちのバッジが印刷される
+    expect(await run({ driver: failing })).toEqual({ status: "paused" });
     expect(calls).toBe(1);
+    setPrintPaused(db, { paused: false, actor: "staff" });
+    expect((await run()).status).toBe("printed");
+    expect(getOrder(db.orm, a.orderId)?.status).toBe("assembling");
   });
 
-  test("印刷係が再印刷を選ぶと、バッジは印刷待ちに戻り、次のシートで先に印刷される", async () => {
+  test("履歴から再印刷を選ぶと、バッジは印刷待ちに戻り、次のシートで先に印刷される", async () => {
     const a = paid();
     const b = paid();
     await run();
-    const sheet = getCurrentPrintSheet(db);
-    checkPrintSheet(db, {
-      sheetId: sheet?.id ?? "",
-      reprintOrderItemIds: [a.itemId],
-      actor: "staff",
-    });
+    reprintItems(db, { orderItemIds: [a.itemId], actor: "staff" });
     paid();
     await run();
     // a（再印刷）が、新しく待ち始めた c より先に載る
-    const next = listPrintSlots(db.orm, getCurrentPrintSheet(db)?.id ?? "");
+    const next = listPrintSlots(db.orm, lastSheet()?.id ?? "");
     expect(next[0]?.orderItemId).toBe(a.itemId);
     expect(b.itemId).toBeDefined();
   });
@@ -380,22 +369,16 @@ describe("ループの停止", () => {
     expect(stopped).toBe(true);
 
     paid();
-    confirmCurrent();
     await new Promise((r) => setTimeout(r, 60));
     expect(started).toBe(1); // 停止後は、新しい巡回が始まらない
   });
 });
 
 describe("再印刷と、印刷待ちのバッジを、いっしょに印刷する", () => {
-  /** 1 枚印刷して、確認する（reprintItemIds だけ、再印刷にする） */
+  /** 1 枚印刷して、reprintItemIds だけ、履歴から再印刷に回す */
   async function printAndCheck(reprintItemIds: string[]) {
     await run();
-    const sheet = getCurrentPrintSheet(db);
-    checkPrintSheet(db, {
-      sheetId: sheet?.id ?? "",
-      reprintOrderItemIds: reprintItemIds,
-      actor: "staff",
-    });
+    reprintItems(db, { orderItemIds: reprintItemIds, actor: "staff" });
   }
 
   test("再印刷が出たとき、待ち時間（60 秒の半分）まで待って、そのあいだに来たバッジと、いっしょに印刷する", async () => {
@@ -418,7 +401,7 @@ describe("再印刷と、印刷待ちのバッジを、いっしょに印刷す�
     // 再印刷が、30 秒待った（支払いから、ではなく、再印刷に戻ってから）。ここで、印刷する
     clock.advance(10_000);
     expect((await run({ ...wait, skips, requeuedAt })).status).toBe("printed");
-    const slots = listPrintSlots(db.orm, getCurrentPrintSheet(db)?.id ?? "");
+    const slots = listPrintSlots(db.orm, lastSheet()?.id ?? "");
     expect(slots.map((s) => s.orderItemId)).toEqual([a.itemId, c.itemId, d.itemId]);
     expect(b.itemId).toBeDefined();
   });
@@ -457,7 +440,7 @@ describe("再印刷と、印刷待ちのバッジを、いっしょに印刷す�
     const others = [paid(), paid(), paid(), paid(), paid()];
     const result = await run({ waitOverrideSeconds: 9999 });
     expect(result.status).toBe("printed");
-    const slots = listPrintSlots(db.orm, getCurrentPrintSheet(db)?.id ?? "");
+    const slots = listPrintSlots(db.orm, lastSheet()?.id ?? "");
     expect(slots.map((s) => s.orderItemId)).toEqual([a.itemId, ...others.map((o) => o.itemId)]);
   });
 });

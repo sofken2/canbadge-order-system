@@ -53,7 +53,7 @@ export function checkInvariants(
     (o) => o.finished && byNumber.get(o.orderNumber ?? -1) !== "picked_up",
   );
 
-  const paidStatuses = new Set(["paid", "printed", "assembling", "ready", "picked_up"]);
+  const paidStatuses = new Set(["paid", "assembling", "ready", "picked_up"]);
   const paidInDb = state.orders.filter((o) => paidStatuses.has(o.status)).length;
   const printing = state.sheets.filter((s) => s.status === "printing");
   const oversize = state.sheets.filter((s) => s.slots.length > state.slotsPerSheet);
@@ -174,8 +174,8 @@ const STAGE_NAMES = {
 export function capacityOf(config: LoadConfig, slotsPerSheet: number): Capacity {
   const perHour = {
     cashier: (config.cashiers * 3600) / config.cashierServiceSeconds,
-    // 用紙 1 枚を、印刷して、確認する間に、シートの枚数分のバッジが進む。印刷中は、次のシートが出ない
-    print: (slotsPerSheet * 3600) / (config.printSeconds + config.checkServiceSeconds),
+    // 用紙 1 枚を印刷する間に、シートの枚数分のバッジが進む。印刷中は、次のシートが出ない
+    print: (slotsPerSheet * 3600) / config.printSeconds,
     assembly: (config.assemblers * 3600) / config.assembleServiceSeconds,
     pickup: (config.pickupStaff * 3600) / config.pickupServiceSeconds,
   };
@@ -206,7 +206,7 @@ export type Report = {
   /** 来場者が来る速さ（1 時間あたり） */
   arrivalsPerHour: number;
   stages: StageTimes;
-  utilization: Record<"cashier" | "assembler" | "pickup" | "check", number>;
+  utilization: Record<"cashier" | "assembler" | "pickup", number>;
   capacity: Capacity;
   sheets: { count: number; averageSlots: number; fillRate: number };
   peaks: {
@@ -238,7 +238,6 @@ export function adviceFor(report: Omit<Report, "advice">): string[] {
     cashier: "レジ",
     assembler: "組み立て",
     pickup: "受け渡し",
-    check: "印刷確認",
   } as const;
 
   advice.push(
@@ -257,13 +256,10 @@ export function adviceFor(report: Omit<Report, "advice">): string[] {
     cashier: config.cashiers,
     assembler: config.assemblers,
     pickup: config.pickupStaff,
-    check: 1,
   };
   if (worst[1] >= 0.85) {
     advice.push(
-      worst[0] === "check"
-        ? `印刷確認の稼働率が ${pct(worst[1])}。印刷中のシートは同時に 1 枚なので、人数では増やせない。確認を速くするか、1 枚に載せる数を見直す`
-        : `${poolNames[worst[0]]}の稼働率が ${pct(worst[1])}。余裕がない。1 人増やすと（${people[worst[0]]} → ${people[worst[0]] + 1} 人）、その担当の処理能力は約 ${Math.round(((people[worst[0]] + 1) / people[worst[0]]) * 100)}% になる`,
+      `${poolNames[worst[0]]}の稼働率が ${pct(worst[1])}。余裕がない。1 人増やすと（${people[worst[0]]} → ${people[worst[0]] + 1} 人）、その担当の処理能力は約 ${Math.round(((people[worst[0]] + 1) / people[worst[0]]) * 100)}% になる`,
     );
   } else if (worst[1] < 0.4) {
     advice.push(`最も忙しい担当でも、稼働率は ${pct(worst[1])}。人数に、余裕がある`);
@@ -338,7 +334,6 @@ export function buildReport(world: World, state: FinalState, realSeconds: number
       cashier: util(world.busySeconds.cashier, config.cashiers),
       assembler: util(world.busySeconds.assembler, config.assemblers),
       pickup: util(world.busySeconds.pickup, config.pickupStaff),
-      check: util(world.busySeconds.check, 1),
     },
     capacity,
     sheets: {
@@ -386,7 +381,7 @@ export function formatReport(report: Report): string {
   lines.push("");
   lines.push("[件数]");
   lines.push(
-    `  注文 ${counts.created} → 支払い ${counts.paid} → 印刷確認 ${counts.printed} → 組み立て ${counts.assembled} → 受け渡し ${counts.pickedUp}（再印刷 ${counts.reprinted}・失敗 ${counts.failed}）`,
+    `  注文 ${counts.created} → 支払い ${counts.paid} → 印刷 ${counts.printed} → 組み立て ${counts.assembled} → 受け渡し ${counts.pickedUp}（再印刷 ${counts.reprinted}・失敗 ${counts.failed}）`,
   );
   lines.push(
     `  受け渡し：仮想の 1 時間あたり ${report.pickedUpPerHour.toFixed(0)} 個（来場のペース ${report.arrivalsPerHour.toFixed(0)} 人/時）`,
@@ -402,7 +397,7 @@ export function formatReport(report: Report): string {
   lines.push("");
   lines.push("[稼働率]");
   lines.push(
-    `  レジ ${pct(report.utilization.cashier)}・組み立て ${pct(report.utilization.assembler)}・受け渡し ${pct(report.utilization.pickup)}・印刷確認 ${pct(report.utilization.check)}`,
+    `  レジ ${pct(report.utilization.cashier)}・組み立て ${pct(report.utilization.assembler)}・受け渡し ${pct(report.utilization.pickup)}`,
   );
   lines.push(
     `  理論上の処理能力（個/時）：レジ ${Math.floor(report.capacity.perHour.cashier)}・印刷 ${Math.floor(report.capacity.perHour.print)}・組み立て ${Math.floor(report.capacity.perHour.assembly)}・受け渡し ${Math.floor(report.capacity.perHour.pickup)}`,

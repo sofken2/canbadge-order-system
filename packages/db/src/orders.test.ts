@@ -5,7 +5,7 @@ import { DbError } from "./errors";
 import { applyOrderTransition, countPendingOrders, createOrder, transitionOrder } from "./orders";
 import { getOrder, getOrderByNumber, getSetting, listOrderItems } from "./queries";
 import { openBusinessDay, setAcceptance, updateSetting } from "./settings";
-import { checkPrintSheet, createPrintSheet } from "./sheets";
+import { completePrintSheet, createPrintSheet } from "./sheets";
 import { getStockRemaining } from "./stock";
 import { payOrder, placeOrder, setup, setupClosed, TOKEN } from "./test-helpers";
 import { write } from "./transaction";
@@ -222,12 +222,11 @@ describe("注文の遷移", () => {
     expect(paid.status).toBe("paid");
     expect(paid.paidAt).toBe("2026-11-03T00:01:00.000Z");
 
-    // 印刷して確認すると、注文は自動で印刷済みになる（印刷の詳細は printing.test.ts）
+    // 印刷が終わると、注文は自動で組み立て中になる（印刷の詳細は printing.test.ts）
     const itemId = listOrderItems(db.orm, id)[0]?.id ?? "";
     const { sheet } = createPrintSheet(db, { pdfPath: "sheets/s.pdf", orderItemIds: [itemId] });
-    checkPrintSheet(db, { sheetId: sheet.id, reprintOrderItemIds: [], actor: "staff" });
-    expect(getOrder(db.orm, id)?.status).toBe("printed");
-    transitionOrder(db, { orderId: id, to: "assembling", actor: "staff" });
+    completePrintSheet(db, { sheetId: sheet.id });
+    expect(getOrder(db.orm, id)?.status).toBe("assembling");
     clock.advance(60_000);
     const ready = transitionOrder(db, { orderId: id, to: "ready", actor: "staff" });
     expect(ready.readyAt).toBe("2026-11-03T00:02:00.000Z");
@@ -276,12 +275,12 @@ describe("注文の遷移", () => {
     ).toBe("INVALID_TRANSITION");
   });
 
-  test("全明細が印刷済みでないと、印刷済みにできない", () => {
+  test("全明細が印刷済みでないと、組み立て中にできない", () => {
     const { db } = setup();
     const { order } = placeOrder(db);
     payOrder(db, order.id);
     expect(
-      codeOf(() => transitionOrder(db, { orderId: order.id, to: "printed", actor: "system" })),
+      codeOf(() => transitionOrder(db, { orderId: order.id, to: "assembling", actor: "system" })),
     ).toBe("INVALID_TRANSITION");
   });
 

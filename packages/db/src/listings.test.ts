@@ -12,7 +12,8 @@ import {
   searchOrders,
 } from "./listings";
 import { pickupOrder, transitionOrder } from "./orders";
-import { checkPrintSheet, createPrintSheet } from "./sheets";
+import { reprintItems } from "./reprint";
+import { completePrintSheet, createPrintSheet } from "./sheets";
 import { paidOrder, placeOrder, setup } from "./test-helpers";
 
 function codeOf(fn: () => unknown): string | undefined {
@@ -24,13 +25,12 @@ function codeOf(fn: () => unknown): string | undefined {
   return undefined;
 }
 
-/** 支払い済み → 印刷 → 確認 → 組み立て → 完成まで進める */
+/** 支払い済み → 印刷（完了で、自動で組み立て中）→ 完成まで進める */
 function readyOrder(db: ReturnType<typeof setup>["db"]) {
   const { order, items } = paidOrder(db);
   const itemId = items[0]?.id ?? "";
   const { sheet } = createPrintSheet(db, { pdfPath: "sheets/s.pdf", orderItemIds: [itemId] });
-  checkPrintSheet(db, { sheetId: sheet.id, reprintOrderItemIds: [], actor: "staff" });
-  transitionOrder(db, { orderId: order.id, to: "assembling", actor: "staff" });
+  completePrintSheet(db, { sheetId: sheet.id });
   const ready = transitionOrder(db, { orderId: order.id, to: "ready", actor: "staff" });
   return { order: ready, itemId, sheetId: sheet.id };
 }
@@ -139,7 +139,7 @@ describe("印刷の履歴", () => {
       pdfPath: "sheets/1.pdf",
       orderItemIds: [a.items[0]?.id ?? ""],
     }).sheet;
-    checkPrintSheet(db, { sheetId: first.id, reprintOrderItemIds: [], actor: "staff" });
+    completePrintSheet(db, { sheetId: first.id });
     const second = createPrintSheet(db, {
       pdfPath: "sheets/2.pdf",
       orderItemIds: [b.items[0]?.id ?? ""],
@@ -172,7 +172,8 @@ describe("印刷の履歴", () => {
       pdfPath: "sheets/1.pdf",
       orderItemIds: [itemA, itemB],
     }).sheet;
-    checkPrintSheet(db, { sheetId: s1.id, reprintOrderItemIds: [itemB], actor: "staff" });
+    completePrintSheet(db, { sheetId: s1.id });
+    reprintItems(db, { orderItemIds: [itemB], actor: "staff" });
     const s2 = createPrintSheet(db, { pdfPath: "sheets/2.pdf", orderItemIds: [itemB] }).sheet;
 
     const all = listPrintedItems(db, { limit: 10 });
@@ -247,7 +248,8 @@ describe("印刷できるバッジ", () => {
 
     // 2 番目のバッジを印刷して再印刷に回すと、printCount が 1 になり、先頭に来る
     const { sheet } = createPrintSheet(db, { pdfPath: "sheets/1.pdf", orderItemIds: [secondItem] });
-    checkPrintSheet(db, { sheetId: sheet.id, reprintOrderItemIds: [secondItem], actor: "staff" });
+    completePrintSheet(db, { sheetId: sheet.id });
+    reprintItems(db, { orderItemIds: [secondItem], actor: "staff" });
     expect(ids(listPrintableItems(db))).toEqual([secondItem, firstItem]);
     expect(listPrintableItems(db)[0]).toMatchObject({
       printCount: 1,

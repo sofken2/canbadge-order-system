@@ -21,12 +21,12 @@ export type PrintSheetWithSlots = { sheet: PrintSheet; slots: PrintSlot[] };
 
 /**
  * 印刷シートを作る。シートと、載せるバッジの状態（印刷中）を、印刷を始める**前に**記録する。
- * こうしておけば、印刷の途中で処理 PC が再起動しても、二重に印刷されず、確認待ちとして残る。
+ * こうしておけば、印刷の途中で処理 PC が再起動しても、二重に印刷されない（印刷中のまま残り、起動時に、印刷済みとして扱う）。
  * orderItemIds の並びが、そのまま PDF 上の位置になる。
  * copies は、各バッジを用紙に何個並べるか（個数。省略すると、すべて 1 個）。位置（position）は、
  * そのバッジの最初の 1 個の、用紙の何番目か（0 から）。例：copies が [2, 1] なら、位置は 0 と 2
  * （用紙の 1・2 番目が最初のバッジ、3 番目が次のバッジ）。
- * **印刷中のシートがあるときは、作れない**（同時に印刷中にできるのは 1 枚まで。印刷係の確認が済むまで、次を送らない）。
+ * **印刷中のシートがあるときは、作れない**（同時に印刷中にできるのは 1 枚まで。いまのシートの印刷が終わるまで、次を送らない）。
  * 1 つでも印刷できないバッジがあれば、全体を取り消す
  */
 export function createPrintSheet(
@@ -59,7 +59,7 @@ export function createPrintSheet(
     if (printing) {
       throw new DbError(
         "CONFLICT",
-        "印刷中のシートがあります。印刷係の確認が済んでから、次のシートを作ります",
+        "印刷中のシートがあります。印刷が終わってから、次のシートを作ります",
         { sheetId: printing.id },
       );
     }
@@ -121,7 +121,7 @@ function applySheetTransition(
   return requirePrintSheet(ctx.tx, sheet.id);
 }
 
-/** 印刷シートの状態を変える。紙詰まりなどで、用紙ごとやり直すとき（failed）に使う */
+/** 印刷シートの状態を変える（遷移表のとおりに） */
 export function transitionPrintSheet(
   db: Database,
   input: { sheetId: string; to: PrintSheetStatus; actor: Actor },
@@ -130,52 +130,70 @@ export function transitionPrintSheet(
 }
 
 /**
- * 印刷の確認。印刷係が用紙を見て、バッジごとに OK か再印刷を選んで確定する。
- * - OK のバッジは印刷済みに、再印刷のバッジは印刷待ちに戻る（次のシートに載る）
- * - 注文の全バッジが印刷済みになれば、注文は自動で印刷済みに進む
- * - シートは確認済みになる。全部を再印刷に回したとき（紙詰まりなど）だけ、失敗になる
+ * 印刷が終わった（ドライバーが、印刷のジョブを送れた）。print-worker が呼ぶ。印刷の確認の操作は、ない。
+ * - シートのバッジは、すべて印刷済みになり、注文の全バッジが印刷済みになれば、注文は自動で組み立て中に進む
+ * - シートは確認済みになる。足りないバッジは、履歴からバッジごとに、すぐ再印刷できる
  */
-export function checkPrintSheet(
+export function completePrintSheet(
   db: Database,
-  input: { sheetId: string; reprintOrderItemIds: string[]; actor: Actor },
+  input: { sheetId: string; actor?: Actor; detail?: Record<string, unknown> },
 ): PrintSheetWithSlots {
+  const actor = input.actor ?? "system";
   return write(db, (ctx) => {
     const sheet = requirePrintSheet(ctx.tx, input.sheetId);
     if (sheet.status !== "printing") {
-      throw new DbError("INVALID_TRANSITION", "このシートは、すでに確認済みです", {
+      throw new DbError("INVALID_TRANSITION", "このシートは、すでに印刷が終わっています", {
         status: sheet.status,
       });
     }
-    const slots = listPrintSlots(ctx.tx, sheet.id);
-    const onSheet = new Set(slots.map((slot) => slot.orderItemId));
-    const reprint = new Set(input.reprintOrderItemIds);
-    for (const id of reprint) {
-      if (!onSheet.has(id))
-        throw validationFailed("このシートに載っていないバッジが含まれています");
-    }
-
-    for (const slot of slots) {
-      const toReprint = reprint.has(slot.orderItemId);
+    for (const slot of listPrintSlots(ctx.tx, sheet.id)) {
       applyItemTransition(ctx, {
         itemId: slot.orderItemId,
-        to: toReprint ? "queued" : "printed",
-        actor: input.actor,
+        to: "printed",
+        actor,
         detail: { sheetId: sheet.id },
       });
       ctx.tx
         .update(printSlots)
-        .set({ result: toReprint ? "reprint" : "ok" })
+        .set({ result: "ok" })
         .where(and(eq(printSlots.sheetId, sheet.id), eq(printSlots.position, slot.position)))
         .run();
     }
+    applySheetTransition(ctx, { sheetId: sheet.id, to: "confirmed", actor, detail: input.detail });
+    return { sheet: requirePrintSheet(ctx.tx, sheet.id), slots: listPrintSlots(ctx.tx, sheet.id) };
+  });
+}
 
-    const allReprint = slots.length > 0 && slots.every((slot) => reprint.has(slot.orderItemId));
-    applySheetTransition(ctx, {
-      sheetId: sheet.id,
-      to: allReprint ? "failed" : "confirmed",
-      actor: input.actor,
-      detail: { reprintOrderItemIds: [...reprint] },
-    });
+/**
+ * 印刷に失敗した（ドライバーが、印刷のジョブを送れなかった）。print-worker が呼ぶ。
+ * シートのバッジは、印刷待ちに戻り（次のシートの先頭に優先して載る）、シートは失敗になる
+ */
+export function failPrintSheet(
+  db: Database,
+  input: { sheetId: string; actor?: Actor; detail?: Record<string, unknown> },
+): PrintSheetWithSlots {
+  const actor = input.actor ?? "system";
+  return write(db, (ctx) => {
+    const sheet = requirePrintSheet(ctx.tx, input.sheetId);
+    if (sheet.status !== "printing") {
+      throw new DbError("INVALID_TRANSITION", "このシートは、すでに印刷が終わっています", {
+        status: sheet.status,
+      });
+    }
+    for (const slot of listPrintSlots(ctx.tx, sheet.id)) {
+      applyItemTransition(ctx, {
+        itemId: slot.orderItemId,
+        to: "queued",
+        actor,
+        detail: { sheetId: sheet.id },
+      });
+      ctx.tx
+        .update(printSlots)
+        .set({ result: "reprint" })
+        .where(and(eq(printSlots.sheetId, sheet.id), eq(printSlots.position, slot.position)))
+        .run();
+    }
+    applySheetTransition(ctx, { sheetId: sheet.id, to: "failed", actor, detail: input.detail });
     return { sheet: requirePrintSheet(ctx.tx, sheet.id), slots: listPrintSlots(ctx.tx, sheet.id) };
   });
 }

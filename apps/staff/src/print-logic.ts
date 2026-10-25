@@ -1,15 +1,10 @@
-import {
-  type OrderStatus,
-  orderStatusLabels,
-  type PrintSlotResult,
-  type StaffOrderView,
-} from "@canbadge/shared";
+import { type OrderStatus, orderStatusLabels, type StaffOrderView } from "@canbadge/shared";
 import { formatWait } from "./assemble-logic";
 
-// 印刷確認画面の、画面から切り離した判定と計算（テストできるように）。
+// 印刷画面の、画面から切り離した判定と計算（テストできるように）。
 
-/** 再印刷の対象になる、注文の状態（spec.md 8.1：printed・assembling・ready は、paid に戻る） */
-const REPRINTABLE: readonly OrderStatus[] = ["printed", "assembling", "ready"];
+/** 再印刷の対象になる、注文の状態（spec.md 8.1：assembling・ready は、paid に戻る） */
+const REPRINTABLE: readonly OrderStatus[] = ["assembling", "ready"];
 
 export const isReprintableOrderStatus = (status: OrderStatus): boolean =>
   REPRINTABLE.includes(status);
@@ -20,17 +15,6 @@ export function toggled<T>(selected: ReadonlySet<T>, value: T): Set<T> {
   if (next.has(value)) next.delete(value);
   else next.add(value);
   return next;
-}
-
-export type SlotChoice = Exclude<PrintSlotResult, "pending">;
-
-/** 確認の集計。選ばなかったバッジは OK（契約：再印刷に回すバッジ以外は、すべて OK） */
-export function sheetTally(
-  slotIds: readonly string[],
-  reprint: ReadonlySet<string>,
-): { ok: number; reprint: number } {
-  const reprintCount = slotIds.filter((id) => reprint.has(id)).length;
-  return { ok: slotIds.length - reprintCount, reprint: reprintCount };
 }
 
 export type ReprintTarget = {
@@ -95,7 +79,7 @@ export function reprintResultMessage(result: {
 
 // ---- 印刷待ち（支払い済みで、まだ印刷されていないバッジ）の見える化 ----
 // print-worker の決まり（P02）に合わせる：用紙 1 枚分たまるか、最も古いバッジが待ち時間に達したら、印刷する。
-// 再印刷は先に出る。同時に印刷するのは 1 枚だけで、いまのシートの確認（OK）が済むまで、次のシートは出ない。
+// 再印刷は先に出る。同時に印刷するのは 1 枚だけで、いまのシートの印刷が終わるまで、次のシートは出ない。
 
 /** 印刷待ちの 1 注文。支払い済みの注文の、印刷待ち（queued）の明細を、まとめたもの */
 export type QueueEntry = {
@@ -172,7 +156,7 @@ export type QueueState = {
   headline: string;
   /** 次に何が起きるか。印刷係が、待つ・押す・確認する、のどれかが、分かるように書く */
   detail: string;
-  /** 印刷係が、いま、動かなくてはならないとき（シートの確認・再開） */
+  /** 印刷係が、いま、動かなくてはならないとき（印刷が止まっているとき） */
   needsAction: boolean;
 };
 
@@ -180,7 +164,7 @@ export function queueState(input: {
   badges: number;
   capacity: number;
   paused: boolean;
-  /** 印刷中（確認待ち）のシートがあるか */
+  /** 印刷中のシート（いま、印刷のジョブを送っている）があるか */
   printing: boolean;
   secondsLeft: number | undefined;
 }): QueueState {
@@ -188,7 +172,8 @@ export function queueState(input: {
   if (input.paused) {
     return {
       headline: `印刷待ち ${badges} 個（印刷を止めています）`,
-      detail: "「印刷を再開する」を押すと、印刷待ちのバッジが、印刷されます。",
+      detail:
+        "「印刷を再開する」を押すと、印刷待ちのバッジが、印刷されます。プリンターの失敗で止まったときは、用紙・インク・接続を確かめてから、再開してください。",
       needsAction: true,
     };
   }
@@ -196,7 +181,7 @@ export function queueState(input: {
     return {
       headline: "印刷待ちはありません",
       detail: input.printing
-        ? "印刷中のシートの確認が済むと、次の印刷に進めます。"
+        ? "印刷中です。終わると、注文は自動で組み立て中になります。"
         : "支払いが済んだ注文が、ここに出ます。",
       needsAction: false,
     };
@@ -204,9 +189,8 @@ export function queueState(input: {
   if (input.printing) {
     return {
       headline: `印刷待ち ${badges} 個`,
-      detail:
-        "印刷中のシートの確認（OK）が済むまで、次のシートは、印刷されません。「確認」タブで、用紙と見比べて、確認してください。",
-      needsAction: true,
+      detail: "いま印刷中のシートが終わると、次のシートを印刷します。",
+      needsAction: false,
     };
   }
   if (badges >= capacity) {
