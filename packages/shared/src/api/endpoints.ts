@@ -43,6 +43,9 @@ import {
   reportViewSchema,
   reprintRequestSchema,
   reprintResponseSchema,
+  resetEventRequestSchema,
+  resetEventResponseSchema,
+  resetSummarySchema,
   salesQuerySchema,
   salesResponseSchema,
   setAcceptanceRequestSchema,
@@ -363,6 +366,22 @@ export const endpoints = {
     summary: "売上の集計（時間帯別・返金を差し引いた合計）",
     query: salesQuerySchema,
     response: salesResponseSchema,
+  },
+  getResetSummary: {
+    method: "GET",
+    path: "/api/staff/reset",
+    access: "staff",
+    summary: "イベントデータのリセットで消えるものの件数と、いま実行できるか",
+    response: resetSummarySchema,
+  },
+  resetEventData: {
+    method: "POST",
+    path: "/api/staff/reset",
+    access: "staff",
+    summary:
+      "注文・売上・印刷の履歴・アーカイブを消し、営業開始の前に戻す（テストのあと・本番の前）。先にバックアップを取る。受付終了中だけ",
+    body: resetEventRequestSchema,
+    response: resetEventResponseSchema,
   },
   // ---- アーカイブの審査（スタッフ向け）----
   listStaffArchive: {
