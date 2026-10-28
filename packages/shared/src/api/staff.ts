@@ -245,3 +245,41 @@ export const reportViewSchema = reportSchema.extend({
 export type ReportView = z.infer<typeof reportViewSchema>;
 export const reportListResponseSchema = pagedSchema(reportViewSchema);
 export type ReportListResponse = z.infer<typeof reportListResponseSchema>;
+
+/** イベントデータのリセットで、消えるものの件数（消える前の数） */
+export const resetCountsSchema = z.object({
+  /** 注文（明細・印刷の履歴・売上の元になる） */
+  orders: z.int().nonnegative(),
+  /** うち、まだ終わっていない注文（支払い待ち・印刷待ち・組み立て中・受け取り可能）。本物の注文なら、消してはいけない */
+  unfinishedOrders: z.int().nonnegative(),
+  printSheets: z.int().nonnegative(),
+  archiveEntries: z.int().nonnegative(),
+  reports: z.int().nonnegative(),
+});
+export type ResetCounts = z.infer<typeof resetCountsSchema>;
+
+/** リセットできない理由。空なら、実行できる */
+export const resetBlockerSchema = z.enum(["acceptance_not_closed", "print_sheet_printing"]);
+export type ResetBlocker = z.infer<typeof resetBlockerSchema>;
+
+/** GET /api/staff/reset。リセットで何が消えるか、いま実行できるか */
+export const resetSummarySchema = z.object({
+  acceptance: acceptanceSchema,
+  counts: resetCountsSchema,
+  blockers: z.array(resetBlockerSchema),
+});
+export type ResetSummary = z.infer<typeof resetSummarySchema>;
+
+/** リセットの確認の文字。画面でも、api でも、この文字が合わなければ実行しない（押し間違い・誤った呼び出しを防ぐ） */
+export const RESET_CONFIRM_TEXT = "リセット";
+
+/** POST /api/staff/reset */
+export const resetEventRequestSchema = z.object({ confirm: z.literal(RESET_CONFIRM_TEXT) });
+export type ResetEventRequest = z.infer<typeof resetEventRequestSchema>;
+
+export const resetEventResponseSchema = z.object({
+  /** バックアップを置いたフォルダの名前（データ置き場の直下。例: old-20261028-163000） */
+  backupName: z.string(),
+  deleted: resetCountsSchema,
+});
+export type ResetEventResponse = z.infer<typeof resetEventResponseSchema>;

@@ -2,6 +2,7 @@ import { isAbsolute, join, relative, resolve } from "node:path";
 import {
   businessDateOf,
   getCurrentPrintSheet,
+  getResetSummary,
   getSetting,
   listPrintedItems,
   listPrintSheets,
@@ -9,6 +10,7 @@ import {
   pickupOrder,
   reprintItems,
   requirePrintSheet,
+  resetEventData,
   salesSummary,
   searchOrders,
   setAcceptance,
@@ -59,6 +61,8 @@ export const staffHandlers: HandlersFor<
   | "getSettings"
   | "updateSettings"
   | "getSales"
+  | "getResetSummary"
+  | "resetEventData"
   | "staffEvents"
 > = {
   searchStaffOrders: ({ deps, query }) => {
@@ -148,6 +152,10 @@ export const staffHandlers: HandlersFor<
       query.businessDate ?? getSetting(deps.db.orm).businessDate ?? businessDateOf(deps.db.now());
     return salesSummary(deps.db, businessDate);
   },
+
+  getResetSummary: ({ deps }) => getResetSummary(deps.db),
+  // 確認の文字は、契約の検証（zod）で、api に届く前に確かめている。取り消せないので、画面だけを信用しない
+  resetEventData: ({ deps }) => resetEventData(deps.db, { dataDir: deps.dataDir, actor: "staff" }),
 
   staffEvents: ({ c, deps }) => subscribeSse(c, deps, () => true),
 };
