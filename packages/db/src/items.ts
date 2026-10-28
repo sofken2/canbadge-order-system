@@ -49,6 +49,8 @@ export function applyItemTransition(ctx: Ctx, input: ItemTransitionInput): Order
     .set({
       status: input.to,
       ...(input.to === "printing" ? { printCount: sql`${orderItems.printCount} + 1` } : {}),
+      // 印刷を待つ時間は、印刷待ちに戻ったときから数える（支払いからでは、すでに長く待ったことになる）
+      ...(input.to === "queued" ? { requeuedAt: ctx.at } : {}),
     })
     .where(and(eq(orderItems.id, item.id), eq(orderItems.status, item.status)))
     .returning({ id: orderItems.id })

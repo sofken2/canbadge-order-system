@@ -204,20 +204,54 @@ describe("あと何秒で、印刷されるか", () => {
     expect(secondsUntilPrint(entries, 120, T0 + 500_000)).toBe(0);
   });
 
-  test("再印刷だけのときは、起点が分からないので undefined", () => {
+  const reprintItem = (requeuedAt: string | undefined): StaffOrderView["items"][number] => ({
+    id: QID,
+    quantity: 1,
+    kiraQuantity: 0,
+    magnetQuantity: 0,
+    status: "queued",
+    printCount: 1,
+    requeuedAt,
+    thumbnailUrl: "/t",
+  });
+
+  test("再印刷は、印刷待ちに戻ってから、待ち時間の半分（120 秒なら 60 秒）で印刷される", () => {
+    // 支払いは、ずっと前（T0）。印刷待ちに戻ったのは、T0 + 10 分
+    const entries = toQueueEntries([orderOf(1, {}, [reprintItem("2026-11-03T01:10:00.000Z")])]);
+    const back = T0 + 600_000;
+    expect(secondsUntilPrint(entries, 120, back)).toBe(60);
+    expect(secondsUntilPrint(entries, 120, back + 45_000)).toBe(15);
+    expect(secondsUntilPrint(entries, 120, back + 60_000)).toBe(0);
+    expect(secondsUntilPrint(entries, 120, back + 500_000)).toBe(0);
+  });
+
+  test("ふつうのバッジと再印刷があれば、早く達するほうまで", () => {
+    // ふつう：T0 + 100 秒に支払い → 達するのは T0 + 220 秒。再印刷：T0 + 150 秒に戻る → 達するのは T0 + 210 秒
     const entries = toQueueEntries([
+      orderOf(1, { paidAt: "2026-11-03T01:01:40.000Z" }),
+      orderOf(2, {}, [reprintItem("2026-11-03T01:02:30.000Z")]),
+    ]);
+    expect(secondsUntilPrint(entries, 120, T0 + 150_000)).toBe(60);
+    // 再印刷のほうが遅く戻れば、ふつうのバッジが先に達する
+    const later = toQueueEntries([
+      orderOf(1, { paidAt: "2026-11-03T01:01:40.000Z" }),
+      orderOf(2, {}, [reprintItem("2026-11-03T01:03:00.000Z")]),
+    ]);
+    expect(secondsUntilPrint(later, 120, T0 + 150_000)).toBe(70);
+  });
+
+  test("再印刷が複数の明細なら、いちばん古く戻った時刻から数える", () => {
+    const [entry] = toQueueEntries([
       orderOf(1, {}, [
-        {
-          id: QID,
-          quantity: 1,
-          kiraQuantity: 0,
-          magnetQuantity: 0,
-          status: "queued",
-          printCount: 1,
-          thumbnailUrl: "/t",
-        },
+        reprintItem("2026-11-03T01:02:00.000Z"),
+        reprintItem("2026-11-03T01:01:00.000Z"),
       ]),
     ]);
+    expect(entry?.requeuedAt).toBe("2026-11-03T01:01:00.000Z");
+  });
+
+  test("起点の時刻が分からない再印刷（古いデータ）と、空の一覧は undefined", () => {
+    const entries = toQueueEntries([orderOf(1, {}, [reprintItem(undefined)])]);
     expect(secondsUntilPrint(entries, 120, T0)).toBeUndefined();
     expect(secondsUntilPrint([], 120, T0)).toBeUndefined();
   });

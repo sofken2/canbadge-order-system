@@ -387,20 +387,19 @@ describe("再印刷と、印刷待ちのバッジを、いっしょに印刷す�
     await printAndCheck([a.itemId]); // a は再印刷。b は OK
     const wait = { waitOverrideSeconds: 60 };
     const skips = createSkipRegistry();
-    const requeuedAt = new Map<string, number>();
 
     // 再印刷が、印刷待ちに戻った。1 個だけなので、すぐには、印刷しない
-    expect((await run({ ...wait, skips, requeuedAt })).status).toBe("waiting");
+    expect((await run({ ...wait, skips })).status).toBe("waiting");
 
     // そのあいだに、新しい注文が、2 件入る
     const c = paid();
     const d = paid();
     clock.advance(20_000);
-    expect((await run({ ...wait, skips, requeuedAt })).status).toBe("waiting");
+    expect((await run({ ...wait, skips })).status).toBe("waiting");
 
     // 再印刷が、30 秒待った（支払いから、ではなく、再印刷に戻ってから）。ここで、印刷する
     clock.advance(10_000);
-    expect((await run({ ...wait, skips, requeuedAt })).status).toBe("printed");
+    expect((await run({ ...wait, skips })).status).toBe("printed");
     const slots = listPrintSlots(db.orm, lastSheet()?.id ?? "");
     expect(slots.map((s) => s.orderItemId)).toEqual([a.itemId, c.itemId, d.itemId]);
     expect(b.itemId).toBeDefined();
@@ -412,7 +411,6 @@ describe("再印刷と、印刷待ちのバッジを、いっしょに印刷す�
     const options = {
       waitOverrideSeconds: 60,
       skips: createSkipRegistry(),
-      requeuedAt: new Map<string, number>(),
     };
     expect((await run(options)).status).toBe("waiting");
     clock.advance(29_000);
@@ -429,7 +427,6 @@ describe("再印刷と、印刷待ちのバッジを、いっしょに印刷す�
     const options = {
       waitOverrideSeconds: 60,
       skips: createSkipRegistry(),
-      requeuedAt: new Map<string, number>(),
     };
     expect((await run(options)).status).toBe("waiting"); // すぐ印刷、には、ならない
   });

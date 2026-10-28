@@ -1,3 +1,5 @@
+import { REPRINT_WAIT_RATIO } from "@canbadge/badge-spec";
+
 // 次に印刷するシートの、組み立て（P02）。画面もデータベースも使わない、純粋な計算。
 // 「どのバッジを、どの順で、何個載せるか」「いま印刷するか、待つか」を決める。
 
@@ -12,12 +14,7 @@ export type Candidate = {
   reprint?: boolean;
 };
 
-/**
- * 再印刷のバッジが、ほかのバッジを待つ時間の割合。印刷を待つ最大の時間（printMaxWaitSeconds）の、この割合まで待つ。
- * すぐ印刷すると、再印刷が 1 個だけの、ほぼ空の用紙になる。待ちすぎると、やり直しを待っているお客さんが、長く待つ。
- * その間の、ちょうどよいところ：半分（既定 60 秒なら 30 秒）。その間に、ほかのバッジがそろえば、一緒に印刷する
- */
-export const REPRINT_WAIT_RATIO = 0.5;
+export { REPRINT_WAIT_RATIO };
 
 export type Plan<T extends Candidate> =
   /** 載せられるバッジがない */

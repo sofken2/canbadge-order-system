@@ -82,6 +82,7 @@ export function buildStaffOrderView(db: Database, order: Order): StaffOrderView 
     magnetQuantity: item.magnetQuantity,
     status: item.status,
     printCount: item.printCount,
+    requeuedAt: item.requeuedAt,
     thumbnailUrl: thumbnailUrl(getDesign(db.orm, item.designId)?.imagePath ?? ""),
   }));
   return {

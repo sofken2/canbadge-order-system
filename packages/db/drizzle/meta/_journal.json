@@ -29,6 +29,13 @@
       "when": 1792578437697,
       "tag": "0003_orders_printed_to_assembling",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1793171215927,
+      "tag": "0004_order_items_requeued_at",
+      "breakpoints": true
     }
   ]
 }

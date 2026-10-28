@@ -45,5 +45,7 @@ export const orderItemSchema = z.object({
   status: orderItemStatusSchema,
   /** 印刷された回数。1 以上で queued なら再印刷待ちで、次のシートに優先して載る */
   printCount: z.int().nonnegative(),
+  /** 印刷待ちに戻った時刻（再印刷など）。印刷を待つ時間の起点。一度も戻っていなければ、ない */
+  requeuedAt: isoDateTimeSchema.optional(),
 });
 export type OrderItem = z.infer<typeof orderItemSchema>;

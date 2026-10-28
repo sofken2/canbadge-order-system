@@ -81,6 +81,8 @@ export const orderItems = sqliteTable(
     magnetQuantity: integer("magnet_quantity").notNull().default(0),
     status: text("status", { enum: values(orderItemStatusSchema.options) }).notNull(),
     printCount: integer("print_count").notNull().default(0),
+    /** 印刷待ちに戻った時刻（再印刷・印刷の失敗）。印刷を待つ時間の起点。一度も戻っていなければ空（支払いの時刻が起点） */
+    requeuedAt: text("requeued_at"),
   },
   (t) => [index("order_items_order_id").on(t.orderId), index("order_items_status").on(t.status)],
 );

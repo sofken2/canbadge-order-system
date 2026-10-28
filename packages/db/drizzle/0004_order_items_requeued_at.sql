@@ -1,0 +1,1 @@
+ALTER TABLE `order_items` ADD `requeued_at` text;

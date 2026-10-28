@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { listAuditLogsSince } from "./audit";
 import { DbError } from "./errors";
 import { transitionOrderItem } from "./items";
+import { listPrintableItems } from "./listings";
 import { transitionOrder } from "./orders";
 import { getOrder, getOrderItem, getPrintSheet, listOrderItems, listPrintSlots } from "./queries";
 import { reprintItems } from "./reprint";
@@ -283,6 +284,29 @@ describe("履歴からの再印刷", () => {
     completePrintSheet(db, { sheetId: sheet.id });
     expect(getOrder(db.orm, orderId)?.status).toBe("assembling");
     expect(getOrderItem(db.orm, itemId)?.printCount).toBe(2);
+  });
+
+  test("印刷待ちに戻った時刻が記録され、印刷を待つ時間は、そこから数える（支払いからではない）", () => {
+    const { db, clock } = setup();
+    const { orderId, itemId } = readyOrder(db);
+    const paidAt = getOrder(db.orm, orderId)?.paidAt;
+    expect(getOrderItem(db.orm, itemId)?.requeuedAt).toBeUndefined();
+
+    clock.advance(10 * 60 * 1000);
+    const backAt = db.now().toISOString();
+    reprintItems(db, { orderItemIds: [itemId], actor: "staff" });
+
+    expect(getOrderItem(db.orm, itemId)?.requeuedAt).toBe(backAt);
+    const [printable] = listPrintableItems(db);
+    expect(printable?.waitingSince).toBe(backAt);
+    expect(printable?.waitingSince).not.toBe(paidAt);
+  });
+
+  test("一度も戻っていないバッジは、支払いの時刻から数える", () => {
+    const { db } = setup();
+    const { orderId } = readyToPrint(db);
+    const [printable] = listPrintableItems(db);
+    expect(printable?.waitingSince).toBe(getOrder(db.orm, orderId)?.paidAt);
   });
 
   test("組み立て中の注文からも、印刷待ちに戻せる", () => {

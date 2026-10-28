@@ -6,6 +6,7 @@ import {
   formatSeconds,
   queueBadgeCount,
   queueState,
+  secondsUntilEntry,
   secondsUntilPrint,
   toQueueEntries,
   waitedSeconds,
@@ -51,8 +52,9 @@ export function QueuePanel({ paused, waitSeconds }: { paused: boolean; waitSecon
       {entries.length > 0 && (
         <ul className="cb-queue__list">
           {entries.map((entry) => {
-            // 再印刷は、最初の支払いからの経過になってしまい、再印刷を指示してからの待ち時間とは違うので、出さない
+            // 再印刷は、最初の支払いからの経過ではなく、印刷まで残りの秒数を出す（再印刷を指示してから、待ち時間の半分）
             const waited = waitedSeconds(entry.paidAt, now);
+            const left = entry.reprint ? secondsUntilEntry(entry, waitSeconds, now) : undefined;
             return (
               <li key={entry.orderId} className="cb-queue__item">
                 {entry.thumbnailUrl && (
@@ -63,7 +65,15 @@ export function QueuePanel({ paused, waitSeconds }: { paused: boolean; waitSecon
                 {/* 再印刷は、色だけでなく、文字でも伝える */}
                 {entry.reprint && <span className="cb-queue__tag">再印刷</span>}
                 <span className="cb-queue__wait cb-muted">
-                  {waited === undefined || entry.reprint ? "" : `${formatSeconds(waited)} 待ち`}
+                  {entry.reprint
+                    ? left === undefined
+                      ? ""
+                      : left === 0
+                        ? "まもなく印刷"
+                        : `あと ${formatSeconds(left)}`
+                    : waited === undefined
+                      ? ""
+                      : `${formatSeconds(waited)} 待ち`}
                 </span>
               </li>
             );
