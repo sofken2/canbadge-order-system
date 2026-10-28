@@ -41,6 +41,8 @@ export const staffOrderViewSchema = z.object({
       magnetQuantity: z.int().nonnegative(),
       status: orderItemStatusSchema,
       printCount: z.int().nonnegative(),
+      /** 印刷待ちに戻った時刻（再印刷など）。印刷までの残り秒数の起点。戻っていなければ、ない（支払いの時刻が起点） */
+      requeuedAt: isoDateTimeSchema.optional(),
       thumbnailUrl: z.string(),
     }),
   ),
