@@ -68,3 +68,11 @@ export const badgeSpec: BadgeSpec = {
   // ずらし（offset）は、測っていないので、0。値を変えたら、`bun run calibration --applied --print` で、縦が 250mm になることを確かめる
   calibration: { scaleX: 1, scaleY: 0.997, offsetXMm: 0, offsetYMm: 0 },
 };
+
+/**
+ * 再印刷のバッジが、ほかのバッジを待つ時間の割合。印刷を待つ最大の時間（printMaxWaitSeconds）の、この割合まで待つ。
+ * すぐ印刷すると、再印刷が 1 個だけの、ほぼ空の用紙になる。待ちすぎると、やり直しを待っているお客さんが、長く待つ。
+ * その間の、ちょうどよいところ：半分（既定 120 秒なら 60 秒）。その間に、ほかのバッジがそろえば、一緒に印刷する。
+ * print-worker の判断と、スタッフ画面の残り秒数の表示が、同じ値を使うので、ここに置く
+ */
+export const REPRINT_WAIT_RATIO = 0.5;

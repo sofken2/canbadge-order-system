@@ -1,5 +1,5 @@
 import { idSchema, type Order, type OrderStatus, type PrintSheet } from "@canbadge/shared";
-import { and, count, desc, eq, inArray, lt } from "drizzle-orm";
+import { and, count, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import type { Database } from "./connection";
 import { getSetting } from "./queries";
 import { toOrder, toPrintSheet } from "./rows";
@@ -287,7 +287,7 @@ export type PrintableItem = {
   orderNumber: number;
   /** 印刷された回数。1 以上は再印刷で、優先して印刷する */
   printCount: number;
-  /** 印刷待ちになった時刻の目安（支払った時刻）。「最も古いバッジが一定時間待ったら印刷する」の判断に使う */
+  /** 印刷待ちになった時刻（印刷待ちに戻った時刻。戻っていなければ、支払った時刻）。「最も古いバッジが一定時間待ったら印刷する」の判断に使う */
   waitingSince: string;
   /** 個数。用紙に、このバッジを何個並べるか（同じデザイン・同じ注文番号を、並べて印刷する） */
   quantity: number;
@@ -313,7 +313,8 @@ export function listPrintableItems(db: Database): PrintableItem[] {
       quantity: orderItems.quantity,
       kiraQuantity: orderItems.kiraQuantity,
       magnetQuantity: orderItems.magnetQuantity,
-      waitingSince: orders.paidAt,
+      // 印刷待ちに戻ったバッジ（再印刷など）は、その時刻から。ほかは、支払いの時刻から
+      waitingSince: sql<string | null>`coalesce(${orderItems.requeuedAt}, ${orders.paidAt})`,
       imagePath: designs.imagePath,
     })
     .from(orderItems)

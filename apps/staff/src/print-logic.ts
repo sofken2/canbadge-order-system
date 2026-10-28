@@ -1,3 +1,4 @@
+import { REPRINT_WAIT_RATIO } from "@canbadge/badge-spec";
 import { type OrderStatus, orderStatusLabels, type StaffOrderView } from "@canbadge/shared";
 import { formatWait } from "./assemble-logic";
 
@@ -90,8 +91,10 @@ export type QueueEntry = {
   badges: number;
   /** 再印刷（先に印刷される）。印刷したことのある明細を含む */
   reprint: boolean;
-  /** 支払いの時刻。待ち時間の起点 */
+  /** 支払いの時刻。待ち時間の起点（再印刷でないとき） */
   paidAt: string | undefined;
+  /** 印刷待ちに戻った時刻。待ち時間の起点（再印刷のとき）。再印刷の明細が複数あれば、いちばん古いもの */
+  requeuedAt: string | undefined;
 };
 
 /** 支払い済みの注文から、印刷待ちの一覧を作る。待たせている順（古いものから） */
@@ -108,28 +111,51 @@ export function toQueueEntries(orders: readonly StaffOrderView[]): QueueEntry[] 
       badges: queued.reduce((sum, item) => sum + item.quantity, 0),
       reprint: queued.some((item) => item.printCount > 0),
       paidAt: order.paidAt,
+      requeuedAt: oldest(
+        queued.filter((item) => item.printCount > 0).map((item) => item.requeuedAt),
+      ),
     });
   }
   return entries.sort((a, b) => Date.parse(a.paidAt ?? "") - Date.parse(b.paidAt ?? ""));
+}
+
+/** 時刻（ISO）のうち、いちばん古いもの。読める時刻がなければ undefined */
+function oldest(times: readonly (string | undefined)[]): string | undefined {
+  const valid = times.filter(
+    (time): time is string => time !== undefined && !Number.isNaN(Date.parse(time)),
+  );
+  return valid.sort((a, b) => Date.parse(a) - Date.parse(b))[0];
 }
 
 export const queueBadgeCount = (entries: readonly QueueEntry[]): number =>
   entries.reduce((sum, entry) => sum + entry.badges, 0);
 
 /**
- * 最も古い（再印刷でない）バッジが、待ち時間に達するまでの秒数。0 以上。
- * 再印刷だけのときは、待ち時間の起点が、画面からは分からないので undefined
+ * この印刷待ちが、待ち時間に達するまでの秒数。0 以上。
+ * ふつうのバッジは、支払いから waitSeconds。再印刷のバッジは、印刷待ちに戻ってから、その半分（print-worker と同じ決まり）。
+ * 起点の時刻が読めなければ、undefined
  */
+export function secondsUntilEntry(
+  entry: QueueEntry,
+  waitSeconds: number,
+  now: number,
+): number | undefined {
+  const since = Date.parse((entry.reprint ? entry.requeuedAt : entry.paidAt) ?? "");
+  if (Number.isNaN(since)) return undefined;
+  const limit = entry.reprint ? waitSeconds * REPRINT_WAIT_RATIO : waitSeconds;
+  return Math.max(0, Math.ceil((since + limit * 1000 - now) / 1000));
+}
+
+/** 印刷待ちのうち、いちばん早く待ち時間に達するものまでの秒数（そのときに、いまある分が印刷される）。分かるものがなければ undefined */
 export function secondsUntilPrint(
   entries: readonly QueueEntry[],
   waitSeconds: number,
   now: number,
 ): number | undefined {
-  const firsts = entries.filter((entry) => !entry.reprint && entry.paidAt !== undefined);
-  if (firsts.length === 0) return undefined;
-  const oldest = Math.min(...firsts.map((entry) => Date.parse(entry.paidAt ?? "")));
-  if (Number.isNaN(oldest)) return undefined;
-  return Math.max(0, Math.ceil((oldest + waitSeconds * 1000 - now) / 1000));
+  const left = entries
+    .map((entry) => secondsUntilEntry(entry, waitSeconds, now))
+    .filter((seconds): seconds is number => seconds !== undefined);
+  return left.length === 0 ? undefined : Math.min(...left);
 }
 
 /**
