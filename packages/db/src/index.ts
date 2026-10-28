@@ -14,6 +14,7 @@ export * from "./orders";
 export * from "./paths";
 export * from "./queries";
 export * from "./reprint";
+export * from "./reset";
 export * from "./rows";
 export * as schema from "./schema";
 export * from "./settings";

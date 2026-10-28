@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { completePrintSheet, getCurrentPrintSheet } from "@canbadge/db";
 import { encodePng, sampleImageIds } from "@canbadge/fixtures";
 import { buildPath, type EndpointName, endpoints } from "@canbadge/shared";
 import { call, createTestApp, openSse, type TestApp } from "./test-helpers";
@@ -301,6 +302,48 @@ describe("アーカイブのエンドポイント（A04）", () => {
       headers: author(),
     });
     expect(withdrawn.body).toMatchObject({ status: "hidden" });
+  });
+});
+
+// サンプルデータを消すので、ほかのテストのあと（契約との対応の直前）に置く
+describe("イベントデータのリセット", () => {
+  test("getResetSummary：受付が終了していなければ、実行できない理由が出る", async () => {
+    const { body } = await run("getResetSummary", {});
+    const summary = body as { counts: { orders: number }; blockers: string[] };
+    expect(summary.counts.orders).toBeGreaterThan(0);
+    expect(summary.blockers).toContain("acceptance_not_closed");
+  });
+
+  test("resetEventData：確認の文字が違えば 400、受付が終了していなければ 409。どちらも、何も消えない", async () => {
+    await run("resetEventData", { json: { confirm: "reset" } }, 400);
+    await run("resetEventData", { json: {} }, 400);
+    await run("resetEventData", { json: { confirm: "リセット" } }, 409);
+    const { body } = await run("getResetSummary", {});
+    expect((body as { counts: { orders: number } }).counts.orders).toBeGreaterThan(0);
+  });
+
+  test("resetEventData：受付を終了して、確認の文字を送ると、消える", async () => {
+    await run("setAcceptance", { json: { acceptance: "closed" } });
+    // サンプルには、印刷中のまま残ったシートがある。印刷中は、リセットできない（先に、印刷を済ませる）
+    expect(((await run("getResetSummary", {})).body as { blockers: string[] }).blockers).toEqual([
+      "print_sheet_printing",
+    ]);
+    await run("resetEventData", { json: { confirm: "リセット" } }, 409);
+    const printing = getCurrentPrintSheet(t.db);
+    if (printing) completePrintSheet(t.db, { sheetId: printing.id });
+
+    const { body } = await run("resetEventData", { json: { confirm: "リセット" } });
+    const result = body as { backupName: string; deleted: { orders: number } };
+    expect(result.backupName).toMatch(/^old-\d{8}-\d{6}$/);
+    expect(result.deleted.orders).toBeGreaterThan(0);
+
+    const after = await run("getResetSummary", {});
+    expect(after.body).toMatchObject({
+      acceptance: "closed",
+      counts: { orders: 0, unfinishedOrders: 0, printSheets: 0, archiveEntries: 0, reports: 0 },
+      blockers: [],
+    });
+    expect((await run("getSettings", {})).body).toMatchObject({ businessDate: null });
   });
 });
 
