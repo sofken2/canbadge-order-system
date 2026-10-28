@@ -10,6 +10,7 @@ import {
 } from "@canbadge/ui";
 import { useEffect, useState } from "react";
 import { api } from "./api";
+import { ResetSection } from "./ResetSection";
 import {
   businessDateLabel,
   closeImpact,
@@ -203,6 +204,8 @@ function OperateTab({
         </Button>
         {printToggle.error && <Notice tone="error">{printToggle.error}</Notice>}
       </div>
+
+      <ResetSection onChanged={onChanged} onMessage={onMessage} />
 
       <ConfirmDialog
         open={Boolean(impact)}

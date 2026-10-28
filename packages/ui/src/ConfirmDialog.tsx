@@ -12,6 +12,7 @@ export function ConfirmDialog({
   confirmLabel,
   cancelLabel = "やめる",
   running = false,
+  confirmDisabled = false,
   error,
   onConfirm,
   onCancel,
@@ -24,6 +25,8 @@ export function ConfirmDialog({
   /** 取り消し側のボタンの文字。取り消しが「別の操作をする」になるときに変える */
   cancelLabel?: string;
   running?: boolean;
+  /** 実行のボタンを押せなくする（確認の文字を打ち込むまで、など）。取り消しは、いつでも押せる */
+  confirmDisabled?: boolean;
   error?: string | undefined;
   onConfirm: () => void;
   onCancel: () => void;
@@ -63,7 +66,7 @@ export function ConfirmDialog({
         <Button variant="line" size="large" onClick={onCancel} disabled={running}>
           {cancelLabel}
         </Button>
-        <Button size="large" onClick={onConfirm} disabled={running}>
+        <Button size="large" onClick={onConfirm} disabled={running || confirmDisabled}>
           {confirmLabel}
         </Button>
       </div>
