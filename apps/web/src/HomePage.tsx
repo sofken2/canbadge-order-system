@@ -11,6 +11,8 @@ import { acceptanceLabels } from "@canbadge/shared";
 import { Button, Notice, navigate, useResource } from "@canbadge/ui";
 import { type ChangeEvent, useEffect, useRef, useState } from "react";
 import { api } from "./api";
+import { discordEnabled } from "./env";
+import { ImageSourceDialog } from "./ImageSourceDialog";
 import { ORDER_DRAFT_KEY } from "./order-draft";
 import { TryOnDialog } from "./TryOnDialog";
 import "./home.css";
@@ -33,6 +35,8 @@ export function HomePage() {
   // 正しいのは、いつも途中保存（注文画面と同じ）のほう。ここは、その絵を写して持つだけ（開いたとき・保存が変わったときに写す）
   const [design, setDesign] = useState<string>();
   const [tryOpen, setTryOpen] = useState(false);
+  // 画像の取り込み元（デバイス・Discord）を選ぶ画面
+  const [sourceOpen, setSourceOpen] = useState(false);
   // 開く前に選んだ写真。なければ、途中保存の続きを開く
   const [picked, setPicked] = useState<Blob>();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -151,7 +155,14 @@ export function HomePage() {
   const startTry = () => {
     setOrderIntent(false);
     if (design) setTryOpen(true);
+    // 取り込み元が 2 つ（デバイス・Discord）のときだけ、選ばせる。1 つなら、そのまま画像を選ぶ画面へ
+    else if (discordEnabled) setSourceOpen(true);
     else pickImage();
+  };
+
+  const pickFromDevice = () => {
+    setSourceOpen(false);
+    pickImage();
   };
 
   // 「バッジを注文する」。画像がまだなければ、はめるところから（選ぶ → 編集 → 注文の確認）。
@@ -227,9 +238,12 @@ export function HomePage() {
               </svg>
             </button>
           </div>
-          <Button variant="line" className="cb-home__try" onClick={startTry}>
-            {design ? "デザインを編集する" : "画像をはめてみる"}
-          </Button>
+          {/* 加工の丸とは別の段にするための入れ物（スマホ：上の段に丸、下の段にこのボタン） */}
+          <div className="cb-home__tryrow">
+            <Button variant="line" className="cb-home__try" onClick={startTry}>
+              {design ? "デザインを編集する" : "画像をはめてみる"}
+            </Button>
+          </div>
           <div className="cb-home__looks cb-home__looks--film">
             <button
               type="button"
@@ -350,6 +364,14 @@ export function HomePage() {
           </Button>
         </nav>
       </section>
+
+      <ImageSourceDialog
+        open={sourceOpen}
+        onClose={() => setSourceOpen(false)}
+        onPickDevice={pickFromDevice}
+        // Discord の許可画面へ移る（ページを離れる）。戻ると、注文画面のエディタにアイコンが読み込まれる（W08）
+        onPickDiscord={() => window.location.assign(api.url("discordAuthorize"))}
+      />
 
       <TryOnDialog
         open={tryOpen}

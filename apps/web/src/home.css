@@ -120,14 +120,21 @@
 }
 
 .cb-home__try {
-  grid-row: 2;
-  /* 3D の枠は、回したときに縁が切れないよう、缶バッジのまわりに余白を持つ。その分だけ、ボタンを缶バッジへ寄せる */
-  margin-top: calc(-1 * var(--space-xl));
   /* 主役の缶バッジより目立たないよう、文字は小さめに。高さは、ほかのボタンと同じ（design.md：3rem 以上） */
   min-height: var(--size-control);
   padding: var(--space-2xs) var(--space-md);
   background: var(--color-card);
   font-size: var(--text-sm);
+}
+
+/* 「画像をはめてみる」の入れ物。加工の丸とは、別の段に置く */
+.cb-home__tryrow {
+  grid-row: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  /* 3D の枠は、回したときに縁が切れないよう、缶バッジのまわりに余白を持つ。その分だけ、ボタンを缶バッジへ寄せる */
+  margin-top: calc(-1 * var(--space-xl));
 }
 
 /* ---------- 値段と注文 ---------- */
@@ -362,18 +369,18 @@
     margin-bottom: var(--space-2xs);
   }
 
-  /* 欄の高さから、下の「画像をはめてみる」の分を引いた大きさまで。欄からはみ出さない */
   /*
    * 欄に入るいちばん大きな大きさにする。3D の枠は、缶バッジのまわりに透明な余白（一辺の 1 割ほど）を持つので、
-   * 高さはその一部（1 割強）まで欄からはみ出してよい（下の「画像をはめてみる」と値段がくっつかない程度）。はみ出すのは透明な余白だけで、缶バッジ自体は欄に収まる
+   * 高さはその一部（1 割強）まで欄からはみ出してよい（下の「画像をはめてみる」と値段がくっつかない程度）。はみ出すのは透明な余白だけで、缶バッジ自体は欄に収まる。
+   * 下は 2 段（加工の丸の段・「画像をはめてみる」の段）なので、その分を引く
    */
   .cb-home__badge {
     flex: none;
-    width: min(100cqw, calc((100cqh - var(--size-control)) * 1.12));
+    width: min(100cqw, calc((100cqh - 2 * var(--size-control) - var(--space-xs)) * 1.12));
     margin-block: 0;
   }
 
-  /* 「デザインを編集する」と見比べるボタンを、横一列に。とても狭い端末では、折り返して 2 段になる */
+  /* 上の段に加工の丸 3 つ（マグネット・キラフィルム 2 つ）、下の段に「画像をはめてみる」 */
   .cb-home__actions {
     display: flex;
     flex-wrap: wrap;
@@ -384,23 +391,22 @@
     margin-top: calc(-1 * var(--space-lg));
   }
 
-  .cb-home__try {
-    margin-top: 0;
-    /* 横の 3 つの丸と一列に収めるため、左右の余白を詰める */
-    padding-inline: var(--space-sm);
-  }
-
   .cb-home__looks,
   .cb-home__looks--film {
     display: flex;
     margin-top: 0;
+    order: 1;
   }
 
-  /* 2 段に折り返す幅では、缶バッジの下に 2 段分を空けて、1 画面に収める */
-  @container (width < 20.5rem) {
-    .cb-home__badge {
-      width: min(100cqw, calc((100cqh - 2 * var(--size-control) - var(--space-xs)) * 1.12));
-    }
+  .cb-home__tryrow {
+    order: 2;
+    flex-basis: 100%;
+    justify-content: center;
+    margin-top: 0;
+  }
+
+  .cb-home__try {
+    margin-top: 0;
   }
 
   .cb-home__offer {
@@ -534,5 +540,81 @@
 
   .cb-home__offer {
     grid-area: offer;
+  }
+}
+
+/* 画像の取り込み元を選ぶダイアログ。右上の ×（閉じる）と、2 つのボタンを横に並べる（アイコンを上、文字を下） */
+.cb-source {
+  position: relative;
+}
+
+.cb-source h2 {
+  /* 右上の × と重ならないように */
+  padding-right: var(--size-control);
+  /* 開いたとき、フォーカスを置くだけ（枠は出さない。TryOnDialog の見出しと同じ） */
+  outline: none;
+}
+
+.cb-source__close {
+  position: absolute;
+  top: var(--space-xs);
+  right: var(--space-xs);
+  display: inline-grid;
+  place-items: center;
+  width: var(--size-control);
+  height: var(--size-control);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-ink);
+  cursor: pointer;
+}
+
+.cb-source__close:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+@media (hover: hover) {
+  .cb-source__close:hover {
+    background: var(--color-paper-2);
+  }
+}
+
+.cb-source__actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+
+.cb-source__tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  min-height: 7rem;
+  padding: var(--space-sm);
+  border-radius: var(--radius-card);
+  /* ボタンの文字は折り返さない作りなので、幅が狭いときは、2 行にする */
+  white-space: normal;
+  text-align: center;
+  line-height: 1.4;
+}
+
+/* Discord だと、ひと目で分かるように、Discord のブランドの色（ブランドの色は、トークンにない。ここだけ） */
+.cb-source__tile--discord {
+  --discord-blurple: #5865f2;
+  border-color: var(--discord-blurple);
+  background: var(--discord-blurple);
+  color: #fff;
+}
+
+@media (hover: hover) {
+  .cb-source__tile--discord:hover {
+    background: #4752c4;
+    border-color: #4752c4;
   }
 }
