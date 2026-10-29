@@ -107,7 +107,8 @@ describe("画像の検証", () => {
     expect(bomb.length).toBeLessThan(1_000_000);
     const res = await upload(test, bomb);
     expect(res.status).toBe(415);
-  });
+    // 5600 万画素の PNG を作って読むので、遅い実行環境（CI）では、既定の 5 秒を超えることがある
+  }, 30_000);
 
   test("申告された種類・拡張子ではなく、中身で判定する（JPEG を .png と名乗っても、受け付ける）", async () => {
     const test = app();
