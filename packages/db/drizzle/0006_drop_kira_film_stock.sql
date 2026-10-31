@@ -1,0 +1,1 @@
+ALTER TABLE `settings` DROP COLUMN `kira_film_stock`;

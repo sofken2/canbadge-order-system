@@ -6,7 +6,9 @@ import { orderItems, orders } from "./schema";
 /** 在庫の残り。総数（設定）から、使われている数を引いた数 */
 export type StockRemaining = {
   badge: number;
-  kiraFilm: number;
+  /** キラフィルムは、柄ごとに数える */
+  kiraShards: number;
+  kiraAurora: number;
   magnet: number;
 };
 
@@ -19,7 +21,8 @@ export function getStockRemaining(reader: Reader, setting: Setting): StockRemain
   const used = reader
     .select({
       badge: sql<number>`coalesce(sum(${orderItems.quantity}), 0)`,
-      kira: sql<number>`coalesce(sum(${orderItems.kiraQuantity}), 0)`,
+      kiraShards: sql<number>`coalesce(sum(case when ${orderItems.kiraPattern} = 'shards' then ${orderItems.kiraQuantity} else 0 end), 0)`,
+      kiraAurora: sql<number>`coalesce(sum(case when ${orderItems.kiraPattern} = 'aurora' then ${orderItems.kiraQuantity} else 0 end), 0)`,
       magnet: sql<number>`coalesce(sum(${orderItems.magnetQuantity}), 0)`,
     })
     .from(orderItems)
@@ -28,7 +31,8 @@ export function getStockRemaining(reader: Reader, setting: Setting): StockRemain
     .get();
   return {
     badge: Math.max(0, setting.badgeStock - (used?.badge ?? 0)),
-    kiraFilm: Math.max(0, setting.kiraFilmStock - (used?.kira ?? 0)),
+    kiraShards: Math.max(0, setting.kiraShardsStock - (used?.kiraShards ?? 0)),
+    kiraAurora: Math.max(0, setting.kiraAuroraStock - (used?.kiraAurora ?? 0)),
     magnet: Math.max(0, setting.magnetStock - (used?.magnet ?? 0)),
   };
 }

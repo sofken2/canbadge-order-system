@@ -4,6 +4,8 @@ import {
   type Design,
   type EditorData,
   editorDataSchema,
+  kiraPatternLabels,
+  kiraPatternSchema,
   type Order,
   type OrderItem,
   type OrderStatus,
@@ -32,6 +34,8 @@ const createOrderInputSchema = z.object({
   quantity: quantitySchema,
   /** キラフィルムを貼る個数（0〜quantity）。省略すると 0 */
   kiraQuantity: z.int().nonnegative().default(0),
+  /** キラフィルムの柄。kiraQuantity が 1 以上のとき必須（0 のときは、あっても記録しない） */
+  kiraPattern: kiraPatternSchema.optional(),
   /** マグネット加工をする個数（0〜quantity）。キラフィルムとは独立。省略すると 0 */
   magnetQuantity: z.int().nonnegative().default(0),
   anonToken: anonTokenSchema,
@@ -76,6 +80,9 @@ export function createOrder(db: Database, input: CreateOrderInput): CreatedOrder
     if (data.kiraQuantity > data.quantity) {
       throw validationFailed("キラフィルムの個数が、注文の個数を超えています");
     }
+    if (data.kiraQuantity > 0 && !data.kiraPattern) {
+      throw validationFailed("キラフィルムの柄を選んでください");
+    }
     if (data.magnetQuantity > data.quantity) {
       throw validationFailed("マグネット加工の個数が、注文の個数を超えています");
     }
@@ -85,11 +92,14 @@ export function createOrder(db: Database, input: CreateOrderInput): CreatedOrder
     if (data.quantity > remaining.badge) {
       throw new DbError("CONFLICT", `バッジの在庫が足りません（残り ${remaining.badge} 個）`);
     }
-    if (data.kiraQuantity > remaining.kiraFilm) {
-      throw new DbError(
-        "CONFLICT",
-        `キラフィルムの在庫が足りません（残り ${remaining.kiraFilm} 個）`,
-      );
+    if (data.kiraQuantity > 0 && data.kiraPattern) {
+      const left = data.kiraPattern === "shards" ? remaining.kiraShards : remaining.kiraAurora;
+      if (data.kiraQuantity > left) {
+        throw new DbError(
+          "CONFLICT",
+          `キラフィルム（${kiraPatternLabels[data.kiraPattern]}）の在庫が足りません（残り ${left} 個）`,
+        );
+      }
     }
     if (data.magnetQuantity > remaining.magnet) {
       throw new DbError("CONFLICT", `マグネットの在庫が足りません（残り ${remaining.magnet} 個）`);
@@ -165,6 +175,7 @@ export function createOrder(db: Database, input: CreateOrderInput): CreatedOrder
         designId,
         quantity: data.quantity,
         kiraQuantity: data.kiraQuantity,
+        kiraPattern: data.kiraQuantity > 0 ? (data.kiraPattern ?? null) : null,
         magnetQuantity: data.magnetQuantity,
         status: "queued",
         printCount: 0,

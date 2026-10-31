@@ -51,7 +51,9 @@ function dropNulls(row: object): Record<string, unknown> {
 
 export const toDesign = (row: DesignRow): Design => designSchema.parse(dropNulls(row));
 export const toOrder = (row: OrderRow): Order => orderSchema.parse(dropNulls(row));
-export const toOrderItem = (row: OrderItemRow): OrderItem => orderItemSchema.parse(dropNulls(row));
+// kiraPattern は、契約で nullable（キラフィルムなしは null）なので、null のまま渡す
+export const toOrderItem = (row: OrderItemRow): OrderItem =>
+  orderItemSchema.parse({ ...dropNulls(row), kiraPattern: row.kiraPattern });
 export const toPrintSheet = (row: PrintSheetRow): PrintSheet =>
   printSheetSchema.parse(dropNulls(row));
 export const toPrintSlot = (row: PrintSlotRow): PrintSlot => printSlotSchema.parse(dropNulls(row));

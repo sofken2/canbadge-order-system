@@ -36,6 +36,20 @@
       "when": 1793171215927,
       "tag": "0004_order_items_requeued_at",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1793407911443,
+      "tag": "0005_kira_patterns",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1793407922630,
+      "tag": "0006_drop_kira_film_stock",
+      "breakpoints": true
     }
   ]
 }

@@ -38,7 +38,11 @@ type SameShape<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : fals
 
 const designMatches: SameShape<NullToOptional<DesignRow>, Design> = true;
 const orderMatches: SameShape<NullToOptional<OrderRow>, Order> = true;
-const itemMatches: SameShape<NullToOptional<OrderItemRow>, OrderItem> = true;
+// kiraPattern は、契約で nullable（キラフィルムなしは null）なので、null のまま持つ
+const itemMatches: SameShape<
+  NullToOptional<Omit<OrderItemRow, "kiraPattern">> & Pick<OrderItemRow, "kiraPattern">,
+  OrderItem
+> = true;
 const sheetMatches: SameShape<NullToOptional<PrintSheetRow>, PrintSheet> = true;
 const slotMatches: SameShape<NullToOptional<PrintSlotRow>, PrintSlot> = true;
 const archiveMatches: SameShape<NullToOptional<ArchiveEntryRow>, ArchiveEntry> = true;

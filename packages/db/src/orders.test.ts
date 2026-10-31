@@ -66,7 +66,8 @@ describe("注文の作成", () => {
         kiraFilmPrice: 100,
         magnetPrice: 100,
         badgeStock: 300,
-        kiraFilmStock: 100,
+        kiraShardsStock: 100,
+        kiraAuroraStock: 100,
         magnetStock: 100,
         maxQuantityPerOrder: 3,
         maxPendingPerDevice: 2,
@@ -89,7 +90,8 @@ describe("注文の作成", () => {
         kiraFilmPrice: 100,
         magnetPrice: 100,
         badgeStock: 300,
-        kiraFilmStock: 100,
+        kiraShardsStock: 100,
+        kiraAuroraStock: 100,
         magnetStock: 100,
         maxQuantityPerOrder: 3,
         maxPendingPerDevice: 5,
@@ -114,7 +116,8 @@ describe("注文の作成", () => {
         kiraFilmPrice: 100,
         magnetPrice: 150,
         badgeStock: 100,
-        kiraFilmStock: 100,
+        kiraShardsStock: 100,
+        kiraAuroraStock: 100,
         magnetStock: 100,
         maxQuantityPerOrder: 3,
         maxPendingPerDevice: 5,
@@ -138,7 +141,8 @@ describe("注文の作成", () => {
         kiraFilmPrice: 100,
         magnetPrice: 100,
         badgeStock: 3,
-        kiraFilmStock: 1,
+        kiraShardsStock: 1,
+        kiraAuroraStock: 1,
         magnetStock: 1,
         maxQuantityPerOrder: 3,
         maxPendingPerDevice: 5,
@@ -150,7 +154,8 @@ describe("注文の作成", () => {
     const first = placeOrder(db, 2, undefined, 1, 1);
     expect(getStockRemaining(db.orm, getSetting(db.orm))).toEqual({
       badge: 1,
-      kiraFilm: 0,
+      kiraShards: 0,
+      kiraAurora: 1,
       magnet: 0,
     });
     // バッジ・キラ・マグネットの、どれが足りなくても、断る
@@ -164,9 +169,53 @@ describe("注文の作成", () => {
     transitionOrder(db, { orderId: first.order.id, to: "cancelled", actor: "visitor" });
     expect(getStockRemaining(db.orm, getSetting(db.orm))).toEqual({
       badge: 2,
-      kiraFilm: 1,
+      kiraShards: 1,
+      kiraAurora: 1,
       magnet: 1,
     });
+  });
+
+  test("キラフィルムは柄ごとに在庫を数える。柄がなければ断り、売り切れた柄だけが断られる", () => {
+    const { db } = setup();
+    updateSetting(db, {
+      actor: "staff",
+      values: {
+        price: 200,
+        kiraFilmPrice: 100,
+        magnetPrice: 100,
+        badgeStock: 10,
+        kiraShardsStock: 1,
+        kiraAuroraStock: 2,
+        magnetStock: 10,
+        maxQuantityPerOrder: 3,
+        maxPendingPerDevice: 10,
+        printMaxWaitSeconds: 120,
+        orderNumberDigits: 3,
+        imageMaxBytes: 1000,
+      },
+    });
+    // 柄を選ばないキラフィルムの注文は、断る
+    expect(
+      codeOf(() =>
+        createOrder(db, {
+          imagePath: "images/sample.png",
+          editorData: { version: 1 },
+          quantity: 1,
+          kiraQuantity: 1,
+          anonToken: TOKEN,
+        }),
+      ),
+    ).toBe("VALIDATION_FAILED");
+
+    expect(placeOrder(db, 1, undefined, 1, 0, "shards").items[0]?.kiraPattern).toBe("shards");
+    expect(codeOf(() => placeOrder(db, 1, undefined, 1, 0, "shards"))).toBe("CONFLICT");
+    expect(placeOrder(db, 2, undefined, 2, 0, "aurora").items[0]?.kiraPattern).toBe("aurora");
+    expect(getStockRemaining(db.orm, getSetting(db.orm))).toMatchObject({
+      kiraShards: 0,
+      kiraAurora: 0,
+    });
+    // キラフィルムなしの注文は、柄を持たない
+    expect(placeOrder(db, 1).items[0]?.kiraPattern).toBeNull();
   });
 
   test("個数が上限を超えたら断る", () => {
@@ -407,7 +456,8 @@ describe("1 端末あたりの支払い待ちの上限（A06）", () => {
         kiraFilmPrice: 100,
         magnetPrice: 100,
         badgeStock: 300,
-        kiraFilmStock: 100,
+        kiraShardsStock: 100,
+        kiraAuroraStock: 100,
         magnetStock: 100,
         maxQuantityPerOrder: 1,
         maxPendingPerDevice: 1,
