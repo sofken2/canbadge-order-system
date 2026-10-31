@@ -37,6 +37,10 @@ export type ReportStatus = z.infer<typeof reportStatusSchema>;
 export const acceptanceSchema = z.enum(["open", "busy", "closed"]);
 export type Acceptance = z.infer<typeof acceptanceSchema>;
 
+/** キラフィルムの柄。柄ごとに在庫を持つ。1 つの注文明細に貼れる柄は、1 種類 */
+export const kiraPatternSchema = z.enum(["shards", "aurora"]);
+export type KiraPattern = z.infer<typeof kiraPatternSchema>;
+
 /** 操作の実行者。スタッフは個人を区別しない */
 export const actorSchema = z.enum(["staff", "visitor", "system"]);
 export type Actor = z.infer<typeof actorSchema>;
@@ -77,6 +81,11 @@ export const archiveStatusLabels: Record<ArchiveStatus, string> = {
   public: "公開中",
   rejected: "却下",
   hidden: "非公開",
+};
+
+export const kiraPatternLabels: Record<KiraPattern, string> = {
+  shards: "割れガラス",
+  aurora: "オーロラ",
 };
 
 export const acceptanceLabels: Record<Acceptance, string> = {

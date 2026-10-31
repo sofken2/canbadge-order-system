@@ -6,6 +6,7 @@ import { isoDateSchema, isoDateTimeSchema, quantitySchema, yenSchema } from "../
 import {
   acceptanceSchema,
   archiveStatusSchema,
+  kiraPatternSchema,
   orderItemStatusSchema,
   orderStatusSchema,
   printSheetStatusSchema,
@@ -38,6 +39,8 @@ export const staffOrderViewSchema = z.object({
       quantity: quantitySchema,
       /** うち、キラフィルムを貼る個数。組み立てで貼り忘れないよう見せる */
       kiraQuantity: z.int().nonnegative(),
+      /** キラフィルムの柄。レジ・組み立てで、どの柄を貼るかを見せる */
+      kiraPattern: kiraPatternSchema.nullable(),
       magnetQuantity: z.int().nonnegative(),
       status: orderItemStatusSchema,
       printCount: z.int().nonnegative(),
@@ -164,7 +167,8 @@ export const updateSettingRequestSchema = settingSchema.pick({
   kiraFilmPrice: true,
   magnetPrice: true,
   badgeStock: true,
-  kiraFilmStock: true,
+  kiraShardsStock: true,
+  kiraAuroraStock: true,
   magnetStock: true,
   maxQuantityPerOrder: true,
   maxPendingPerDevice: true,

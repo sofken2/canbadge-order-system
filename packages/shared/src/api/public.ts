@@ -18,6 +18,7 @@ import {
 import {
   acceptanceSchema,
   archiveStatusSchema,
+  kiraPatternSchema,
   orderItemStatusSchema,
   orderStatusSchema,
 } from "../status";
@@ -37,7 +38,9 @@ export const statusResponseSchema = z.object({
   magnetPrice: yenSchema,
   /** 在庫の残り（総数から、使われている数を引いた数）。0 なら、画面は売り切れにする */
   badgeRemaining: stockSchema,
-  kiraFilmRemaining: stockSchema,
+  /** キラフィルムの在庫の残り。柄ごと。0 の柄は、画面で選べなくする */
+  kiraShardsRemaining: stockSchema,
+  kiraAuroraRemaining: stockSchema,
   magnetRemaining: stockSchema,
   /** 1 のとき、画面は個数の選択を出さない */
   maxQuantityPerOrder: quantitySchema,
@@ -57,6 +60,8 @@ export const createOrderRequestSchema = z.object({
   quantity: quantitySchema,
   /** キラフィルムを貼る個数（0〜quantity）。省略すると 0。超えていれば db が VALIDATION_FAILED で断る */
   kiraQuantity: z.int().nonnegative().default(0),
+  /** キラフィルムの柄。kiraQuantity が 1 以上のとき必須（なければ db が VALIDATION_FAILED で断る） */
+  kiraPattern: kiraPatternSchema.optional(),
   /** マグネット加工をする個数（0〜quantity）。省略すると 0。キラフィルムとは独立 */
   magnetQuantity: z.int().nonnegative().default(0),
   turnstileToken: z.string().min(1),
@@ -73,6 +78,7 @@ export const orderItemViewSchema = z.object({
   id: idSchema,
   quantity: quantitySchema,
   kiraQuantity: z.int().nonnegative(),
+  kiraPattern: kiraPatternSchema.nullable(),
   magnetQuantity: z.int().nonnegative(),
   status: orderItemStatusSchema,
   imageUrl: z.string(),
@@ -187,6 +193,8 @@ export type ReportArchiveEntryResponse = z.infer<typeof reportArchiveEntryRespon
 export const orderFromArchiveRequestSchema = z.object({
   quantity: quantitySchema,
   kiraQuantity: z.int().nonnegative().default(0),
+  /** キラフィルムの柄。kiraQuantity が 1 以上のとき必須 */
+  kiraPattern: kiraPatternSchema.optional(),
   /** マグネット加工をする個数（0〜quantity）。省略すると 0。キラフィルムとは独立 */
   magnetQuantity: z.int().nonnegative().default(0),
   turnstileToken: z.string().min(1),
