@@ -153,3 +153,8 @@
   max-height: 40vh;
   margin-inline: auto;
 }
+
+.cb-asm__force {
+  display: grid;
+  gap: var(--space-sm);
+}

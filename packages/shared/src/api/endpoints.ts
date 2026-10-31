@@ -260,6 +260,14 @@ export const endpoints = {
     body: pickupRequestSchema,
     response: staffOrderViewSchema,
   },
+  forcePickupOrder: {
+    method: "POST",
+    path: "/api/staff/orders/:orderId/force-pickup",
+    access: "staff",
+    summary: "強制の受け渡し。確認コードを照合せず、受け渡し済みにする（操作ログに残る）",
+    params: orderIdParamsSchema,
+    response: staffOrderViewSchema,
+  },
   refundOrder: {
     method: "POST",
     path: "/api/staff/orders/:orderId/refund",

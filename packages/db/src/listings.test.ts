@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { listAuditLogsSince } from "./audit";
 import { DbError } from "./errors";
 import {
   countWaitingOrders,
@@ -11,7 +12,7 @@ import {
   salesSummary,
   searchOrders,
 } from "./listings";
-import { pickupOrder, transitionOrder } from "./orders";
+import { forcePickupOrder, pickupOrder, transitionOrder } from "./orders";
 import { reprintItems } from "./reprint";
 import { completePrintSheet, createPrintSheet } from "./sheets";
 import { paidOrder, placeOrder, setup } from "./test-helpers";
@@ -70,6 +71,25 @@ describe("受け渡しの確認コード", () => {
         }),
       ),
     ).toBe("INVALID_TRANSITION");
+  });
+});
+
+describe("強制の受け渡し", () => {
+  test("確認コードなしで受け渡し済みになり、操作ログに forced が残る", () => {
+    const { db } = setup();
+    const { order } = readyOrder(db);
+    expect(forcePickupOrder(db, { orderId: order.id, actor: "staff" }).status).toBe("picked_up");
+    const logs = listAuditLogsSince(db, 0, 1000).map((row) => row.log);
+    const log = logs.find((l) => l.targetId === order.id && l.detail?.to === "picked_up");
+    expect(log?.detail?.forced).toBe(true);
+  });
+
+  test("完成していない注文は、強制でも受け渡せない", () => {
+    const { db } = setup();
+    const { order } = paidOrder(db);
+    expect(codeOf(() => forcePickupOrder(db, { orderId: order.id, actor: "staff" }))).toBe(
+      "INVALID_TRANSITION",
+    );
   });
 });
 

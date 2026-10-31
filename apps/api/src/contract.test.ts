@@ -143,6 +143,8 @@ describe("スタッフ向けのエンドポイント", () => {
       json: { confirmationCode: t.confirmationCode("readyNew") },
     });
     expect(pickup.body).toMatchObject({ status: "picked_up" });
+    const forced = await run("forcePickupOrder", { params: { orderId: t.orderId("readyLong") } });
+    expect(forced.body).toMatchObject({ status: "picked_up" });
     const refund = await run("refundOrder", { params: { orderId: t.orderId("queued") } });
     expect(refund.body).toMatchObject({ status: "refunded" });
     const cancel = await run("cancelStaffOrder", {
