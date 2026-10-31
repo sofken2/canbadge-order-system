@@ -93,7 +93,8 @@ export type SettingsForm = {
   kiraFilmPrice: string;
   magnetPrice: string;
   badgeStock: string;
-  kiraFilmStock: string;
+  kiraShardsStock: string;
+  kiraAuroraStock: string;
   magnetStock: string;
   maxQuantityPerOrder: string;
   maxPendingPerDevice: string;
@@ -112,7 +113,8 @@ export function formFromSetting(setting: Setting): SettingsForm {
     kiraFilmPrice: String(setting.kiraFilmPrice),
     magnetPrice: String(setting.magnetPrice),
     badgeStock: String(setting.badgeStock),
-    kiraFilmStock: String(setting.kiraFilmStock),
+    kiraShardsStock: String(setting.kiraShardsStock),
+    kiraAuroraStock: String(setting.kiraAuroraStock),
     magnetStock: String(setting.magnetStock),
     maxQuantityPerOrder: String(setting.maxQuantityPerOrder),
     maxPendingPerDevice: String(setting.maxPendingPerDevice),
@@ -135,7 +137,8 @@ export const FIELD_LABELS: Record<FormField, string> = {
   kiraFilmPrice: "キラフィルムの加算額（1 個）",
   magnetPrice: "マグネット加工の加算額（1 個）",
   badgeStock: "バッジの在庫（総数）",
-  kiraFilmStock: "キラフィルムの在庫（総数）",
+  kiraShardsStock: "キラフィルム（割れガラス）の在庫（総数）",
+  kiraAuroraStock: "キラフィルム（オーロラ）の在庫（総数）",
   magnetStock: "マグネットの在庫（総数）",
   maxQuantityPerOrder: "1 注文の個数の上限",
   maxPendingPerDevice: "1 台あたりの支払い待ちの上限",
@@ -174,7 +177,8 @@ export function parseSettingsForm(form: SettingsForm): ParsedForm {
     kiraFilmPrice: numbers.kiraFilmPrice,
     magnetPrice: numbers.magnetPrice,
     badgeStock: numbers.badgeStock,
-    kiraFilmStock: numbers.kiraFilmStock,
+    kiraShardsStock: numbers.kiraShardsStock,
+    kiraAuroraStock: numbers.kiraAuroraStock,
     magnetStock: numbers.magnetStock,
     maxQuantityPerOrder: numbers.maxQuantityPerOrder,
     maxPendingPerDevice: numbers.maxPendingPerDevice,

@@ -1,5 +1,5 @@
 import { countPendingOrders, createOrder, getSetting } from "@canbadge/db";
-import type { EditorData } from "@canbadge/shared";
+import type { EditorData, KiraPattern } from "@canbadge/shared";
 import type { Context } from "hono";
 import { enforce, visitorIp } from "./abuse";
 import { ensureAnonToken } from "./anon";
@@ -28,6 +28,7 @@ export async function placeOrder(
   request: {
     quantity: number;
     kiraQuantity: number;
+    kiraPattern?: KiraPattern | undefined;
     magnetQuantity: number;
     turnstileToken: string;
   },
@@ -89,6 +90,7 @@ export async function placeOrder(
     editorData: source.editorData,
     quantity: request.quantity,
     kiraQuantity: request.kiraQuantity,
+    ...(request.kiraPattern ? { kiraPattern: request.kiraPattern } : {}),
     magnetQuantity: request.magnetQuantity,
     anonToken: token,
     ...(source.sourceArchiveEntryId ? { sourceArchiveEntryId: source.sourceArchiveEntryId } : {}),

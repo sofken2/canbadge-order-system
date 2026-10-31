@@ -6,7 +6,7 @@ import { api } from "./api";
 import { orderBlockedReason, orderErrorMessage } from "./archive-view-logic";
 import { DEV_TURNSTILE_TOKEN, turnstileSiteKey } from "./env";
 import { KiraPatternPicker } from "./KiraPatternPicker";
-import { type KiraPattern, saveKiraPattern } from "./kira-pattern";
+import { type KiraPattern, kiraRemainingOf, usablePattern } from "./kira-pattern";
 import { QuantityPicker } from "./QuantityPicker";
 import { TurnstileWidget } from "./TurnstileWidget";
 
@@ -25,10 +25,12 @@ export function ArchiveOrderPanel({
   const [quantity, setQuantity] = useState(1);
   const [kiraSelected, setKiraSelected] = useState(0);
   const [magnetSelected, setMagnetSelected] = useState(0);
-  // キラフィルムの柄。ふつうの注文と同じく選んでもらう（注文には、まだ記録できない。kira-pattern.ts）
-  const [kiraPattern, setKiraPattern] = useState<KiraPattern>("shards");
+  // キラフィルムの柄。ふつうの注文と同じく選んでもらう。在庫は柄ごと
+  const [kiraWanted, setKiraPattern] = useState<KiraPattern>("shards");
   // 個数や在庫の残りが減ったとき、加工の個数が、その数を超えないようにする
-  const kiraQuantity = Math.min(kiraSelected, quantity, status.data?.kiraFilmRemaining ?? quantity);
+  const kiraRemaining = kiraRemainingOf(status.data);
+  const kiraPattern = usablePattern(kiraWanted, kiraRemaining);
+  const kiraQuantity = Math.min(kiraSelected, quantity, kiraRemaining?.[kiraPattern] ?? quantity);
   const magnetQuantity = Math.min(
     magnetSelected,
     quantity,
@@ -50,12 +52,12 @@ export function ArchiveOrderPanel({
         body: {
           quantity,
           kiraQuantity,
+          ...(kiraQuantity > 0 ? { kiraPattern } : {}),
           magnetQuantity,
           turnstileToken: turnstileSiteKey ? (token ?? "") : DEV_TURNSTILE_TOKEN,
           rightsConsent: true,
         },
       });
-      if (kiraQuantity > 0) saveKiraPattern(orderId, kiraPattern);
       navigate(`/orders/${orderId}`);
     } catch (error) {
       // 失敗したら、確認をやり直す（使ったトークンは、もう使えない）
@@ -116,10 +118,16 @@ export function ArchiveOrderPanel({
             value={kiraQuantity}
             quantity={quantity}
             price={setting.kiraFilmPrice}
-            remaining={setting.kiraFilmRemaining}
+            remaining={kiraRemaining?.[kiraPattern] ?? 0}
             onChange={setKiraSelected}
           />
-          {kiraQuantity > 0 && <KiraPatternPicker value={kiraPattern} onChange={setKiraPattern} />}
+          {kiraQuantity > 0 && (
+            <KiraPatternPicker
+              value={kiraPattern}
+              remaining={kiraRemaining}
+              onChange={setKiraPattern}
+            />
+          )}
           <AddonPicker
             name="マグネット加工"
             value={magnetQuantity}

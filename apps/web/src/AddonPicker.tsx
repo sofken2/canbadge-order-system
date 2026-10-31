@@ -8,7 +8,8 @@ export type Addons = Pick<
   | "kiraFilmPrice"
   | "magnetPrice"
   | "badgeRemaining"
-  | "kiraFilmRemaining"
+  | "kiraShardsRemaining"
+  | "kiraAuroraRemaining"
   | "magnetRemaining"
 >;
 

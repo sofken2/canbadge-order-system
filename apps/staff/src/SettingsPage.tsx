@@ -363,7 +363,8 @@ function ValuesTab({
         `いまの残り：${remaining?.badgeRemaining ?? "…"} 個。総数から、期限切れ・取り消し済み以外の注文が使った数を引いた数です`,
         "個",
       )}
-      {field("kiraFilmStock", `いまの残り：${remaining?.kiraFilmRemaining ?? "…"} 個`, "個")}
+      {field("kiraShardsStock", `いまの残り：${remaining?.kiraShardsRemaining ?? "…"} 個`, "個")}
+      {field("kiraAuroraStock", `いまの残り：${remaining?.kiraAuroraRemaining ?? "…"} 個`, "個")}
       {field("magnetStock", `いまの残り：${remaining?.magnetRemaining ?? "…"} 個`, "個")}
       {field("maxQuantityPerOrder", "1 にすると、注文の画面に、個数の選択が出ません", "個")}
       {field("maxPendingPerDevice", "同じスマホから出せる、支払い前の注文の数", "件")}

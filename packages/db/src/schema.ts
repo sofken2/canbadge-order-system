@@ -4,6 +4,7 @@ import {
   actorSchema,
   archiveStatusSchema,
   auditTargetTypeSchema,
+  kiraPatternSchema,
   orderItemStatusSchema,
   orderStatusSchema,
   printSheetStatusSchema,
@@ -78,6 +79,8 @@ export const orderItems = sqliteTable(
       .references(() => designs.id),
     quantity: integer("quantity").notNull(),
     kiraQuantity: integer("kira_quantity").notNull().default(0),
+    // キラフィルムの柄。個数が 0 なら空。在庫は柄ごとに数える（stock.ts）
+    kiraPattern: text("kira_pattern", { enum: values(kiraPatternSchema.options) }),
     magnetQuantity: integer("magnet_quantity").notNull().default(0),
     status: text("status", { enum: values(orderItemStatusSchema.options) }).notNull(),
     printCount: integer("print_count").notNull().default(0),
@@ -129,7 +132,8 @@ export const settings = sqliteTable(
     magnetPrice: integer("magnet_price").notNull().default(100),
     // 在庫の総数。残りは注文から数える（stock.ts）
     badgeStock: integer("badge_stock").notNull().default(300),
-    kiraFilmStock: integer("kira_film_stock").notNull().default(100),
+    kiraShardsStock: integer("kira_shards_stock").notNull().default(100),
+    kiraAuroraStock: integer("kira_aurora_stock").notNull().default(100),
     magnetStock: integer("magnet_stock").notNull().default(100),
     maxQuantityPerOrder: integer("max_quantity_per_order").notNull(),
     maxPendingPerDevice: integer("max_pending_per_device").notNull(),

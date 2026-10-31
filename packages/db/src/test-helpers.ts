@@ -34,12 +34,14 @@ export function placeOrder(
   token: string = uniqueToken(),
   kiraQuantity = 0,
   magnetQuantity = 0,
+  kiraPattern: "shards" | "aurora" = "shards",
 ) {
   return createOrder(db, {
     imagePath: "images/sample.png",
     editorData: { version: 1 },
     quantity,
     kiraQuantity,
+    ...(kiraQuantity > 0 ? { kiraPattern } : {}),
     magnetQuantity,
     anonToken: token,
   });

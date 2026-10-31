@@ -1,6 +1,6 @@
 import { badgeSpec } from "@canbadge/badge-spec";
 import { OutputPreview } from "@canbadge/editor";
-import { orderStatusLabels } from "@canbadge/shared";
+import { kiraPatternLabels, orderStatusLabels } from "@canbadge/shared";
 import {
   BackButton,
   Button,
@@ -12,7 +12,6 @@ import {
 } from "@canbadge/ui";
 import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
-import { kiraPatternLabel, readKiraPattern } from "./kira-pattern";
 import { rememberOrder } from "./my-orders";
 import {
   guideFor,
@@ -37,9 +36,6 @@ const READY_VIBRATION = [200, 100, 200];
  * 状態は、SSE の通知（変わった）で、取り直す。放置されて、あとで画面に戻ったときも、取り直す
  */
 export function OrderStatusPage({ orderId }: { orderId: string }) {
-  // 選んだキラフィルムの柄。注文には、まだ記録できない（契約に項目がない）ので、この端末に残したものを出す。
-  // ほかの端末で開いたときは出ない（そのときも、レジで伝えてもらう案内は、注文の確認で出している）
-  const [kiraPattern] = useState(() => readKiraPattern(orderId));
   const order = useResource(() => api.call("getOrder", { params: { orderId } }), {
     deps: [orderId],
     subscribe: (reload) => {
@@ -197,7 +193,7 @@ export function OrderStatusPage({ orderId }: { orderId: string }) {
                 {(item.kiraQuantity > 0 || item.magnetQuantity > 0) && (
                   <p className="cb-muted">
                     {item.kiraQuantity > 0 &&
-                      `キラフィルム ${item.kiraQuantity} 個${kiraPattern ? `（柄：${kiraPatternLabel(kiraPattern)}）` : ""}`}
+                      `キラフィルム ${item.kiraQuantity} 個${item.kiraPattern ? `（柄：${kiraPatternLabels[item.kiraPattern]}）` : ""}`}
                     {item.kiraQuantity > 0 && item.magnetQuantity > 0 && " ／ "}
                     {item.magnetQuantity > 0 && `マグネット加工 ${item.magnetQuantity} 個`}
                   </p>

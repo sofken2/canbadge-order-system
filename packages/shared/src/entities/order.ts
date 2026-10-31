@@ -7,7 +7,7 @@ import {
   orderNumberSchema,
 } from "../ids";
 import { isoDateSchema, isoDateTimeSchema, quantitySchema, yenSchema } from "../primitives";
-import { orderItemStatusSchema, orderStatusSchema } from "../status";
+import { kiraPatternSchema, orderItemStatusSchema, orderStatusSchema } from "../status";
 
 /** 注文。明細（items）は含めない。DB の 1 行に対応する形で、画面向けの形は api/ にある */
 export const orderSchema = z.object({
@@ -40,6 +40,8 @@ export const orderItemSchema = z.object({
   quantity: quantitySchema,
   /** quantity のうち、キラフィルムを貼る個数（0〜quantity）。個数単位で選べる */
   kiraQuantity: z.int().nonnegative(),
+  /** キラフィルムの柄。kiraQuantity が 1 以上のときだけある（0 のときは null）。在庫は柄ごとに数える */
+  kiraPattern: kiraPatternSchema.nullable(),
   /** quantity のうち、マグネット加工をする個数（0〜quantity）。キラフィルムとは、独立に選べる */
   magnetQuantity: z.int().nonnegative(),
   status: orderItemStatusSchema,

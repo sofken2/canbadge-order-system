@@ -29,7 +29,9 @@ export const settingSchema = z.object({
    * 残りを直接持たないので、注文が入っている間に総数を直しても、数えまちがいにならない
    */
   badgeStock: stockSchema,
-  kiraFilmStock: stockSchema,
+  /** キラフィルムの在庫の総数。柄（割れガラス・オーロラ）ごとに持つ */
+  kiraShardsStock: stockSchema,
+  kiraAuroraStock: stockSchema,
   magnetStock: stockSchema,
   /** 1 注文あたりの個数の上限。原則 1。1 のとき画面は個数の選択を出さない */
   maxQuantityPerOrder: quantitySchema,
