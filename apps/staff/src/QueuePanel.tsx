@@ -1,6 +1,6 @@
 import { badgeSpec, slotsPerSheet } from "@canbadge/badge-spec";
-import { Notice, useResource } from "@canbadge/ui";
-import { useMemo } from "react";
+import { Button, ConfirmDialog, Notice, useAction, useResource } from "@canbadge/ui";
+import { useMemo, useState } from "react";
 import { api } from "./api";
 import {
   formatSeconds,
@@ -29,6 +29,15 @@ export function QueuePanel({ paused, waitSeconds }: { paused: boolean; waitSecon
   // 秒の表示（「あと ○秒」「○ 分 ○ 秒待ち」）を、1 秒ごとに更新する
   const now = useNow(1000);
 
+  // 緊急印刷：用紙が埋まるのも、待ち時間も待たずに、いまの印刷待ちを全部印刷する（用紙は余る）
+  const [asking, setAsking] = useState(false);
+  const [requested, setRequested] = useState(false);
+  const flush = useAction(async () => {
+    await api.call("flushPrintQueue");
+    setAsking(false);
+    setRequested(true);
+  });
+
   const entries = useMemo(() => toQueueEntries(orders.data?.items ?? []), [orders.data]);
   const badges = queueBadgeCount(entries);
   const state = queueState({
@@ -48,6 +57,30 @@ export function QueuePanel({ paused, waitSeconds }: { paused: boolean; waitSecon
       <h2 className="cb-queue__headline">{state.headline}</h2>
       <p className="cb-queue__detail">{state.detail}</p>
       {orders.error && !orders.data && <Notice tone="error">{orders.error}</Notice>}
+
+      {badges > 0 && !paused && (
+        <Button variant="line" block onClick={() => setAsking(true)}>
+          緊急印刷（待たずに、いま印刷する）
+        </Button>
+      )}
+      {requested && (
+        <Notice tone="info">緊急印刷を依頼しました。数秒のうちに、印刷が始まります。</Notice>
+      )}
+      <ConfirmDialog
+        open={asking}
+        title="緊急印刷をします"
+        confirmLabel="いま印刷する"
+        running={flush.running}
+        error={flush.error}
+        onConfirm={() => void flush.run()}
+        onCancel={() => setAsking(false)}
+      >
+        <p>
+          印刷待ちの {badges}{" "}
+          個のバッジを、用紙が埋まるのも、待ち時間も待たずに、いますぐ印刷します。
+          用紙に空きができるので、急ぎのときだけ使ってください。
+        </p>
+      </ConfirmDialog>
 
       {entries.length > 0 && (
         <ul className="cb-queue__list">

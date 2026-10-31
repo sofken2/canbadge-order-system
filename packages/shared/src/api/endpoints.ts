@@ -337,6 +337,13 @@ export const endpoints = {
     summary: "印刷の再開",
     response: printQueueStateResponseSchema,
   },
+  flushPrintQueue: {
+    method: "POST",
+    path: "/api/staff/print-queue/flush",
+    access: "staff",
+    summary: "緊急印刷。印刷待ちのバッジを、待ち時間を待たずに、いますぐ印刷する依頼",
+    response: printQueueStateResponseSchema,
+  },
   openBusinessDay: {
     method: "POST",
     path: "/api/staff/business-day/open",

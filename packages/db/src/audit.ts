@@ -1,5 +1,5 @@
 import type { Actor, AuditLog, AuditTargetType } from "@canbadge/shared";
-import { asc, gt } from "drizzle-orm";
+import { and, asc, eq, gt, max } from "drizzle-orm";
 import type { Database } from "./connection";
 import { toAuditLog } from "./rows";
 import { auditLogs } from "./schema";
@@ -47,4 +47,27 @@ export function listAuditLogsSince(
     .limit(limit)
     .all()
     .map((row) => ({ seq: row.seq, log: toAuditLog(row) }));
+}
+
+/** いまの操作ログの、いちばん後ろの通し番号（なければ 0）。ここより後の操作だけを見たいときの起点にする */
+export function latestAuditSeq(db: Database): number {
+  const row = db.orm
+    .select({ seq: max(auditLogs.seq) })
+    .from(auditLogs)
+    .get();
+  return row?.seq ?? 0;
+}
+
+/** afterSeq より後で、指定した操作の、いちばん新しい通し番号。なければ undefined */
+export function latestAuditSeqOf(
+  db: Database,
+  afterSeq: number,
+  action: string,
+): number | undefined {
+  const row = db.orm
+    .select({ seq: max(auditLogs.seq) })
+    .from(auditLogs)
+    .where(and(gt(auditLogs.seq, afterSeq), eq(auditLogs.action, action)))
+    .get();
+  return row?.seq ?? undefined;
 }

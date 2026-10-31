@@ -18,6 +18,7 @@ import {
   openBusinessDay,
   openDatabase,
   reprintItems,
+  requestPrintFlush,
   setPrintPaused,
   transitionOrder,
   updateSetting,
@@ -25,7 +26,13 @@ import {
 import { encodePng } from "@canbadge/fixtures";
 import type { PrintDriver, PrintJob } from "./driver";
 import { contentOf, imageDraws } from "./pdf-test-utils";
-import { createSkipRegistry, runQueueOnce, SKIP_COOLDOWN_MS, startQueueLoop } from "./queue";
+import {
+  createFlushWatcher,
+  createSkipRegistry,
+  runQueueOnce,
+  SKIP_COOLDOWN_MS,
+  startQueueLoop,
+} from "./queue";
 import { recoverOnStartup } from "./recovery";
 
 // 印刷キューの制御（P02）：個数・載せられないバッジ・一時停止・同時に 1 枚・再起動・停止。
@@ -242,6 +249,42 @@ describe("一時停止と再開", () => {
     setPrintPaused(db, { paused: true, actor: "staff" });
     expect(getOrderItem(db.orm, a.itemId)?.status).toBe("printed");
     expect(getOrder(db.orm, a.orderId)?.status).toBe("assembling");
+  });
+});
+
+describe("緊急印刷", () => {
+  test("依頼がなければ待ち、依頼があれば、待ち時間を待たずに印刷する。印刷待ちが空になったら終わる", async () => {
+    paid();
+    const watcher = createFlushWatcher(db);
+    // 1 個だけで、待ち時間（60 秒）に達していない
+    expect(watcher.check()).toBe(false);
+    expect((await run({ waitOverrideSeconds: 60 })).status).toBe("waiting");
+
+    requestPrintFlush(db, { actor: "staff" });
+    expect(watcher.check()).toBe(true);
+    const result = await run({ waitOverrideSeconds: 0 });
+    expect(result.status).toBe("printed");
+    watcher.done(result);
+    expect(watcher.check()).toBe(true);
+
+    const empty = await run({ waitOverrideSeconds: 0 });
+    expect(empty.status).toBe("empty");
+    watcher.done(empty);
+    expect(watcher.check()).toBe(false);
+
+    // 次の注文は、また待つ
+    paid();
+    expect((await run({ waitOverrideSeconds: 60 })).status).toBe("waiting");
+  });
+
+  test("起動する前の依頼では、印刷しない", () => {
+    requestPrintFlush(db, { actor: "staff" });
+    expect(createFlushWatcher(db).check()).toBe(false);
+  });
+
+  test("印刷を止めているときは、依頼を断る", () => {
+    setPrintPaused(db, { paused: true, actor: "staff" });
+    expect(() => requestPrintFlush(db, { actor: "staff" })).toThrow("印刷を止めています");
   });
 });
 

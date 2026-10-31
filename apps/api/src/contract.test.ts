@@ -182,6 +182,7 @@ describe("スタッフ向けのエンドポイント", () => {
   test("印刷の一時停止と再開", async () => {
     expect((await run("pausePrintQueue", {})).body).toEqual({ printPaused: true });
     expect((await run("resumePrintQueue", {})).body).toEqual({ printPaused: false });
+    expect((await run("flushPrintQueue", {})).body).toEqual({ printPaused: false });
   });
 
   test("営業開始・受付状態・設定・売上", async () => {

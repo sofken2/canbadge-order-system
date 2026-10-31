@@ -1,11 +1,11 @@
-import { type OrderStatus, orderIdSchema, orderStatusLabels } from "@canbadge/shared";
+import { type OrderStatus, orderIdSchema, orderStatusLabels, parseOrderQr } from "@canbadge/shared";
 
 // レジ画面の、画面から切り離した判定と計算（テストできるように）。
 
 export type RegisterInput =
   | { kind: "empty" }
-  /** QR の中身（注文 ID） */
-  | { kind: "order-id"; value: string }
+  /** QR の中身（注文 ID。確認コードも入った QR なら、confirmationCode つき） */
+  | { kind: "order-id"; value: string; confirmationCode?: string }
   /** 注文番号（当日の営業日の） */
   | { kind: "number"; value: string }
   | { kind: "invalid"; text: string };
@@ -18,6 +18,8 @@ export function parseRegisterInput(raw: string): RegisterInput {
   const text = raw.normalize("NFKC").trim();
   if (text === "") return { kind: "empty" };
   const upper = text.toUpperCase();
+  const qr = parseOrderQr(upper);
+  if (qr) return { kind: "order-id", value: qr.orderId, confirmationCode: qr.confirmationCode };
   if (orderIdSchema.safeParse(upper).success) return { kind: "order-id", value: upper };
   if (/^\d{1,6}$/.test(text)) return { kind: "number", value: text };
   return { kind: "invalid", text };

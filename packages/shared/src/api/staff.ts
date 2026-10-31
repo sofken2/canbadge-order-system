@@ -2,7 +2,13 @@ import { z } from "zod";
 import { archiveEntrySchema, reportSchema } from "../entities/archive";
 import { settingSchema } from "../entities/setting";
 import { confirmationCodeInputSchema, idSchema, orderIdSchema, orderNumberSchema } from "../ids";
-import { isoDateSchema, isoDateTimeSchema, quantitySchema, yenSchema } from "../primitives";
+import {
+  isoDateSchema,
+  isoDateTimeSchema,
+  quantitySchema,
+  stockSchema,
+  yenSchema,
+} from "../primitives";
 import {
   acceptanceSchema,
   archiveStatusSchema,
@@ -162,20 +168,27 @@ export type SetAcceptanceRequest = z.infer<typeof setAcceptanceRequestSchema>;
  * PUT /api/staff/settings。画面で編集する項目を、すべて送って置き換える。
  * 営業日・受付状態・印刷の一時停止は、専用の API（business-day・acceptance・print-queue）で変える
  */
-export const updateSettingRequestSchema = settingSchema.pick({
-  price: true,
-  kiraFilmPrice: true,
-  magnetPrice: true,
-  badgeStock: true,
-  kiraShardsStock: true,
-  kiraAuroraStock: true,
-  magnetStock: true,
-  maxQuantityPerOrder: true,
-  maxPendingPerDevice: true,
-  printMaxWaitSeconds: true,
-  orderNumberDigits: true,
-  imageMaxBytes: true,
-});
+export const updateSettingRequestSchema = settingSchema
+  .pick({
+    price: true,
+    kiraFilmPrice: true,
+    magnetPrice: true,
+    maxQuantityPerOrder: true,
+    maxPendingPerDevice: true,
+    printMaxWaitSeconds: true,
+    orderNumberDigits: true,
+    imageMaxBytes: true,
+  })
+  .extend({
+    /**
+     * 在庫は「残り」で送る（Setting の *Stock は総数だが、ここは残り）。送ると、その瞬間の残りが、送った数になる
+     * （db が、使われた数を足して総数を決める）。省略した在庫は、変えない
+     */
+    badgeStock: stockSchema.optional(),
+    kiraShardsStock: stockSchema.optional(),
+    kiraAuroraStock: stockSchema.optional(),
+    magnetStock: stockSchema.optional(),
+  });
 export type UpdateSettingRequest = z.infer<typeof updateSettingRequestSchema>;
 
 /** GET /api/staff/sales。businessDate を省略すると現在の営業日 */

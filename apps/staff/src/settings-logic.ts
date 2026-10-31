@@ -105,17 +105,39 @@ export type SettingsForm = {
 
 export type FormField = keyof SettingsForm;
 
+const STOCK_FIELDS = ["badgeStock", "kiraShardsStock", "kiraAuroraStock", "magnetStock"] as const;
+
 const MB = 1024 * 1024;
 
-export function formFromSetting(setting: Setting): SettingsForm {
+/** 在庫の欄に入れる数。欄は「残り」を表すので、総数ではなく、いまの残りを渡す */
+export type StockFigures = Pick<
+  SettingsFormNumbers,
+  "badgeStock" | "kiraShardsStock" | "kiraAuroraStock" | "magnetStock"
+>;
+type SettingsFormNumbers = Record<
+  "badgeStock" | "kiraShardsStock" | "kiraAuroraStock" | "magnetStock",
+  number
+>;
+
+/**
+ * 保存済みの値から、入力欄の文字を作る。
+ * 在庫の欄は「残り」。stock を省略すると、総数を入れる（残りが分かるときは、必ず渡す）
+ */
+export function formFromSetting(setting: Setting, stock?: StockFigures): SettingsForm {
+  const figures: StockFigures = stock ?? {
+    badgeStock: setting.badgeStock,
+    kiraShardsStock: setting.kiraShardsStock,
+    kiraAuroraStock: setting.kiraAuroraStock,
+    magnetStock: setting.magnetStock,
+  };
   return {
     price: String(setting.price),
     kiraFilmPrice: String(setting.kiraFilmPrice),
     magnetPrice: String(setting.magnetPrice),
-    badgeStock: String(setting.badgeStock),
-    kiraShardsStock: String(setting.kiraShardsStock),
-    kiraAuroraStock: String(setting.kiraAuroraStock),
-    magnetStock: String(setting.magnetStock),
+    badgeStock: String(figures.badgeStock),
+    kiraShardsStock: String(figures.kiraShardsStock),
+    kiraAuroraStock: String(figures.kiraAuroraStock),
+    magnetStock: String(figures.magnetStock),
     maxQuantityPerOrder: String(setting.maxQuantityPerOrder),
     maxPendingPerDevice: String(setting.maxPendingPerDevice),
     printMaxWaitSeconds: String(setting.printMaxWaitSeconds),
@@ -136,10 +158,10 @@ export const FIELD_LABELS: Record<FormField, string> = {
   price: "価格（1 個）",
   kiraFilmPrice: "キラフィルムの加算額（1 個）",
   magnetPrice: "マグネット加工の加算額（1 個）",
-  badgeStock: "バッジの在庫（総数）",
-  kiraShardsStock: "キラフィルム（割れガラス）の在庫（総数）",
-  kiraAuroraStock: "キラフィルム（オーロラ）の在庫（総数）",
-  magnetStock: "マグネットの在庫（総数）",
+  badgeStock: "バッジの在庫（残り）",
+  kiraShardsStock: "キラフィルム（割れガラス）の在庫（残り）",
+  kiraAuroraStock: "キラフィルム（オーロラ）の在庫（残り）",
+  magnetStock: "マグネットの在庫（残り）",
   maxQuantityPerOrder: "1 注文の個数の上限",
   maxPendingPerDevice: "1 台あたりの支払い待ちの上限",
   printMaxWaitSeconds: "印刷を待つ最大の秒数",
@@ -152,7 +174,7 @@ export type ParsedForm =
   | { ok: false; errors: Partial<Record<FormField, string>> };
 
 /** 入力を検証して、api に送る値にする。範囲は契約（shared）が持ち、ここは、入力の文字を数にして、契約に通す */
-export function parseSettingsForm(form: SettingsForm): ParsedForm {
+export function parseSettingsForm(form: SettingsForm, base?: SettingsForm): ParsedForm {
   const errors: Partial<Record<FormField, string>> = {};
   const numbers: Partial<Record<FormField, number>> = {};
   for (const field of Object.keys(form) as FormField[]) {
@@ -176,10 +198,13 @@ export function parseSettingsForm(form: SettingsForm): ParsedForm {
     price: numbers.price,
     kiraFilmPrice: numbers.kiraFilmPrice,
     magnetPrice: numbers.magnetPrice,
-    badgeStock: numbers.badgeStock,
-    kiraShardsStock: numbers.kiraShardsStock,
-    kiraAuroraStock: numbers.kiraAuroraStock,
-    magnetStock: numbers.magnetStock,
+    // 在庫は「残りをこの数にする」指定。開いたときから変えていない欄は送らない
+    // （注文が入って残りが減っているのに、古い数に戻してしまわないため）
+    ...Object.fromEntries(
+      STOCK_FIELDS.filter((field) => !base || form[field].trim() !== base[field].trim()).map(
+        (field) => [field, numbers[field]],
+      ),
+    ),
     maxQuantityPerOrder: numbers.maxQuantityPerOrder,
     maxPendingPerDevice: numbers.maxPendingPerDevice,
     printMaxWaitSeconds: numbers.printMaxWaitSeconds,
@@ -202,9 +227,8 @@ export function parseSettingsForm(form: SettingsForm): ParsedForm {
   return { ok: false, errors };
 }
 
-/** 保存済みの値と、入力が違うか（変えていないのに、保存を押せないように） */
-export function formChanged(form: SettingsForm, setting: Setting): boolean {
-  const saved = formFromSetting(setting);
+/** 保存済みの欄（formFromSetting で作ったもの）と、入力が違うか（変えていないのに、保存を押せないように） */
+export function formChanged(form: SettingsForm, saved: SettingsForm): boolean {
   return (Object.keys(saved) as FormField[]).some((field) => form[field].trim() !== saved[field]);
 }
 

@@ -12,12 +12,8 @@ export type StockRemaining = {
   magnet: number;
 };
 
-/**
- * 在庫の残りを数える。使われているのは、失効・取り消し以外の注文（支払い前も、取り置きとして数える）。
- * 返金済みは、すでに作ったものとして、数えたままにする（戻すなら、設定で総数を直す）。
- * 残りを列に持たず、そのつど数えるので、注文と総数の変更が重なっても、ずれない
- */
-export function getStockRemaining(reader: Reader, setting: Setting): StockRemaining {
+/** 在庫が使われた数。失効・取り消し以外の注文の合計 */
+export function countStockUsed(reader: Reader): StockRemaining {
   const used = reader
     .select({
       badge: sql<number>`coalesce(sum(${orderItems.quantity}), 0)`,
@@ -30,9 +26,24 @@ export function getStockRemaining(reader: Reader, setting: Setting): StockRemain
     .where(notInArray(orders.status, ["expired", "cancelled"]))
     .get();
   return {
-    badge: Math.max(0, setting.badgeStock - (used?.badge ?? 0)),
-    kiraShards: Math.max(0, setting.kiraShardsStock - (used?.kiraShards ?? 0)),
-    kiraAurora: Math.max(0, setting.kiraAuroraStock - (used?.kiraAurora ?? 0)),
-    magnet: Math.max(0, setting.magnetStock - (used?.magnet ?? 0)),
+    badge: used?.badge ?? 0,
+    kiraShards: used?.kiraShards ?? 0,
+    kiraAurora: used?.kiraAurora ?? 0,
+    magnet: used?.magnet ?? 0,
+  };
+}
+
+/**
+ * 在庫の残りを数える。使われているのは、失効・取り消し以外の注文（支払い前も、取り置きとして数える）。
+ * 返金済みは、すでに作ったものとして、数えたままにする（戻すなら、設定で総数を直す）。
+ * 残りを列に持たず、そのつど数えるので、注文と総数の変更が重なっても、ずれない
+ */
+export function getStockRemaining(reader: Reader, setting: Setting): StockRemaining {
+  const used = countStockUsed(reader);
+  return {
+    badge: Math.max(0, setting.badgeStock - used.badge),
+    kiraShards: Math.max(0, setting.kiraShardsStock - used.kiraShards),
+    kiraAurora: Math.max(0, setting.kiraAuroraStock - used.kiraAurora),
+    magnet: Math.max(0, setting.magnetStock - used.magnet),
   };
 }

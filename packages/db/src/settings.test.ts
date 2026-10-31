@@ -12,6 +12,7 @@ import {
   setPrintPaused,
   updateSetting,
 } from "./settings";
+import { getStockRemaining } from "./stock";
 import { paidOrder, placeOrder, setup, setupClosed } from "./test-helpers";
 
 describe("設定の初期値", () => {
@@ -148,5 +149,43 @@ describe("印刷の一時停止と設定の更新", () => {
       }
     }
     expect(getSetting(db.orm).price).toBe(400);
+  });
+});
+
+describe("在庫の再設定", () => {
+  const values = (stock: Partial<Record<"badgeStock" | "kiraShardsStock", number>>) => ({
+    price: 200,
+    kiraFilmPrice: 100,
+    magnetPrice: 100,
+    maxQuantityPerOrder: 3,
+    maxPendingPerDevice: 10,
+    printMaxWaitSeconds: 120,
+    orderNumberDigits: 3,
+    imageMaxBytes: 1000,
+    ...stock,
+  });
+
+  test("注文が入っていても、再設定した数が、そのまま残りになる", () => {
+    const { db } = setup();
+    updateSetting(db, { actor: "staff", values: values({ badgeStock: 10 }) });
+    placeOrder(db, 1);
+    placeOrder(db, 2);
+    expect(getStockRemaining(db.orm, getSetting(db.orm)).badge).toBe(7);
+
+    // 残りを 50 に直すと、使われた 3 個ぶんを足した 53 が総数になる
+    const after = updateSetting(db, { actor: "staff", values: values({ badgeStock: 50 }) });
+    expect(after.badgeStock).toBe(53);
+    expect(getStockRemaining(db.orm, after).badge).toBe(50);
+  });
+
+  test("残りより少ない数にも直せる。省略した在庫は、変えない", () => {
+    const { db } = setup();
+    updateSetting(db, { actor: "staff", values: values({ badgeStock: 10, kiraShardsStock: 7 }) });
+    placeOrder(db, 1);
+    updateSetting(db, { actor: "staff", values: values({ badgeStock: 3 }) });
+    const setting = getSetting(db.orm);
+    const remaining = getStockRemaining(db.orm, setting);
+    expect(remaining.badge).toBe(3);
+    expect(setting.kiraShardsStock).toBe(7);
   });
 });

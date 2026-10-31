@@ -15,6 +15,25 @@ describe("入力の判定", () => {
     expect(parseRegisterInput(`  ${id.toLowerCase()}\n`)).toEqual({ kind: "order-id", value: id });
   });
 
+  test("確認コードつきの QR なら、ID と確認コードに分けて読む。ID だけの古い QR も読める", () => {
+    expect(parseRegisterInput(`${id}-K7QH`)).toEqual({
+      kind: "order-id",
+      value: id,
+      confirmationCode: "K7QH",
+    });
+    expect(
+      parseRegisterInput(` ${id.toLowerCase()}-k7qh 
+`),
+    ).toEqual({
+      kind: "order-id",
+      value: id,
+      confirmationCode: "K7QH",
+    });
+    // 確認コードの形が違えば、QR とは読まない
+    expect(parseRegisterInput(`${id}-0000`).kind).toBe("invalid");
+    expect(parseRegisterInput(`${id}-K7QH-K7QH`).kind).toBe("invalid");
+  });
+
   test("数字だけなら注文番号。全角の数字も、半角として読む", () => {
     expect(parseRegisterInput("17")).toEqual({ kind: "number", value: "17" });
     expect(parseRegisterInput("017")).toEqual({ kind: "number", value: "017" });
