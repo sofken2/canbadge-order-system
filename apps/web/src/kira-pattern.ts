@@ -1,45 +1,36 @@
-// キラフィルムの柄。契約（注文）に柄の項目がまだないので、注文には記録できない。
-// それまでのつなぎとして、注文の確定のときに、同じタブの中（sessionStorage）に注文 ID ごとに残し、
-// 注文状況の画面で「選んだ柄（レジでお伝えください）」として見せる。契約に入ったら、注文に載せてここは消す。
-// sessionStorage が使えなくても（プライベートモードなど）、画面は動く（柄の表示が、出ないだけ）。
+// キラフィルムの柄。注文に記録され（契約の kiraPattern）、在庫は柄ごとに数える。
+// 柄の名前は、契約の kiraPatternLabels だけで持つ。
 
-import type { BadgeFilm } from "@canbadge/editor";
-import { sessionStore } from "./browser-storage";
+import {
+  type KiraPattern,
+  kiraPatternLabels,
+  kiraPatternSchema,
+  type StatusResponse,
+} from "@canbadge/shared";
 
-export type KiraPattern = Exclude<BadgeFilm, "none">;
+export type { KiraPattern };
 
-export const KIRA_PATTERNS: readonly { id: KiraPattern; label: string }[] = [
-  { id: "shards", label: "割れガラス" },
-  { id: "aurora", label: "オーロラ" },
-];
+export const KIRA_PATTERNS: readonly { id: KiraPattern; label: string }[] =
+  kiraPatternSchema.options.map((id) => ({ id, label: kiraPatternLabels[id] }));
 
-export function kiraPatternLabel(pattern: KiraPattern): string {
-  return KIRA_PATTERNS.find((item) => item.id === pattern)?.label ?? pattern;
+/** 柄ごとの、在庫の残り */
+export type KiraRemaining = Record<KiraPattern, number>;
+
+export function kiraRemainingOf(
+  status: Pick<StatusResponse, "kiraShardsRemaining" | "kiraAuroraRemaining"> | undefined,
+): KiraRemaining | undefined {
+  if (!status) return undefined;
+  return { shards: status.kiraShardsRemaining, aurora: status.kiraAuroraRemaining };
 }
 
-const keyFor = (orderId: string) => `canbadge-kira-pattern:${orderId}`;
-
-export function saveKiraPattern(
-  orderId: string,
-  pattern: KiraPattern,
-  storage: Pick<Storage, "setItem"> = sessionStore(),
-) {
-  try {
-    storage.setItem(keyFor(orderId), pattern);
-  } catch {
-    // 保存できなくても、注文はできている（柄の表示が、出ないだけ）
-  }
-}
-
-/** この注文で選んだ柄。なければ・知らない値なら undefined */
-export function readKiraPattern(
-  orderId: string,
-  storage: Pick<Storage, "getItem"> = sessionStore(),
-): KiraPattern | undefined {
-  try {
-    const raw = storage.getItem(keyFor(orderId));
-    return KIRA_PATTERNS.find((item) => item.id === raw)?.id;
-  } catch {
-    return undefined;
-  }
+/**
+ * 選んでいる柄を、残りのある柄にそろえる。選んだ柄が売り切れなら、残りのある別の柄に替える
+ * （どちらも売り切れなら、そのまま。画面は、キラフィルムを売り切れとして出す）。残りが読めないあいだは、そのまま
+ */
+export function usablePattern(
+  wanted: KiraPattern,
+  remaining: KiraRemaining | undefined,
+): KiraPattern {
+  if (!remaining || remaining[wanted] > 0) return wanted;
+  return KIRA_PATTERNS.find((pattern) => remaining[pattern.id] > 0)?.id ?? wanted;
 }

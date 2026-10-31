@@ -22,7 +22,7 @@ import { SELF_MADE_LABEL } from "./archive-post-logic";
 import { discordErrorMessage, readDiscordReturn } from "./discord-return";
 import { DEV_TURNSTILE_TOKEN, discordEnabled, turnstileSiteKey } from "./env";
 import { KiraPatternPicker } from "./KiraPatternPicker";
-import { type KiraPattern, saveKiraPattern } from "./kira-pattern";
+import { type KiraPattern, kiraRemainingOf, usablePattern } from "./kira-pattern";
 import { ORDER_DRAFT_KEY } from "./order-draft";
 import { savePublishOffer } from "./publish-offer";
 import { QuantityPicker } from "./QuantityPicker";
@@ -76,9 +76,12 @@ export function OrderPage() {
   const [kiraSelected, setKiraSelected] = useState(0);
   const [magnetSelected, setMagnetSelected] = useState(0);
   // キラフィルムの柄。確認の 3D に貼って見せる（注文には、まだ記録できない。kira-pattern.ts）
-  const [kiraPattern, setKiraPattern] = useState<KiraPattern>("shards");
+  const [kiraWanted, setKiraPattern] = useState<KiraPattern>("shards");
+  // 在庫は柄ごと。選んだ柄が売り切れなら、残りのある柄に替える
+  const kiraRemaining = kiraRemainingOf(status.data);
+  const kiraPattern = usablePattern(kiraWanted, kiraRemaining);
   // 個数や在庫の残りが減ったとき、加工の個数が、その数を超えないようにする
-  const kiraQuantity = Math.min(kiraSelected, quantity, status.data?.kiraFilmRemaining ?? quantity);
+  const kiraQuantity = Math.min(kiraSelected, quantity, kiraRemaining?.[kiraPattern] ?? quantity);
   const magnetQuantity = Math.min(
     magnetSelected,
     quantity,
@@ -118,6 +121,7 @@ export function OrderPage() {
           editorData: design.editorData,
           quantity,
           kiraQuantity,
+          ...(kiraQuantity > 0 ? { kiraPattern } : {}),
           magnetQuantity,
           turnstileToken: turnstileSiteKey ? (token ?? "") : DEV_TURNSTILE_TOKEN,
           rightsConsent: true,
@@ -125,7 +129,6 @@ export function OrderPage() {
       });
       // みんなの作品として公開するかは、注文のあと（注文状況の画面）で聞く。そのための材料を渡す
       savePublishOffer(orderId, { imageId, editorData: design.editorData });
-      if (kiraQuantity > 0) saveKiraPattern(orderId, kiraPattern);
       await clearDraft(ORDER_DRAFT_KEY);
       navigate(`/orders/${orderId}`);
     } catch (error) {
@@ -254,11 +257,15 @@ export function OrderPage() {
                 value={kiraQuantity}
                 quantity={quantity}
                 price={setting.kiraFilmPrice}
-                remaining={setting.kiraFilmRemaining}
+                remaining={kiraRemaining?.[kiraPattern] ?? 0}
                 onChange={setKiraSelected}
               />
               {kiraQuantity > 0 && (
-                <KiraPatternPicker value={kiraPattern} onChange={setKiraPattern} />
+                <KiraPatternPicker
+                  value={kiraPattern}
+                  remaining={kiraRemaining}
+                  onChange={setKiraPattern}
+                />
               )}
               <AddonPicker
                 name="マグネット加工"

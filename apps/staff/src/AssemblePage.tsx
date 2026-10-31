@@ -1,5 +1,5 @@
 import { QrScanner } from "@canbadge/scanner";
-import { orderStatusLabels, type StaffOrderView } from "@canbadge/shared";
+import { kiraPatternLabels, orderStatusLabels, type StaffOrderView } from "@canbadge/shared";
 import {
   Button,
   isCompleteCode,
@@ -53,6 +53,11 @@ function AssembleCard({ order, onChanged }: { order: StaffOrderView; onChanged: 
   });
   const quantity = order.items.reduce((sum, item) => sum + item.quantity, 0);
   const kiraQuantity = order.items.reduce((sum, item) => sum + item.kiraQuantity, 0);
+  // どの柄を貼るか。取り違えると、お客さんの選んだ柄と変わる
+  const kiraPatternText = order.items
+    .flatMap((item) => (item.kiraQuantity > 0 && item.kiraPattern ? [item.kiraPattern] : []))
+    .map((pattern) => kiraPatternLabels[pattern])
+    .join("・");
   const magnetQuantity = order.items.reduce((sum, item) => sum + item.magnetQuantity, 0);
   const thumbnail = order.items[0]?.thumbnailUrl;
 
@@ -64,7 +69,9 @@ function AssembleCard({ order, onChanged }: { order: StaffOrderView; onChanged: 
         {/* 貼り忘れると、お金をもらった分の品がそろわない。個数と並べて、はっきり見せる */}
         {kiraQuantity > 0 && (
           <p>
-            <strong>キラフィルム {kiraQuantity} 個</strong>
+            <strong>
+              キラフィルム {kiraQuantity} 個{kiraPatternText && `（${kiraPatternText}）`}
+            </strong>
           </p>
         )}
         {magnetQuantity > 0 && (

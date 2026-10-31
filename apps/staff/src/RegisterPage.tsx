@@ -1,5 +1,5 @@
 import { QrScanner } from "@canbadge/scanner";
-import type { StaffOrderView } from "@canbadge/shared";
+import { kiraPatternLabels, type StaffOrderView } from "@canbadge/shared";
 import { Button, Notice, TextField, useAction, useResource } from "@canbadge/ui";
 import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
@@ -158,6 +158,10 @@ export function RegisterPage() {
   const { change, short } = order ? changeFor(order.totalAmount, amount) : { change: 0, short: 0 };
   const quantity = order?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0;
   const kiraQuantity = order?.items.reduce((sum, item) => sum + item.kiraQuantity, 0) ?? 0;
+  const kiraPatternText = (order?.items ?? [])
+    .flatMap((item) => (item.kiraQuantity > 0 && item.kiraPattern ? [item.kiraPattern] : []))
+    .map((pattern) => kiraPatternLabels[pattern])
+    .join("・");
   const magnetQuantity = order?.items.reduce((sum, item) => sum + item.magnetQuantity, 0) ?? 0;
 
   return (
@@ -270,7 +274,9 @@ export function RegisterPage() {
             {kiraQuantity > 0 && (
               <>
                 <dt>キラフィルム</dt>
-                <dd>{kiraQuantity} 個</dd>
+                <dd>
+                  {kiraQuantity} 個{kiraPatternText && `（${kiraPatternText}）`}
+                </dd>
               </>
             )}
             {magnetQuantity > 0 && (
