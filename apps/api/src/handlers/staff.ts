@@ -1,6 +1,7 @@
 import { isAbsolute, join, relative, resolve } from "node:path";
 import {
   businessDateOf,
+  forcePickupOrder,
   getCurrentPrintSheet,
   getResetSummary,
   getSetting,
@@ -47,6 +48,7 @@ export const staffHandlers: HandlersFor<
   | "payOrder"
   | "completeOrder"
   | "pickupOrder"
+  | "forcePickupOrder"
   | "refundOrder"
   | "cancelStaffOrder"
   | "getCurrentPrintSheet"
@@ -89,6 +91,11 @@ export const staffHandlers: HandlersFor<
       confirmationCode: body.confirmationCode,
       actor: "staff",
     });
+    return buildStaffOrderView(deps.db, order);
+  },
+
+  forcePickupOrder: ({ deps, params }) => {
+    const order = forcePickupOrder(deps.db, { orderId: params.orderId, actor: "staff" });
     return buildStaffOrderView(deps.db, order);
   },
 

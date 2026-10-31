@@ -1,0 +1,70 @@
+/* 印刷済みバッジの一覧。トークンだけを使う（design.md）。見るだけの画面なので、色は使わず、番号と絵を大きく */
+
+.cb-gallery__search {
+  display: grid;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.cb-gallery__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
+  gap: var(--space-sm);
+  margin: 0 0 var(--space-md);
+  padding: 0;
+  list-style: none;
+}
+
+.cb-gallery__tile {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-xs);
+  width: 100%;
+  padding: var(--space-sm);
+  border: 1px solid var(--color-rule-strong);
+  border-radius: var(--radius-card);
+  background: var(--color-card);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.cb-gallery__tile img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: contain;
+}
+
+.cb-gallery__dialog {
+  width: min(92vw, 28rem);
+  padding: var(--space-md);
+  border: 1px solid var(--color-rule-strong);
+  border-radius: var(--radius-card);
+  background: var(--color-card);
+  color: inherit;
+  text-align: center;
+}
+
+.cb-gallery__dialog::backdrop {
+  background: rgb(0 0 0 / 0.5);
+}
+
+.cb-gallery__dialog img {
+  width: 100%;
+  max-height: 60vh;
+  object-fit: contain;
+}
+
+.cb-gallery__close {
+  position: absolute;
+  top: var(--space-xs);
+  right: var(--space-sm);
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 1.75rem;
+  line-height: 1;
+  cursor: pointer;
+}

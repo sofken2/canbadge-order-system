@@ -114,6 +114,12 @@ function PickupPanel({
     });
     onDone(order);
   });
+  // 確認コードを見せられないお客さん向け。押し間違いを防ぐため、2 段階にする
+  const [forcing, setForcing] = useState(false);
+  const force = useAction(async () => {
+    await api.call("forcePickupOrder", { params: { orderId: order.id } });
+    onDone(order);
+  });
   const thumbnail = order.items[0]?.thumbnailUrl;
 
   return (
@@ -153,7 +159,26 @@ function PickupPanel({
           受け渡し済みにする
         </Button>
       </form>
-      <Button variant="line" block onClick={onClose} disabled={pickup.running}>
+      {forcing ? (
+        <div className="cb-asm__force">
+          <Notice tone="error">
+            確認コードを照合せずに、注文 {order.orderNumberText}{" "}
+            を受け渡し済みにします。お客さんの注文であることを、注文番号やデザインで確かめてから押してください。取り消せません（操作ログには残ります）。
+          </Notice>
+          {force.error && <Notice tone="error">{force.error}</Notice>}
+          <Button block size="large" onClick={() => void force.run()} disabled={force.running}>
+            強制的に受け渡し済みにする
+          </Button>
+          <Button variant="line" block onClick={() => setForcing(false)} disabled={force.running}>
+            戻る
+          </Button>
+        </div>
+      ) : (
+        <Button variant="line" block onClick={() => setForcing(true)} disabled={pickup.running}>
+          確認コードが分からない（強制受け渡し）
+        </Button>
+      )}
+      <Button variant="line" block onClick={onClose} disabled={pickup.running || force.running}>
         やめる
       </Button>
     </section>

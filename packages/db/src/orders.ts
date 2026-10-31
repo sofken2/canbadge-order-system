@@ -274,6 +274,20 @@ export function pickupOrder(
   });
 }
 
+/**
+ * 強制の受け渡し。お客さんが確認コードを見られないとき（キャッシュを消した・端末を替えたなど）に、
+ * スタッフが確認コードなしで、完成 → 受け渡し済みにする。遷移は通常の受け渡しと同じ（完成の注文だけ）。
+ * あとで確かめられるよう、操作ログの detail に forced を残す
+ */
+export function forcePickupOrder(db: Database, input: { orderId: string; actor: Actor }): Order {
+  return transitionOrder(db, {
+    orderId: input.orderId,
+    to: "picked_up",
+    actor: input.actor,
+    detail: { forced: true },
+  });
+}
+
 /** 注文の状態を変える。支払い・組み立て・完成・返金・取り消しは、これを通す（受け渡しは pickupOrder） */
 export function transitionOrder(db: Database, input: OrderTransitionInput): Order {
   return write(db, (ctx) => applyOrderTransition(ctx, input));
