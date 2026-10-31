@@ -22,6 +22,7 @@ import {
   hourlyRows,
   type Impact,
   openDayImpact,
+  parseInteger,
   parseSettingsForm,
   pauseCopy,
   type SettingsForm,
@@ -294,16 +295,48 @@ function SalesTab({ businessDate }: { businessDate: string | null }) {
 }
 
 /** 価格・上限などの設定。保存すると、新しい注文から変わる（すでにある注文の金額は、そのまま） */
-function ValuesTab({
-  setting,
-  onChanged,
-  onMessage,
-}: {
+function ValuesTab(props: {
   setting: Setting;
   onChanged: () => void;
   onMessage: (message: Message) => void;
 }) {
-  const [form, setForm] = useState<SettingsForm>(() => formFromSetting(setting));
+  // 在庫の欄は「残り」。開くときの残りが分かってから、入力欄を作る
+  const status = useResource(() => api.call("getStatus"), { refreshMs: 5000 });
+  if (!status.data) {
+    return status.error ? (
+      <Notice tone="error">{status.error}</Notice>
+    ) : (
+      <p className="cb-muted">読み込み中…</p>
+    );
+  }
+  return <ValuesForm {...props} remaining={status.data} />;
+}
+
+type RemainingStatus = Awaited<ReturnType<typeof api.call<"getStatus">>>;
+
+const stockOf = (status: RemainingStatus) => ({
+  badgeStock: status.badgeRemaining,
+  kiraShardsStock: status.kiraShardsRemaining,
+  kiraAuroraStock: status.kiraAuroraRemaining,
+  magnetStock: status.magnetRemaining,
+});
+
+function ValuesForm({
+  setting,
+  remaining,
+  onChanged,
+  onMessage,
+}: {
+  setting: Setting;
+  remaining: RemainingStatus;
+  onChanged: () => void;
+  onMessage: (message: Message) => void;
+}) {
+  // base は、開いたとき（保存したとき）の欄。変えた欄だけを、api に送る
+  const [base, setBase] = useState<SettingsForm>(() =>
+    formFromSetting(setting, stockOf(remaining)),
+  );
+  const [form, setForm] = useState<SettingsForm>(base);
   const [errors, setErrors] = useState<Partial<Record<FormField, string>>>({});
 
   // 別の端末で保存されたとき（updatedAt が変わったとき）、編集中でなければ、入力欄を合わせる
@@ -311,25 +344,34 @@ function ValuesTab({
   useEffect(() => {
     if (setting.updatedAt === seenAt) return;
     setSeenAt(setting.updatedAt);
-    setForm((current) => (formChanged(current, setting) ? current : formFromSetting(setting)));
-  }, [setting, seenAt]);
+    const next = formFromSetting(setting, stockOf(remaining));
+    setBase(next);
+    setForm((current) => (formChanged(current, base) ? current : next));
+  }, [setting, seenAt, remaining, base]);
 
   const save = useAction(async () => {
-    const parsed = parseSettingsForm(form);
+    const parsed = parseSettingsForm(form, base);
     if (!parsed.ok) {
       setErrors(parsed.errors);
       return;
     }
     setErrors({});
     const saved = await api.call("updateSettings", { body: parsed.value });
-    setForm(formFromSetting(saved));
+    // 在庫の欄は、入れた数が、そのまま残りになった
+    const typed = (value: string) => parseInteger(value) ?? 0;
+    const next = formFromSetting(saved, {
+      badgeStock: typed(form.badgeStock),
+      kiraShardsStock: typed(form.kiraShardsStock),
+      kiraAuroraStock: typed(form.kiraAuroraStock),
+      magnetStock: typed(form.magnetStock),
+    });
+    setBase(next);
+    setForm(next);
     onChanged();
     onMessage({ tone: "info", text: "保存しました。新しい注文から、この設定になります" });
   });
 
-  const changed = formChanged(form, setting);
-  // 在庫の残りは、注文が入るたびに変わる。総数の欄の下に、いまの残りを見せる
-  const remaining = useResource(() => api.call("getStatus"), { refreshMs: 5000 }).data;
+  const changed = formChanged(form, base);
   // ラベルは FIELD_LABELS から取る（エラーの文と同じ名前にするため）
   const field = (name: FormField, hint: string, suffix?: string) => (
     <div className="cb-settings__field" data-invalid={errors[name] ? true : undefined}>

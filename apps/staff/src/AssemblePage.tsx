@@ -99,14 +99,17 @@ function AssembleCard({ order, onChanged }: { order: StaffOrderView; onChanged: 
 /** 受け渡し。確認コードを入れてもらい、照合は api に任せる（画面に、正解を持たせない） */
 function PickupPanel({
   order,
+  initialCode,
   onClose,
   onDone,
 }: {
   order: StaffOrderView;
+  /** QR に入っていた確認コード（あれば、最初から入れておく。入力欄は直せる） */
+  initialCode?: string;
   onClose: () => void;
   onDone: (order: StaffOrderView) => void;
 }) {
-  const [code, setCode] = useState("");
+  const [code, setCode] = useState(initialCode ?? "");
   const pickup = useAction(async () => {
     await api.call("pickupOrder", {
       params: { orderId: order.id },
@@ -194,6 +197,7 @@ export function AssemblePage() {
   const [tab, setTabState] = useState<Tab>(loadTab);
   const [message, setMessage] = useState<Message | undefined>(undefined);
   const [target, setTarget] = useState<StaffOrderView | undefined>(undefined);
+  const [qrCode, setQrCode] = useState<string | undefined>(undefined);
   const [text, setText] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const now = useNow(30000);
@@ -244,15 +248,16 @@ export function AssemblePage() {
       });
       return;
     }
-    openPickup(found);
+    openPickup(found, input.kind === "order-id" ? input.confirmationCode : undefined);
   });
 
-  const openPickup = (order: StaffOrderView) => {
+  const openPickup = (order: StaffOrderView, confirmationCode?: string) => {
     if (order.status !== "ready") {
       setMessage({ tone: "error", text: notPickableMessage(order.status, order.orderNumberText) });
       return;
     }
     setTarget(order);
+    setQrCode(confirmationCode);
     setText("");
     setMessage(undefined);
   };
@@ -389,7 +394,9 @@ export function AssemblePage() {
 
           {target && (
             <PickupPanel
+              key={target.id}
               order={target}
+              initialCode={qrCode}
               onClose={() => setTarget(undefined)}
               onDone={(done) => {
                 setTarget(undefined);

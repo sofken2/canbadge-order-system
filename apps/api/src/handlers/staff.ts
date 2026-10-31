@@ -10,6 +10,7 @@ import {
   openBusinessDay,
   pickupOrder,
   reprintItems,
+  requestPrintFlush,
   requirePrintSheet,
   resetEventData,
   salesSummary,
@@ -58,6 +59,7 @@ export const staffHandlers: HandlersFor<
   | "reprint"
   | "pausePrintQueue"
   | "resumePrintQueue"
+  | "flushPrintQueue"
   | "openBusinessDay"
   | "setAcceptance"
   | "getSettings"
@@ -141,6 +143,11 @@ export const staffHandlers: HandlersFor<
   },
   resumePrintQueue: ({ deps }) => {
     const setting = setPrintPaused(deps.db, { paused: false, actor: "staff" });
+    return { printPaused: setting.printPaused };
+  },
+
+  flushPrintQueue: ({ deps }) => {
+    const setting = requestPrintFlush(deps.db, { actor: "staff" });
     return { printPaused: setting.printPaused };
   },
 

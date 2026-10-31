@@ -8,7 +8,7 @@ import { z } from "zod";
 export const idSchema = z.ulid();
 export type Id = z.infer<typeof idSchema>;
 
-/** 注文 ID。QR の中身は、この文字列だけにする */
+/** 注文 ID。QR の中身は、この ID に確認コードを足したもの（orderQrValue）。ID だけでも読める */
 export const orderIdSchema = idSchema;
 
 /**
@@ -40,6 +40,30 @@ export const confirmationCodeInputSchema = z
   .trim()
   .toUpperCase()
   .pipe(confirmationCodeSchema);
+
+/**
+ * 注文 QR の中身。「注文 ID-確認コード」。スタッフが受け渡しで読むと、確認コードが自動で入る。
+ * 来場者の端末にある確認コードを、QR に含めただけで、新しい秘密は増えない（注文状況の画面にも出ている）。
+ * 区切りは、ハンディスキャナー（キーボード入力）でも打ち間違えにくい「-」。ID だけの古い QR も、読める
+ */
+export function orderQrValue(orderId: string, confirmationCode: string): string {
+  return `${orderId}-${confirmationCode}`;
+}
+
+/** 注文 QR の中身を読む。形が違えば undefined（ID だけの QR は、parseOrderQr では読まない） */
+export function parseOrderQr(
+  text: string,
+): { orderId: string; confirmationCode: string } | undefined {
+  const [orderId, confirmationCode, ...rest] = text
+    .normalize("NFKC")
+    .trim()
+    .toUpperCase()
+    .split("-");
+  if (rest.length > 0 || orderId === undefined || confirmationCode === undefined) return undefined;
+  if (!idSchema.safeParse(orderId).success) return undefined;
+  if (!confirmationCodePattern.test(confirmationCode)) return undefined;
+  return { orderId, confirmationCode };
+}
 
 /**
  * 匿名トークン。ブラウザの Cookie に入れるランダム値で、来場者本人の注文・投稿を判定する。

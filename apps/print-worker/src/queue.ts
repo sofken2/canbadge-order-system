@@ -8,8 +8,11 @@ import {
   failPrintSheet,
   getCurrentPrintSheet,
   getSetting,
+  latestAuditSeq,
+  latestAuditSeqOf,
   listPrintableItems,
   newId,
+  PRINT_FLUSH_ACTION,
   type PrintableItem,
   recordPrintSkip,
   setPrintPaused,
@@ -236,6 +239,35 @@ export async function runQueueOnce(db: Database, options: QueueOptions): Promise
 }
 
 /**
+ * 緊急印刷の依頼（操作ログの print_queue.flush）を見張る。
+ * 依頼があったら、待ち時間を 0 にして巡回し、印刷待ちが空になるまで続ける。
+ * 依頼は、このプロセスが起動したあとのものだけを見る（再起動前の古い依頼で、突然印刷しない）
+ */
+export function createFlushWatcher(db: Database) {
+  let seenSeq = latestAuditSeq(db);
+  let pending = false;
+  return {
+    /** 巡回の前に呼ぶ。いま緊急印刷として動くべきか */
+    check: (): boolean => {
+      const requested = latestAuditSeqOf(db, seenSeq, PRINT_FLUSH_ACTION);
+      if (requested !== undefined) {
+        seenSeq = requested;
+        pending = true;
+      }
+      return pending;
+    },
+    /**
+     * 巡回の結果を受けて、緊急印刷を続けるか決める。
+     * シートを印刷した（まだ残りがあるかもしれない）・別のシートが印刷中のときだけ続け、
+     * 空になった・止まっている・失敗したときは終える（失敗し続けないため）
+     */
+    done: (result: TickResult): void => {
+      if (result.status !== "printed" && result.status !== "busy") pending = false;
+    },
+  };
+}
+
+/**
  * 印刷キューを、一定の間隔で巡回し続ける。巡回が終わる前に、次の巡回は始めない。
  * stop は、いま動いている巡回が終わるのを待ってから返る（印刷の記録の途中で、止めないため）
  */
@@ -246,12 +278,18 @@ export function startQueueLoop(
 ): { stop: () => Promise<void> } {
   const skips = options.skips ?? createSkipRegistry();
   const loopOptions = { ...options, skips };
+  const flush = createFlushWatcher(db);
   let current: Promise<void> | undefined;
   let stopped = false;
 
   const tick = async () => {
     try {
-      const result = await runQueueOnce(db, loopOptions);
+      const flushing = flush.check();
+      const result = await runQueueOnce(
+        db,
+        flushing ? { ...loopOptions, waitOverrideSeconds: 0 } : loopOptions,
+      );
+      flush.done(result);
       if (result.status === "printed") {
         options.log?.(
           `シート ${result.sheetId} を ${options.driver.name} ドライバーで印刷しました（注文 ${result.orderNumbers.join(", ")}）`,

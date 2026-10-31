@@ -1,6 +1,6 @@
 import { badgeSpec } from "@canbadge/badge-spec";
 import { OutputPreview } from "@canbadge/editor";
-import { kiraPatternLabels, orderStatusLabels } from "@canbadge/shared";
+import { kiraPatternLabels, orderQrValue, orderStatusLabels } from "@canbadge/shared";
 import {
   BackButton,
   Button,
@@ -146,7 +146,10 @@ export function OrderStatusPage({ orderId }: { orderId: string }) {
 
         {showsQr(data.status) && (
           <section className="cb-ticket__qr" aria-label="注文の QR コード">
-            <QrCode value={data.id} label={`注文 ${data.orderNumberText} の QR コード`} />
+            <QrCode
+              value={orderQrValue(data.id, data.confirmationCode)}
+              label={`注文 ${data.orderNumberText} の QR コード`}
+            />
             <p className="cb-muted">
               {data.status === "submitted"
                 ? "レジでこの QR を読み取り機に向けてください"

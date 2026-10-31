@@ -163,9 +163,23 @@ describe("設定の入力", () => {
 
   test("変更の有無：保存済みと同じなら、変更なし（前後の空白は無視）", () => {
     const form = formFromSetting(setting);
-    expect(formChanged(form, setting)).toBe(false);
-    expect(formChanged({ ...form, price: " 300 " }, setting)).toBe(false);
-    expect(formChanged({ ...form, price: "310" }, setting)).toBe(true);
+    expect(formChanged(form, form)).toBe(false);
+    expect(formChanged({ ...form, price: " 300 " }, form)).toBe(false);
+    expect(formChanged({ ...form, price: "310" }, form)).toBe(true);
+  });
+
+  test("在庫の欄は残りで、変えた欄だけを送る", () => {
+    const base = formFromSetting(setting, {
+      badgeStock: 250,
+      kiraShardsStock: 70,
+      kiraAuroraStock: 60,
+      magnetStock: 0,
+    });
+    expect(base.badgeStock).toBe("250");
+    const parsed = parseSettingsForm({ ...base, kiraAuroraStock: "80" }, base);
+    expect(parsed.ok && parsed.value).toMatchObject({ kiraAuroraStock: 80 });
+    expect(parsed.ok && "badgeStock" in parsed.value).toBe(false);
+    expect(parsed.ok && "magnetStock" in parsed.value).toBe(false);
   });
 });
 

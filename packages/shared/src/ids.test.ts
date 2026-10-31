@@ -5,6 +5,8 @@ import {
   confirmationCodeSchema,
   formatOrderNumber,
   idSchema,
+  orderQrValue,
+  parseOrderQr,
 } from "./ids";
 import { relativePathSchema } from "./primitives";
 
@@ -59,5 +61,23 @@ describe("データ置き場からの相対パス", () => {
     for (const bad of ["/etc/passwd", "../x", "images/../x", "a\\b", "C:\\x", "C:x", ""]) {
       expect(relativePathSchema.safeParse(bad).success).toBe(false);
     }
+  });
+});
+
+describe("注文の QR", () => {
+  const id = "01M4886AJW3N2PNETJY96MXERK";
+
+  test("作った値を、読み戻せる", () => {
+    expect(parseOrderQr(orderQrValue(id, "K7QH"))).toEqual({
+      orderId: id,
+      confirmationCode: "K7QH",
+    });
+  });
+
+  test("形が違うものは読まない（ID だけ・確認コードの文字が違う・区切りが多い）", () => {
+    expect(parseOrderQr(id)).toBeUndefined();
+    expect(parseOrderQr(`${id}-0O1I`)).toBeUndefined();
+    expect(parseOrderQr(`${id}-K7QH-K7QH`)).toBeUndefined();
+    expect(parseOrderQr("abc-K7QH")).toBeUndefined();
   });
 });

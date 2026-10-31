@@ -8,10 +8,11 @@ import {
 import { and, eq, ne } from "drizzle-orm";
 import { writeAudit } from "./audit";
 import type { Database } from "./connection";
-import { validationFailed } from "./errors";
+import { DbError, validationFailed } from "./errors";
 import { applyOrderTransition } from "./orders";
 import { getSetting } from "./queries";
 import { orders, settings } from "./schema";
+import { countStockUsed } from "./stock";
 import { type Ctx, write } from "./transaction";
 
 /** busy にしたときに、案内文を指定しなかった場合の文言 */
@@ -141,6 +142,33 @@ export function setPrintPaused(db: Database, input: { paused: boolean; actor: Ac
   });
 }
 
+/** 緊急印刷の依頼を残す操作名。print-worker が、操作ログからこれを見つけて、待たずに印刷する */
+export const PRINT_FLUSH_ACTION = "print_queue.flush";
+
+/**
+ * 緊急印刷。印刷待ちのバッジを、用紙が埋まるのも、待ち時間も待たずに、いますぐ印刷する依頼。
+ * 依頼は操作ログに残すだけで、印刷は print-worker が次の巡回で行う（別のプロセスなので、DB を通して伝える）。
+ * 印刷を止めているときは、止めた意図を勝手に破らないよう、断る
+ */
+export function requestPrintFlush(db: Database, input: { actor: Actor }): Setting {
+  return write(db, (ctx) => {
+    const setting = getSetting(ctx.tx);
+    if (setting.printPaused) {
+      throw new DbError(
+        "INVALID_TRANSITION",
+        "印刷を止めています。先に印刷を再開してから、緊急印刷をしてください",
+      );
+    }
+    writeAudit(ctx, {
+      actor: input.actor,
+      action: PRINT_FLUSH_ACTION,
+      targetType: "setting",
+      targetId: "1",
+    });
+    return setting;
+  });
+}
+
 /** 画面で編集する項目（価格・上限など）を、まとめて置き換える */
 export function updateSetting(
   db: Database,
@@ -149,13 +177,25 @@ export function updateSetting(
   const parsed = updateSettingRequestSchema.safeParse(input.values);
   if (!parsed.success) throw validationFailed("設定の値が正しくありません", parsed.error.issues);
   return write(db, (ctx) => {
-    const after = updateSettingRow(ctx, parsed.data);
+    // 在庫は「残りをこの数にする」指定。総数 = 指定の数 + いま使われている数 に直して保存する
+    // （同じトランザクションの中で数えるので、注文と重なっても、残りは指定の数になる）
+    const used = countStockUsed(ctx.tx);
+    const { badgeStock, kiraShardsStock, kiraAuroraStock, magnetStock, ...rest } = parsed.data;
+    const patch: Partial<Omit<Setting, "updatedAt">> = { ...rest };
+    if (badgeStock !== undefined) patch.badgeStock = badgeStock + used.badge;
+    if (kiraShardsStock !== undefined) patch.kiraShardsStock = kiraShardsStock + used.kiraShards;
+    if (kiraAuroraStock !== undefined) patch.kiraAuroraStock = kiraAuroraStock + used.kiraAurora;
+    if (magnetStock !== undefined) patch.magnetStock = magnetStock + used.magnet;
+    const after = updateSettingRow(ctx, patch);
     writeAudit(ctx, {
       actor: input.actor,
       action: "settings.update",
       targetType: "setting",
       targetId: "1",
-      detail: { values: parsed.data },
+      detail: {
+        values: patch,
+        stockRemainingSetTo: { badgeStock, kiraShardsStock, kiraAuroraStock, magnetStock },
+      },
     });
     return after;
   });
